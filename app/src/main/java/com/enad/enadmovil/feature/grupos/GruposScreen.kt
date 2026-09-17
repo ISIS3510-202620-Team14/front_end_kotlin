@@ -1,14 +1,10 @@
 package com.enad.enadmovil.feature.grupos
 
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.BottomAppBar
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TopAppBar
@@ -16,10 +12,21 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.enad.enadmovil.core.navigation.EnadDestination
+import androidx.compose.material3.NavigationBarItemDefaults
+import com.enad.enadmovil.core.ui.theme.pillBackgroundLight
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GruposScreen() {
+    var selectedDestination by rememberSaveable() { mutableStateOf(EnadDestination.GRUPOS)}
 
     Scaffold(
         topBar = {
@@ -34,16 +41,26 @@ fun GruposScreen() {
             )
         },
         bottomBar = {
-            BottomAppBar(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.primary,
-            ) {
-                Text(
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center,
-                    text = "Bottom app var"
-                )
+            NavigationBar {
+                EnadDestination.entries.forEach {
+                    destination ->
+                    NavigationBarItem(
+                        selected = selectedDestination == destination,
+                        onClick = { selectedDestination = destination },
+                        icon = {
+                            Icon(
+                                imageVector = destination.icon,
+                                contentDescription = destination.label
+                            )
+                        },
+                        label = { Text(destination.label)},
+                        colors = NavigationBarItemDefaults.colors(
+                            indicatorColor = pillBackgroundLight
+                        )
+                    )
+                }
             }
+
         }
     ) { innerPadding ->
         Column(
@@ -52,9 +69,8 @@ fun GruposScreen() {
         ) {
             Text(
                 modifier = Modifier.padding(8.dp),
-                text = """
-                    Here go the content.
-                """.trimIndent()
+                text = "Here go the content." +
+                        ""
             )
         }
 
