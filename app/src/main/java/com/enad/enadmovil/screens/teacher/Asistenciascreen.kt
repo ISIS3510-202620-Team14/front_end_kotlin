@@ -1,11 +1,13 @@
 package com.enad.enadmovil.ui.screens.teacher
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.Person
@@ -18,6 +20,10 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -25,18 +31,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.enad.enadmovil.ui.theme.EnadBorder
 import com.enad.enadmovil.ui.theme.EnadHeader
 import com.enad.enadmovil.ui.theme.EnadHeaderChip
 import com.enad.enadmovil.ui.theme.EnadMovilTheme
 
-// Paso 1/6: scaffold de la pantalla de Asistencia (header + título + subtítulo).
-// Todavía sin filtros de curso, selector de día ni lista de estudiantes.
+// Paso 2/6: chips de filtro "CURSO" (Todos / Grado 3 / Grado 4 / Grado 5).
+// Todavía sin selector de día ni lista de estudiantes.
+private val CURSOS_DISPONIBLES = listOf("Todos", "Grado 3", "Grado 4", "Grado 5")
+
 @Composable
 fun AsistenciaScreen(
     profesorNombre: String = "Mateo",
     grupoSubtitulo: String = "Antonia Santos · Grado 5",
     onCambiarUsuario: () -> Unit = {}
 ) {
+    var cursoSeleccionado by remember { mutableStateOf(CURSOS_DISPONIBLES.first()) }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = { AsistenciaTopBar(profesorNombre, onCambiarUsuario) },
@@ -57,6 +68,71 @@ fun AsistenciaScreen(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(text = grupoSubtitulo, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = "CURSO",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            CursoFiltroChips(
+                opciones = CURSOS_DISPONIBLES,
+                seleccionado = cursoSeleccionado,
+                onSeleccionar = { cursoSeleccionado = it }
+            )
+        }
+    }
+}
+
+@Composable
+private fun CursoFiltroChips(opciones: List<String>, seleccionado: String, onSeleccionar: (String) -> Unit) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        opciones.forEach { opcion ->
+            val estaSeleccionado = opcion == seleccionado
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .background(
+                        color = if (estaSeleccionado) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                        } else {
+                            MaterialTheme.colorScheme.surface
+                        },
+                        shape = RoundedCornerShape(20.dp)
+                    )
+                    .let {
+                        if (estaSeleccionado) it else it.border(1.dp, EnadBorder, RoundedCornerShape(20.dp))
+                    }
+                    .clickable { onSeleccionar(opcion) }
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
+            ) {
+                if (estaSeleccionado) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                }
+                Text(
+                    text = opcion,
+                    fontSize = 13.sp,
+                    fontWeight = if (estaSeleccionado) FontWeight.Bold else FontWeight.Normal,
+                    color = if (estaSeleccionado) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onBackground
+                    }
+                )
+            }
         }
     }
 }

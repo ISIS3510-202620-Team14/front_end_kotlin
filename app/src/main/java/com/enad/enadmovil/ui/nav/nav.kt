@@ -1,6 +1,10 @@
 package com.enad.enadmovil.ui.nav
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -40,6 +44,8 @@ private fun volverALogin(navController: NavHostController) {
 
 @Composable
 fun AppNavigation(navController: NavHostController = rememberNavController()) {
+    var nombreUsuario by remember { mutableStateOf("") }
+
     NavHost(navController = navController, startDestination = Routes.LOGIN) {
 
         composable(Routes.LOGIN) {
@@ -47,6 +53,7 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                 onEntrarClick = { usuario, _ ->
                     val destino = rolParaUsuario(usuario)
                     if (destino != null) {
+                        nombreUsuario = usuario.trim().replaceFirstChar { it.uppercase() }
                         navController.navigate(destino) {
                             popUpTo(Routes.LOGIN) { inclusive = true }
                         }
@@ -57,6 +64,7 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
 
         composable(Routes.TEACHER_HOME) {
             TeacherHomeScreen(
+                profesorNombre = nombreUsuario,
                 onCambiarUsuario = { volverALogin(navController) },
                 onTabClick = { tab ->
                     if (tab.label == "Mi lista") {
@@ -68,6 +76,7 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
 
         composable(Routes.ASISTENCIA) {
             AsistenciaScreen(
+                profesorNombre = nombreUsuario,
                 onCambiarUsuario = { volverALogin(navController) }
             )
         }
