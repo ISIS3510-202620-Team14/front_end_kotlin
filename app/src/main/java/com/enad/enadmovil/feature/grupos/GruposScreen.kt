@@ -46,16 +46,19 @@ import androidx.compose.material3.Tab
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.enad.enadmovil.core.ui.theme.amberBackgroundContainerLight
 import com.enad.enadmovil.domain.model.AreaMateria
 import com.enad.enadmovil.domain.model.Grupo
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GruposScreen(modifier: Modifier = Modifier) {
+    val viewModel: GruposViewModel = viewModel()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var selectedDestination by rememberSaveable() { mutableStateOf(EnadDestination.GRUPOS)}
-    var selectedTabIndex by rememberSaveable() {mutableStateOf(0) }
-    val subjectAreas = listOf("Matemáticas", "Lectura")
+
     Scaffold(
         topBar = {
             Surface(
@@ -117,7 +120,6 @@ fun GruposScreen(modifier: Modifier = Modifier) {
 
         }
     ) { innerPadding ->
-        val areaSeleccionada = if (selectedTabIndex == 0) AreaMateria.MATEMATICAS else AreaMateria.LECTURA
         LazyColumn(
             modifier = Modifier.padding(innerPadding).padding(horizontal = 16.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -134,11 +136,11 @@ fun GruposScreen(modifier: Modifier = Modifier) {
                 )
             }
             item {
-                SecondaryTabRow(selectedTabIndex = selectedTabIndex, containerColor = Color.Transparent) {
-                    subjectAreas.forEachIndexed { index, label ->
+                SecondaryTabRow(selectedTabIndex = uiState.selectedTabIndex, containerColor = Color.Transparent) {
+                    uiState.subjectAreas.forEachIndexed { index, label ->
                         Tab(
-                            selected = selectedTabIndex == index,
-                            onClick = { selectedTabIndex = index },
+                            selected = uiState.selectedTabIndex == index,
+                            onClick = { viewModel.onTabSelected(index) },
                             text = { Text(label, style = typography.labelLarge) },
                             selectedContentColor = colorScheme.primary,
                             unselectedContentColor = colorScheme.onSurfaceVariant
@@ -147,37 +149,40 @@ fun GruposScreen(modifier: Modifier = Modifier) {
                 }
             }
 
-
-            val gruposDeEjemplo = listOf(Grupo("Grupo Abejitas", 2, "Yo", AreaMateria.MATEMATICAS), Grupo("Grupo Colibríes", 2, "Prof. Nelson" ,
-                AreaMateria.MATEMATICAS),
-                Grupo("Grupo Tortugas", 1, "Prof. Marina", AreaMateria.MATEMATICAS))
-            items(gruposDeEjemplo.filter { it.area == areaSeleccionada }) {
-                grupo ->
-                GrupoCard(nombre = grupo.nombre, cantidadNinos = grupo.cantidadNinos, docente = grupo.docente, onVer = {}, onEditar = {})
-            }
-            if (areaSeleccionada == AreaMateria.MATEMATICAS) {
+            if (uiState.grupos.isEmpty()) {
                 item {
-                    Surface(color = amberBackgroundContainerLight, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
-                        Row(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Surface(color = colorScheme.tertiary, shape = CircleShape, modifier = Modifier.size(28.dp)) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(text= "3", color=colorScheme.onTertiary, style = typography.labelLarge)
+                    EmptyGroupsMessage(title = if (uiState.selectedTabIndex == 0) "Todavía no hay grupos de matemáticas" else "Todavía no hay grupos de lectura", onCrearGrupo = {})
+                }
+            }
+            else {
+                items(uiState.grupos) {
+                    grupo ->
+                    GrupoCard(nombre = grupo.nombre, cantidadNinos = grupo.cantidadNinos, docente = grupo.docente, onVer = {}, onEditar = {})
+                }
+                if (uiState.selectedTabIndex == 0) {
+                    item {
+                        Surface(color = amberBackgroundContainerLight, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                            Row(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Surface(color = colorScheme.tertiary, shape = CircleShape, modifier = Modifier.size(28.dp)) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(text = uiState.ninosSinGrupo.toString(), color = colorScheme.onTertiary, style = typography.labelLarge)
+                                    }
                                 }
+                                Text(text = "niños todavía sin grupo.", style = typography.bodyMedium)
                             }
-                            Text(text = "niños todavía sin grupo.", style = typography.bodyMedium)
                         }
                     }
-                }
-                item {
-                    OutlinedCard(onClick = {}, modifier = Modifier.fillMaxWidth()) {
-                       Row(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                           Column(modifier = Modifier.weight(1f)) {
-                               Text(text = "Crear grupo", style = typography.titleMedium)
-                               Text(text = "Un grupo a la vez: nombre, docente y niños", style = typography.bodyMedium)
-                           }
-                           Icon(Icons.Default.ChevronRight, contentDescription = null)
-                       }
+                    item {
+                        OutlinedCard(onClick = {}, modifier = Modifier.fillMaxWidth()) {
+                            Row(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = "Crear grupo", style = typography.titleMedium)
+                                    Text(text = "Un grupo a la vez: nombre, docente y niños", style = typography.bodyMedium)
+                                }
+                                Icon(Icons.Default.ChevronRight, contentDescription = null)
+                            }
+                        }
                     }
                 }
             }
