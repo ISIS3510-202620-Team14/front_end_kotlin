@@ -1,19 +1,23 @@
 package com.enad.enadmovil.feature.grupos
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
@@ -36,6 +40,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.enad.enadmovil.domain.model.Grupo
 import com.enad.enadmovil.domain.model.Nino
@@ -60,6 +66,7 @@ fun EditarGrupoScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(colorScheme.background)
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 18.dp),
@@ -67,7 +74,7 @@ fun EditarGrupoScreen(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Volver")
             }
             Column {
                 Text(text = "Editar grupo", style = typography.titleLarge)
@@ -102,15 +109,23 @@ fun EditarGrupoScreen(
                     }
                     DropdownMenu(
                         expanded = menuDocenteAbierto,
-                        onDismissRequest = { menuDocenteAbierto = false }
+                        onDismissRequest = { menuDocenteAbierto = false },
+                        containerColor = colorScheme.surface,
+                        offset = DpOffset(x = 140.dp, y = 0.dp),
+                        modifier = Modifier.width(240.dp)
                     ) {
                         docentesDisponibles.forEach { docente ->
+                            val seleccionado = docente == grupo.docente
                             DropdownMenuItem(
-                                text = { Text(docente) },
+                                text = { Text(docente, style = typography.titleMedium) },
                                 onClick = {
                                     onDocenteChange(docente)
                                     menuDocenteAbierto = false
-                                }
+                                },
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+                                modifier = Modifier.background(
+                                    if (seleccionado) colorScheme.surfaceVariant else Color.Transparent
+                                )
                             )
                         }
                     }
@@ -144,6 +159,7 @@ fun EditarGrupoScreen(
             Button(
                 onClick = { mostrarMeterNinos = true },
                 colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary),
+                shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.weight(1f).height(52.dp)
             ) {
                 Text("Meter niños")

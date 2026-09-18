@@ -1,5 +1,6 @@
 package com.enad.enadmovil.feature.grupos
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,9 +11,9 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.School
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme.colorScheme
@@ -27,10 +28,10 @@ import com.enad.enadmovil.domain.model.Grupo
 
 @Composable
 fun VerGrupoScreen(grupo: Grupo, materia: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier = modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(modifier = modifier.fillMaxSize().background(colorScheme.background).statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Volver")
             }
             Column {
                 Text(text = grupo.nombre, style = typography.titleLarge)
@@ -40,11 +41,11 @@ fun VerGrupoScreen(grupo: Grupo, materia: String, onBack: () -> Unit, modifier: 
         OutlinedCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement =  Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Default.School, contentDescription = null, tint = colorScheme.onSurfaceVariant)
+                    Icon(Icons.Outlined.School, contentDescription = null, tint = colorScheme.onSurfaceVariant)
                     Text(text = grupo.docente, style = typography.bodyLarge)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement =  Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Default.Person, contentDescription = null, tint = colorScheme.onSurfaceVariant)
+                    Icon(Icons.Outlined.Person, contentDescription = null, tint = colorScheme.onSurfaceVariant)
                     Text(text = if(grupo.ninos.size == 1) "1 niño" else "${grupo.ninos.size} niños", style = typography.bodyLarge)
                 }
             }
