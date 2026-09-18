@@ -138,6 +138,7 @@ private fun AdminTopBar(nombreUsuario: String, portalLabel: String, onCambiarUsu
         modifier = Modifier
             .fillMaxWidth()
             .background(EnadHeader)
+            .windowInsetsPadding(WindowInsets.statusBars)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -155,6 +156,7 @@ private fun AdminTopBar(nombreUsuario: String, portalLabel: String, onCambiarUsu
         Box(
             modifier = Modifier
                 .background(EnadHeaderChip, RoundedCornerShape(8.dp))
+                .clickable(onClick = onCambiarUsuario)
                 .padding(horizontal = 10.dp, vertical = 8.dp)
         ) {
             Text(text = "Cambiar\nusuario", fontSize = 11.sp, color = Color.White)
