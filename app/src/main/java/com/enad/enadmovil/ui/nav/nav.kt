@@ -7,12 +7,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.enad.enadmovil.ui.screens.admin.AdminHomeScreen
 import com.enad.enadmovil.ui.screens.auth.LoginScreen
+import com.enad.enadmovil.ui.screens.foundation.FoundationReportsScreen
 import com.enad.enadmovil.ui.screens.teacher.TeacherHomeScreen
 
 private object Routes {
     const val LOGIN = "login"
     const val TEACHER_HOME = "teacher_home"
     const val ADMIN_HOME = "admin_home"
+    const val FOUNDATION_REPORTS = "foundation_reports"
 }
 
 // Mapeo temporal usando las mismas credenciales de la tarjeta "Credenciales de
@@ -20,9 +22,18 @@ private object Routes {
 // a qué pantalla navegar en esta entrega visual.
 private fun rolParaUsuario(usuario: String): String? = when (usuario.trim().lowercase()) {
     "mateo" -> Routes.TEACHER_HOME
-    "sofia" -> Routes.ADMIN_HOME
-    "aifos" -> Routes.ADMIN_HOME // voluntario reutiliza el layout de admin por ahora
+    "sofia" -> Routes.FOUNDATION_REPORTS
+    "aifos" -> Routes.ADMIN_HOME // voluntario sigue en el layout de admin por ahora
     else -> null
+}
+
+// "Cambiar usuario" limpia todo el back stack y regresa a Login, sin importar
+// desde qué pantalla se llame. Así no queda historial para volver con el botón
+// atrás a una sesión anterior. mujejejejeeee locuraaaa
+private fun volverALogin(navController: NavHostController) {
+    navController.navigate(Routes.LOGIN) {
+        popUpTo(navController.graph.id) { inclusive = true }
+    }
 }
 
 @Composable
@@ -38,18 +49,26 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                             popUpTo(Routes.LOGIN) { inclusive = true }
                         }
                     }
-                    // TODO: si el usuario no coincide con ninguna credencial demo,
-                    // por ahora simplemente no navega. Falta mostrar error visual.
                 }
             )
         }
 
         composable(Routes.TEACHER_HOME) {
-            TeacherHomeScreen()
+            TeacherHomeScreen(
+                onCambiarUsuario = { volverALogin(navController) }
+            )
         }
 
         composable(Routes.ADMIN_HOME) {
-            AdminHomeScreen()
+            AdminHomeScreen(
+                onCambiarUsuario = { volverALogin(navController) }
+            )
+        }
+
+        composable(Routes.FOUNDATION_REPORTS) {
+            FoundationReportsScreen(
+                onCambiarUsuario = { volverALogin(navController) }
+            )
         }
     }
 }
