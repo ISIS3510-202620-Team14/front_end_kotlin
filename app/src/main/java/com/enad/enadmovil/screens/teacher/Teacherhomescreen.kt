@@ -1,6 +1,7 @@
 package com.enad.enadmovil.ui.screens.teacher
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -108,6 +109,7 @@ private fun TeacherTopBar(profesorNombre: String, onCambiarUsuario: () -> Unit) 
         modifier = Modifier
             .fillMaxWidth()
             .background(EnadHeader)
+            .windowInsetsPadding(WindowInsets.statusBars)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -125,6 +127,7 @@ private fun TeacherTopBar(profesorNombre: String, onCambiarUsuario: () -> Unit) 
         Box(
             modifier = Modifier
                 .background(EnadHeaderChip, RoundedCornerShape(8.dp))
+                .clickable(onClick = onCambiarUsuario)
                 .padding(horizontal = 10.dp, vertical = 8.dp)
         ) {
             Text(text = "Cambiar\nusuario", fontSize = 11.sp, color = Color.White)
