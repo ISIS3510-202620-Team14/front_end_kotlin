@@ -4,7 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.enad.enadmovil.ui.screens.auth.LoginScreen
+import com.enad.enadmovil.ui.nav.AppNavigation
 import com.enad.enadmovil.ui.theme.EnadMovilTheme
 
 class MainActivity : ComponentActivity() {
@@ -13,7 +13,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             EnadMovilTheme {
-                LoginScreen()
+                AppNavigation()
             }
         }
     }
