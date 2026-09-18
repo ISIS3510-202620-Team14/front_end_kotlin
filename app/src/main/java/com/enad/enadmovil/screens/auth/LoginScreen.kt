@@ -39,7 +39,6 @@ private val CardBg = Color(0xFFEFE7D8)
 fun LoginScreen(
     onEntrarClick: (usuario: String, contrasena: String) -> Unit = { _, _ -> }
 ) {
-    // Estado real: aquí sí se puede escribir. Sin validación ni conexión a backend todavía.
     var usuario by remember { mutableStateOf("") }
     var contrasena by remember { mutableStateOf("") }
     var mostrarContrasena by remember { mutableStateOf(false) }
