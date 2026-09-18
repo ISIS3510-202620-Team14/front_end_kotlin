@@ -8,6 +8,7 @@ import androidx.navigation.compose.rememberNavController
 import com.enad.enadmovil.ui.screens.admin.AdminHomeScreen
 import com.enad.enadmovil.ui.screens.auth.LoginScreen
 import com.enad.enadmovil.ui.screens.foundation.FoundationReportsScreen
+import com.enad.enadmovil.ui.screens.teacher.AsistenciaScreen
 import com.enad.enadmovil.ui.screens.teacher.TeacherHomeScreen
 
 private object Routes {
@@ -15,6 +16,7 @@ private object Routes {
     const val TEACHER_HOME = "teacher_home"
     const val ADMIN_HOME = "admin_home"
     const val FOUNDATION_REPORTS = "foundation_reports"
+    const val ASISTENCIA = "asistencia"
 }
 
 // Mapeo temporal usando las mismas credenciales de la tarjeta "Credenciales de
@@ -55,6 +57,17 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
 
         composable(Routes.TEACHER_HOME) {
             TeacherHomeScreen(
+                onCambiarUsuario = { volverALogin(navController) },
+                onTabClick = { tab ->
+                    if (tab.label == "Mi lista") {
+                        navController.navigate(Routes.ASISTENCIA)
+                    }
+                }
+            )
+        }
+
+        composable(Routes.ASISTENCIA) {
+            AsistenciaScreen(
                 onCambiarUsuario = { volverALogin(navController) }
             )
         }
