@@ -49,8 +49,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.enad.enadmovil.core.ui.theme.amberBackgroundContainerLight
-import com.enad.enadmovil.domain.model.AreaMateria
-import com.enad.enadmovil.domain.model.Grupo
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 sealed class PantallaGrupos {
