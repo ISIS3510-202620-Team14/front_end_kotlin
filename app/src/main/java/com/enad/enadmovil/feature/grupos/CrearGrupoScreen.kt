@@ -46,23 +46,14 @@ import com.enad.enadmovil.core.ui.theme.onInkLight
 import com.enad.enadmovil.domain.model.Nino
 import kotlin.math.ceil
 
-private val ninosDeEjemplo = listOf(
-    Nino(1, "María López Quintero", "1 dígito", 3),
-    Nino(2, "Juan Carlos Cruz", "Principiante", 3),
-    Nino(3, "Juan Carlos Cruz", "Sin nivel", 4),
-    Nino(4, "Lucía Restrepo", "2 dígitos", 4),
-    Nino(5, "Pedro Ramírez", "Sin nivel", 4),
-    Nino(6, "Sofía Betancur", "Principiante", 5)
-)
-
-private val docentesDisponibles = listOf("Yo", "Prof. Nelson", "Prof. Marina", "Sin asignar")
+val docentesDisponibles = listOf("Yo", "Prof. Nelson", "Prof. Marina", "Sin asignar")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CrearGrupoScreen(
     materia: String,
     onBack: () -> Unit,
-    onGuardar: (nombre: String, cantidadNinos: Int, docente: String) -> Unit,
+    onGuardar: (nombre: String, ninos: List<Nino>, docente: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var cantidadNinos by rememberSaveable { mutableIntStateOf(8) }
@@ -227,7 +218,7 @@ fun CrearGrupoScreen(
 
         Button(
             onClick = {
-                onGuardar(nombreGrupo, ninosSeleccionados.size, docenteSeleccionado)
+                onGuardar(nombreGrupo, ninosSeleccionados.toList(), docenteSeleccionado)
                 onBack()
             },
             enabled = nombreGrupo.isNotBlank(),
@@ -241,6 +232,7 @@ fun CrearGrupoScreen(
 
     if (mostrarMeterNinos) {
         MeterNinosDialog(
+            titulo = "Meter niños a este grupo",
             ninos = ninosDeEjemplo,
             seleccionados = ninosSeleccionados,
             onSeleccionadosChange = { ninosSeleccionados = it },

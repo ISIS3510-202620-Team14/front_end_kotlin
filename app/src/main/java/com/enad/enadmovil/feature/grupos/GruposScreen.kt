@@ -29,6 +29,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.enad.enadmovil.core.navigation.EnadDestination
@@ -52,23 +53,67 @@ import com.enad.enadmovil.domain.model.AreaMateria
 import com.enad.enadmovil.domain.model.Grupo
 import androidx.lifecycle.viewmodel.compose.viewModel
 
+sealed class PantallaGrupos {
+    data object Lista : PantallaGrupos()
+    data object Crear : PantallaGrupos()
+    data class Ver(val grupoId: Int) : PantallaGrupos()
+    data class Editar(val grupoId: Int) : PantallaGrupos()
+}
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GruposScreen(modifier: Modifier = Modifier) {
     val viewModel: GruposViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var selectedDestination by rememberSaveable() { mutableStateOf(EnadDestination.GRUPOS)}
-    var mostrarCrearGrupo by rememberSaveable { mutableStateOf(false) }
+    var pantalla by remember { mutableStateOf<PantallaGrupos>(PantallaGrupos.Lista) }
 
-    if (mostrarCrearGrupo) {
-        CrearGrupoScreen(
-            materia = uiState.subjectAreas[uiState.selectedTabIndex],
-            onBack = { mostrarCrearGrupo = false },
-            onGuardar = {nombre, cantidadNinos, docente ->
-                viewModel.agregarGrupo(nombre, cantidadNinos, docente)
+    when (val actual = pantalla) {
+        is PantallaGrupos.Crear -> {
+            CrearGrupoScreen(
+                materia = uiState.subjectAreas[uiState.selectedTabIndex],
+                onBack = { pantalla = PantallaGrupos.Lista },
+                onGuardar = { nombre, ninos, docente ->
+                    viewModel.agregarGrupo(nombre, ninos, docente)
+                    pantalla = PantallaGrupos.Lista
+                }
+            )
+            return
+        }
+        is PantallaGrupos.Ver -> {
+            val grupo = uiState.grupos.find { it.id == actual.grupoId }
+            if (grupo != null) {
+                VerGrupoScreen(
+                    grupo = grupo,
+                    materia = uiState.subjectAreas[uiState.selectedTabIndex],
+                    onBack = { pantalla = PantallaGrupos.Lista }
+                )
+                return
+            } else {
+                pantalla = PantallaGrupos.Lista
             }
-        )
-        return
+        }
+        is PantallaGrupos.Editar -> {
+            val grupo = uiState.grupos.find { it.id == actual.grupoId }
+            if (grupo != null) {
+                EditarGrupoScreen(
+                    grupo = grupo,
+                    materia = uiState.subjectAreas[uiState.selectedTabIndex],
+                    onBack = { pantalla = PantallaGrupos.Lista },
+                    onNombreChange = { nuevoNombre -> viewModel.actualizarNombre(grupo.id, nuevoNombre) },
+                    onDocenteChange = { nuevoDocente -> viewModel.actualizarDocente(grupo.id, nuevoDocente) },
+                    onQuitarNino = { nino -> viewModel.quitarNino(grupo.id, nino) },
+                    onAgregarNinos = { ninos -> viewModel.agregarNinos(grupo.id, ninos) },
+                    onEliminarGrupo = {
+                        viewModel.eliminarGrupo(grupo.id)
+                        pantalla = PantallaGrupos.Lista
+                    }
+                )
+                return
+            } else {
+                pantalla = PantallaGrupos.Lista
+            }
+        }
+        PantallaGrupos.Lista -> { }
     }
 
     Scaffold(
@@ -163,13 +208,19 @@ fun GruposScreen(modifier: Modifier = Modifier) {
 
             if (uiState.grupos.isEmpty()) {
                 item {
-                    EmptyGroupsMessage(title = if (uiState.selectedTabIndex == 0) "Todavía no hay grupos de matemáticas" else "Todavía no hay grupos de lectura", onCrearGrupo = { mostrarCrearGrupo = true })
+                    EmptyGroupsMessage(title = if (uiState.selectedTabIndex == 0) "Todavía no hay grupos de matemáticas" else "Todavía no hay grupos de lectura", onCrearGrupo = { pantalla = PantallaGrupos.Crear })
                 }
             }
             else {
                 items(uiState.grupos) {
                     grupo ->
-                    GrupoCard(nombre = grupo.nombre, cantidadNinos = grupo.cantidadNinos, docente = grupo.docente, onVer = {}, onEditar = {})
+                    GrupoCard(
+                        nombre = grupo.nombre,
+                        cantidadNinos = grupo.ninos.size,
+                        docente = grupo.docente,
+                        onVer = { pantalla = PantallaGrupos.Ver(grupo.id) },
+                        onEditar = { pantalla = PantallaGrupos.Editar(grupo.id) }
+                    )
                 }
                 if (uiState.selectedTabIndex == 0) {
                     item {
@@ -186,7 +237,7 @@ fun GruposScreen(modifier: Modifier = Modifier) {
                         }
                     }
                     item {
-                        OutlinedCard(onClick = { mostrarCrearGrupo = true }, modifier = Modifier.fillMaxWidth()) {
+                        OutlinedCard(onClick = { pantalla = PantallaGrupos.Crear }, modifier = Modifier.fillMaxWidth()) {
                             Row(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(text = "Crear grupo", style = typography.titleMedium)

@@ -23,6 +23,7 @@ import com.enad.enadmovil.domain.model.Nino
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MeterNinosDialog(
+    titulo: String,
     ninos: List<Nino>,
     seleccionados: Set<Nino>,
     onSeleccionadosChange: (Set<Nino>) -> Unit,
@@ -32,7 +33,7 @@ fun MeterNinosDialog(
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
             Text(
-                text = "Meter niños a este grupo",
+                text = titulo,
                 style = typography.titleLarge,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
