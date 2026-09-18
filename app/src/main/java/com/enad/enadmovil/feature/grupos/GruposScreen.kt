@@ -58,6 +58,18 @@ fun GruposScreen(modifier: Modifier = Modifier) {
     val viewModel: GruposViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var selectedDestination by rememberSaveable() { mutableStateOf(EnadDestination.GRUPOS)}
+    var mostrarCrearGrupo by rememberSaveable { mutableStateOf(false) }
+
+    if (mostrarCrearGrupo) {
+        CrearGrupoScreen(
+            materia = uiState.subjectAreas[uiState.selectedTabIndex],
+            onBack = { mostrarCrearGrupo = false },
+            onGuardar = {nombre, cantidadNinos, docente ->
+                viewModel.agregarGrupo(nombre, cantidadNinos, docente)
+            }
+        )
+        return
+    }
 
     Scaffold(
         topBar = {
@@ -151,7 +163,7 @@ fun GruposScreen(modifier: Modifier = Modifier) {
 
             if (uiState.grupos.isEmpty()) {
                 item {
-                    EmptyGroupsMessage(title = if (uiState.selectedTabIndex == 0) "Todavía no hay grupos de matemáticas" else "Todavía no hay grupos de lectura", onCrearGrupo = {})
+                    EmptyGroupsMessage(title = if (uiState.selectedTabIndex == 0) "Todavía no hay grupos de matemáticas" else "Todavía no hay grupos de lectura", onCrearGrupo = { mostrarCrearGrupo = true })
                 }
             }
             else {
@@ -174,7 +186,7 @@ fun GruposScreen(modifier: Modifier = Modifier) {
                         }
                     }
                     item {
-                        OutlinedCard(onClick = {}, modifier = Modifier.fillMaxWidth()) {
+                        OutlinedCard(onClick = { mostrarCrearGrupo = true }, modifier = Modifier.fillMaxWidth()) {
                             Row(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(text = "Crear grupo", style = typography.titleMedium)
