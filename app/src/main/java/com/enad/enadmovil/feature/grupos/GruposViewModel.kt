@@ -1,89 +1,124 @@
 package com.enad.enadmovil.feature.grupos
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.enad.enadmovil.data.local.EnadDatabase
+import com.enad.enadmovil.data.local.GrupoEntity
+import com.enad.enadmovil.data.local.GrupoNinoCrossRef
+import com.enad.enadmovil.data.local.NinoEntity
+import com.enad.enadmovil.data.mapper.aGrupo
 import com.enad.enadmovil.domain.model.AreaMateria
-import com.enad.enadmovil.domain.model.Grupo
 import com.enad.enadmovil.domain.model.Nino
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
-class GruposViewModel: ViewModel() {
-    private var siguienteId = 4
-    private var todosLosGrupos = listOf(
-        Grupo(
-            id = 1,
-            nombre = "Grupo Abejitas",
-            ninos = listOf(
-                Nino(2, "Juan Carlos Cruz", "Principiante", 3),
-                Nino(6, "Sofía Betancur", "Principiante", 5)
-            ),
-            docente = "Yo",
-            area = AreaMateria.MATEMATICAS
-        ),
-        Grupo(
-            id = 2,
-            nombre = "Grupo Colibríes",
-            ninos = listOf(
-                Nino(1, "María López Quintero", "1 dígito", 3),
-                Nino(7, "Andrés Mejía", "Principiante", 4)
-            ),
-            docente = "Prof. Nelson",
-            area = AreaMateria.MATEMATICAS
-        ),
-        Grupo(
-            id = 3,
-            nombre = "Grupo Tortugas",
-            ninos = listOf(
-                Nino(5, "Pedro Ramírez", "Sin nivel", 4)
-            ),
-            docente = "Prof. Marina",
-            area = AreaMateria.MATEMATICAS
-        )
-    )
-    private val _uiState = MutableStateFlow(GruposUiState(subjectAreas = listOf("Matemáticas", "Lectura"), selectedTabIndex = 0, grupos = todosLosGrupos.filter { it.area == AreaMateria.MATEMATICAS }, ninosSinGrupo = 3, isLoading = false))
-    val uiState: StateFlow<GruposUiState> = _uiState.asStateFlow()
+class GruposViewModel(application: Application) : AndroidViewModel(application) {
+    private val dao = EnadDatabase.obtener(application).gruposDao()
+    private val selectedTabIndex = MutableStateFlow(0)
 
-    private fun refrescar() {
-        val area = if (_uiState.value.selectedTabIndex == 0) AreaMateria.MATEMATICAS else AreaMateria.LECTURA
-        _uiState.update { it.copy(grupos = todosLosGrupos.filter { g -> g.area == area}) }
-    }
-    fun onTabSelected(index: Int) {
-        val area = if (index == 0) AreaMateria.MATEMATICAS else AreaMateria.LECTURA
-        _uiState.update { currentState ->
-            currentState.copy(selectedTabIndex = index, grupos = todosLosGrupos.filter { it.area == area})
+    init {
+        viewModelScope.launch {
+            if (dao.contarGrupos() == 0) {
+                sembrarDatosDeEjemplo()
+            }
         }
     }
 
+    private suspend fun sembrarDatosDeEjemplo() {
+        dao.insertarNinos(
+            ninosDeEjemplo.map { NinoEntity(it.id, it.nombre, it.nivel, it.grado) }
+        )
+
+        val idAbejitas = dao.insertarGrupo(
+            GrupoEntity(nombre = "Grupo Abejitas", docente = "Yo", area = AreaMateria.MATEMATICAS)
+        ).toInt()
+        dao.insertarCrossRefs(
+            listOf(
+                GrupoNinoCrossRef(idAbejitas, 2),
+                GrupoNinoCrossRef(idAbejitas, 6)
+            )
+        )
+
+        val idColibries = dao.insertarGrupo(
+            GrupoEntity(nombre = "Grupo Colibríes", docente = "Prof. Nelson", area = AreaMateria.MATEMATICAS)
+        ).toInt()
+        dao.insertarCrossRefs(
+            listOf(
+                GrupoNinoCrossRef(idColibries, 1),
+                GrupoNinoCrossRef(idColibries, 7)
+            )
+        )
+
+        val idTortugas = dao.insertarGrupo(
+            GrupoEntity(nombre = "Grupo Tortugas", docente = "Prof. Marina", area = AreaMateria.MATEMATICAS)
+        ).toInt()
+        dao.insertarCrossRefs(
+            listOf(
+                GrupoNinoCrossRef(idTortugas, 5)
+            )
+        )
+    }
+
+    val uiState: StateFlow<GruposUiState> = combine(
+        dao.observarGrupos(),
+        selectedTabIndex
+    ) { grupos, tabIndex ->
+        val area = if (tabIndex == 0) AreaMateria.MATEMATICAS else AreaMateria.LECTURA
+        GruposUiState(
+            subjectAreas = listOf("Matemáticas", "Lectura"),
+            selectedTabIndex = tabIndex,
+            grupos = grupos.filter { it.grupo.area == area }.map { it.aGrupo() },
+            ninosSinGrupo = 3,
+            isLoading = false
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = GruposUiState(
+            subjectAreas = listOf("Matemáticas", "Lectura"),
+            selectedTabIndex = 0,
+            grupos = emptyList(),
+            ninosSinGrupo = 0,
+            isLoading = true
+        )
+    )
+
+    fun onTabSelected(index: Int) {
+        selectedTabIndex.value = index
+    }
+
     fun agregarGrupo(nombre: String, ninos: List<Nino>, docente: String) {
-        val area = if (_uiState.value.selectedTabIndex == 0) AreaMateria.MATEMATICAS else AreaMateria.LECTURA
-        todosLosGrupos = todosLosGrupos + Grupo(siguienteId++, nombre, ninos, docente, area)
-        refrescar()
+        viewModelScope.launch {
+            val area = if (selectedTabIndex.value == 0) AreaMateria.MATEMATICAS else AreaMateria.LECTURA
+            val nuevoId = dao.insertarGrupo(
+                GrupoEntity(nombre = nombre, docente = docente, area = area)
+            ).toInt()
+            dao.insertarCrossRefs(ninos.map { GrupoNinoCrossRef(nuevoId, it.id) })
+        }
     }
 
     fun actualizarNombre(id: Int, nuevoNombre: String) {
-        todosLosGrupos = todosLosGrupos.map { if (it.id == id) it.copy(nombre = nuevoNombre) else it}
-        refrescar()
+        viewModelScope.launch { dao.actualizarNombre(id, nuevoNombre) }
     }
 
     fun actualizarDocente(id: Int, nuevoDocente: String) {
-        todosLosGrupos = todosLosGrupos.map{ if (it.id == id) it.copy(docente = nuevoDocente) else it}
-        refrescar()
+        viewModelScope.launch { dao.actualizarDocente(id, nuevoDocente) }
     }
 
     fun quitarNino(id: Int, nino: Nino) {
-        todosLosGrupos = todosLosGrupos.map { if(it.id == id) it.copy(ninos = it.ninos - nino) else it }
-        refrescar()
+        viewModelScope.launch { dao.quitarNinoDeGrupo(id, nino.id) }
     }
 
     fun agregarNinos(id: Int, nuevos: List<Nino>) {
-        todosLosGrupos = todosLosGrupos.map { if(it.id == id) it.copy(ninos = it.ninos + nuevos) else it }
-        refrescar()
+        viewModelScope.launch { dao.insertarCrossRefs(nuevos.map { GrupoNinoCrossRef(id, it.id) }) }
     }
 
     fun eliminarGrupo(id: Int) {
-        todosLosGrupos = todosLosGrupos.filter { it.id != id}
-        refrescar()
+        viewModelScope.launch { dao.eliminarGrupo(id) }
     }
 }
