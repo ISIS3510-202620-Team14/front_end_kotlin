@@ -1,9 +1,15 @@
 package com.enad.enadmovil.ui.screens.foundation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -19,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -35,7 +42,7 @@ data class ReportItem(
     val periodo: String = "Periodo: septiembre · Semana 1"
 )
 
-data class FoundationTab(val label: String, val selected: Boolean)
+data class FoundationTab(val label: String, val icon: ImageVector, val selected: Boolean)
 
 @Composable
 fun FoundationReportsScreen(
@@ -46,9 +53,9 @@ fun FoundationReportsScreen(
         ReportItem("Horas de acompañamiento")
     ),
     tabs: List<FoundationTab> = listOf(
-        FoundationTab("Resumen", false),
-        FoundationTab("Instituciones", false),
-        FoundationTab("Reportes", true)
+        FoundationTab("Resumen", Icons.Filled.GridView, false),
+        FoundationTab("Instituciones", Icons.Filled.School, false),
+        FoundationTab("Reportes", Icons.Filled.Description, true)
     ),
     onCambiarUsuario: () -> Unit = {},
     onVerCatalogoClick: () -> Unit = {},
@@ -114,6 +121,7 @@ private fun FoundationTopBar(miembroNombre: String, onCambiarUsuario: () -> Unit
         modifier = Modifier
             .fillMaxWidth()
             .background(EnadHeader)
+            .windowInsetsPadding(WindowInsets.statusBars)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -136,6 +144,7 @@ private fun FoundationTopBar(miembroNombre: String, onCambiarUsuario: () -> Unit
         Box(
             modifier = Modifier
                 .background(EnadHeaderChip, RoundedCornerShape(8.dp))
+                .clickable(onClick = onCambiarUsuario)
                 .padding(horizontal = 10.dp, vertical = 8.dp)
         ) {
             Text(text = "Cambiar\nusuario", fontSize = 11.sp, color = Color.White)
@@ -161,6 +170,7 @@ private fun ReportCard(item: ReportItem, onClick: () -> Unit) {
         Box(
             modifier = Modifier
                 .background(EnadPillBg, RoundedCornerShape(20.dp))
+                .clickable(onClick = onClick)
                 .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
             Text(text = item.estado, fontSize = 12.sp, color = EnadPillText, fontWeight = FontWeight.Medium)
@@ -208,10 +218,12 @@ private fun FoundationBottomBar(tabs: List<FoundationTab>, onTabClick: (Foundati
             NavigationBarItem(
                 selected = tab.selected,
                 onClick = { onTabClick(tab) },
-                icon = { Box(modifier = Modifier.height(0.dp)) }, // íconos pendientes para otra entrega
+                icon = { Icon(imageVector = tab.icon, contentDescription = tab.label) },
                 label = { Text(text = tab.label, fontSize = 11.sp) },
                 colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     indicatorColor = Color.Transparent
                 )
