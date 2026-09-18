@@ -33,14 +33,18 @@ import com.enad.enadmovil.core.ui.theme.onInkContainerLight
 import com.enad.enadmovil.core.ui.theme.onInkLight
 import com.enad.enadmovil.core.ui.theme.pillBackgroundLight
 import androidx.compose.material3.MaterialTheme.typography
+import androidx.compose.material3.SecondaryTabRow
+import androidx.compose.material3.Tab
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GruposScreen(modifier: Modifier = Modifier) {
     var selectedDestination by rememberSaveable() { mutableStateOf(EnadDestination.GRUPOS)}
-
+    var selectedTabIndex by rememberSaveable() {mutableStateOf(0) }
+    val subjectAreas = listOf("Matemáticas", "Lectura")
     Scaffold(
         topBar = {
             Surface(
@@ -103,15 +107,34 @@ fun GruposScreen(modifier: Modifier = Modifier) {
         }
     ) { innerPadding ->
         Column(
-            modifier = Modifier.padding(innerPadding),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            modifier = Modifier.padding(innerPadding).padding(horizontal = 16.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
+                text = "Mis grupos",
+                style = typography.titleLarge
+            )
+            Text(
+                text = "Un niño puede estar en un grupo de matemáticas y en otro de lectura.",
+                style = typography.bodyLarge
+            )
+
+
+
+            SecondaryTabRow(selectedTabIndex = selectedTabIndex, containerColor = Color.Transparent) {
+                subjectAreas.forEachIndexed { index, label ->
+                    Tab(
+                        selected = selectedTabIndex == index,
+                        onClick = { selectedTabIndex = index },
+                        text = { Text(label)},
+                        selectedContentColor = colorScheme.primary,
+                        unselectedContentColor = colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Text(
                 modifier = Modifier.padding(8.dp),
-                text = "Here go the content." +
-                        ""
+                text = "Aqui va el contenido"
             )
         }
-
     }
 }
