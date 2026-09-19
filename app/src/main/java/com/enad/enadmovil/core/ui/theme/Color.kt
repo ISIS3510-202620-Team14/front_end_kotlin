@@ -298,3 +298,8 @@ val onInkContainerDarkHighContrast = Color(0xFF0D0B0B)
 
 val pillBackgroundLight = Color(0xFFF6DAD6)
 
+val heatmapEmptyLight = Color(0xFFF1EAE0)
+val heatmapStep1Light = Color(0xFFF6DAD6)
+val heatmapStep2Light = Color(0xFFECAAA5)
+val heatmapStep3Light = Color(0xFFD6635D)
+
