@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.enad.enadmovil.core.ui.theme.inkContainerLight
+import com.enad.enadmovil.feature.horas.HorasScreen
 import com.enad.enadmovil.core.ui.theme.onInkContainerLight
 import com.enad.enadmovil.core.ui.theme.onInkLight
 import com.enad.enadmovil.core.ui.theme.pillBackgroundLight
@@ -102,7 +103,7 @@ fun AppShell(modifier: Modifier = Modifier) {
                 EnadDestination.HOY -> PlaceholderScreen("Hoy")
                 EnadDestination.MI_LISTA -> PlaceholderScreen("Mi lista")
                 EnadDestination.GRUPOS -> PlaceholderScreen("Grupos")
-                EnadDestination.HORAS -> PlaceholderScreen("Horas")
+                EnadDestination.HORAS -> HorasScreen(nombreGrupo = "Grupo Abejitas")
                 EnadDestination.MIS_DATOS -> PlaceholderScreen("Mis datos")
             }
         }
