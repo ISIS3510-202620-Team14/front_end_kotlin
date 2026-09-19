@@ -27,10 +27,16 @@ val EnadPillText = Color(0xFF2E6B45)
 val EnadPendienteBg = Color(0xFFF4E3C8)  // pill "Pendiente" en Asistencia
 val EnadPendienteText = Color(0xFF8A5A22)
 val EnadNoAsistioBg = Color(0xFFF6D9D6)  // pill "No asistió" en Asistencia
-val EnadPillBg = Color(0xFFD7ECDD)       // pill "Disponible · demo"
-val EnadPillText = Color(0xFF2E6B45)
 
 // Agregados para la pantalla de Grupos: banner ámbar de "niños sin grupo".
 // No reutilizo colorScheme.tertiary porque ya está tomado por Pink40/Pink80.
 val EnadAmber = Color(0xFFB4700F)
 val EnadAmberBg = Color(0xFFFBF0DE)
+
+// Agregados para la pantalla de Horas.
+val EnadHeaderMuted = Color(0xFF8B8686)  // texto secundario sobre el header negro ("Portal docente")
+val EnadChipPink = Color(0xFFF6DAD6)     // fondo del chip Sí/No seleccionado, y nivel 1 del heatmap
+val EnadPending = Color(0xFF955D0C)      // texto de la alerta de horas no realizadas
+val EnadHeatmapEmpty = Color(0xFFF1EAE0) // celda del heatmap sin registrar
+val EnadHeatmapStep2 = Color(0xFFECAAA5)
+val EnadHeatmapStep3 = Color(0xFFD6635D)
