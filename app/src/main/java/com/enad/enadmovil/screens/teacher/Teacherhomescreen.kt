@@ -18,6 +18,10 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -26,6 +30,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.enad.enadmovil.feature.grupos.CrearGrupoScreen
+import com.enad.enadmovil.feature.grupos.EditarGrupoScreen
+import com.enad.enadmovil.feature.grupos.GruposScreen
+import com.enad.enadmovil.feature.grupos.GruposViewModel
+import com.enad.enadmovil.feature.grupos.VerGrupoScreen
 import com.enad.enadmovil.ui.theme.EnadHeader
 import com.enad.enadmovil.ui.theme.EnadHeaderChip
 import com.enad.enadmovil.ui.theme.EnadMovilTheme
@@ -34,6 +45,13 @@ import com.enad.enadmovil.ui.theme.EnadTrack
 data class ProgressItem(val title: String, val percent: Int, val evaluatedText: String)
 data class ActionItem(val title: String, val subtitle: String)
 data class BottomTab(val label: String, val icon: ImageVector, val selected: Boolean)
+
+private sealed class SubPantallaGrupos {
+    data object Lista : SubPantallaGrupos()
+    data object Crear : SubPantallaGrupos()
+    data class Ver(val grupoId: Int) : SubPantallaGrupos()
+    data class Editar(val grupoId: Int) : SubPantallaGrupos()
+}
 
 @Composable
 fun TeacherHomeScreen(
@@ -59,46 +77,123 @@ fun TeacherHomeScreen(
     onAccionClick: (ActionItem) -> Unit = {},
     onTabClick: (BottomTab) -> Unit = {}
 ) {
+    val gruposViewModel: GruposViewModel = viewModel()
+    val gruposUiState by gruposViewModel.uiState.collectAsStateWithLifecycle()
+    var tabSeleccionado by remember { mutableStateOf(tabs.indexOfFirst { it.selected }.coerceAtLeast(0)) }
+    var subPantallaGrupos by remember { mutableStateOf<SubPantallaGrupos>(SubPantallaGrupos.Lista) }
+
+    when (val actual = subPantallaGrupos) {
+        is SubPantallaGrupos.Crear -> {
+            CrearGrupoScreen(
+                materia = gruposUiState.subjectAreas[gruposUiState.selectedTabIndex],
+                onBack = { subPantallaGrupos = SubPantallaGrupos.Lista },
+                onGuardar = { nombre, ninos, docente ->
+                    gruposViewModel.agregarGrupo(nombre, ninos, docente)
+                    subPantallaGrupos = SubPantallaGrupos.Lista
+                }
+            )
+            return
+        }
+        is SubPantallaGrupos.Ver -> {
+            val grupo = gruposUiState.grupos.find { it.id == actual.grupoId }
+            if (grupo != null) {
+                VerGrupoScreen(
+                    grupo = grupo,
+                    materia = gruposUiState.subjectAreas[gruposUiState.selectedTabIndex],
+                    onBack = { subPantallaGrupos = SubPantallaGrupos.Lista }
+                )
+                return
+            } else {
+                subPantallaGrupos = SubPantallaGrupos.Lista
+            }
+        }
+        is SubPantallaGrupos.Editar -> {
+            val grupo = gruposUiState.grupos.find { it.id == actual.grupoId }
+            if (grupo != null) {
+                EditarGrupoScreen(
+                    grupo = grupo,
+                    materia = gruposUiState.subjectAreas[gruposUiState.selectedTabIndex],
+                    onBack = { subPantallaGrupos = SubPantallaGrupos.Lista },
+                    onNombreChange = { nuevoNombre -> gruposViewModel.actualizarNombre(grupo.id, nuevoNombre) },
+                    onDocenteChange = { nuevoDocente -> gruposViewModel.actualizarDocente(grupo.id, nuevoDocente) },
+                    onQuitarNino = { nino -> gruposViewModel.quitarNino(grupo.id, nino) },
+                    onAgregarNinos = { ninos -> gruposViewModel.agregarNinos(grupo.id, ninos) },
+                    onEliminarGrupo = {
+                        gruposViewModel.eliminarGrupo(grupo.id)
+                        subPantallaGrupos = SubPantallaGrupos.Lista
+                    }
+                )
+                return
+            } else {
+                subPantallaGrupos = SubPantallaGrupos.Lista
+            }
+        }
+        SubPantallaGrupos.Lista -> { }
+    }
+
+    val tabsConSeleccion = tabs.mapIndexed { index, tab -> tab.copy(selected = index == tabSeleccionado) }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = { TeacherTopBar(profesorNombre, onCambiarUsuario) },
-        bottomBar = { TeacherBottomBar(tabs, onTabClick) }
+        bottomBar = {
+            TeacherBottomBar(
+                tabs = tabsConSeleccion,
+                onTabClick = { tab ->
+                    val index = tabsConSeleccion.indexOf(tab)
+                    if (index >= 0) tabSeleccionado = index
+                    onTabClick(tab)
+                }
+            )
+        }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 20.dp)
-                .padding(top = 20.dp)
-        ) {
-            Text(
-                text = grupoTitulo,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
+        if (tabSeleccionado == 2) {
+            GruposScreen(
+                viewModel = gruposViewModel,
+                onVerGrupo = { id -> subPantallaGrupos = SubPantallaGrupos.Ver(id) },
+                onEditarGrupo = { id -> subPantallaGrupos = SubPantallaGrupos.Editar(id) },
+                onCrearGrupo = { subPantallaGrupos = SubPantallaGrupos.Crear },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(text = grupoSubtitulo, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 20.dp)
+            ) {
+                Text(
+                    text = grupoTitulo,
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(text = grupoSubtitulo, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-            Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-            progreso.forEach { item ->
-                ProgressCard(item)
-                Spacer(modifier = Modifier.height(14.dp))
+                progreso.forEach { item ->
+                    ProgressCard(item)
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
+
+                acciones.forEach { accion ->
+                    ActionRow(accion) { onAccionClick(accion) }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Sesión de demostración · Los cambios se reinician al cambiar de usuario o cerrar la app.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-
-            acciones.forEach { accion ->
-                ActionRow(accion) { onAccionClick(accion) }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Sesión de demostración · Los cambios se reinician al cambiar de usuario o cerrar la app.",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }

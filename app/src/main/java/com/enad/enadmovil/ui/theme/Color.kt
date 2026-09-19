@@ -24,3 +24,8 @@ val EnadTrack = Color(0xFFE7DFD3)        // fondo de las barras de progreso
 val EnadCardAlt = Color(0xFFEFE7D8)      // tarjeta "Credenciales de prueba"
 val EnadPillBg = Color(0xFFD7ECDD)       // pill "Disponible · demo"
 val EnadPillText = Color(0xFF2E6B45)
+
+// Agregados para la pantalla de Grupos: banner ámbar de "niños sin grupo".
+// No reutilizo colorScheme.tertiary porque ya está tomado por Pink40/Pink80.
+val EnadAmber = Color(0xFFB4700F)
+val EnadAmberBg = Color(0xFFFBF0DE)
