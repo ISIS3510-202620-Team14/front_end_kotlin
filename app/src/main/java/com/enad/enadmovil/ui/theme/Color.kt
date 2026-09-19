@@ -1,4 +1,4 @@
-package com.enad.enadmovil.core.ui.theme
+package com.enad.enadmovil.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

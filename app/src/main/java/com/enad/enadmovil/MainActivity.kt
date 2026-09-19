@@ -4,16 +4,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.enad.enadmovil.core.navigation.AppShell
-import com.enad.enadmovil.core.ui.theme.AppTheme
+import com.enad.enadmovil.ui.nav.AppNavigation
+import com.enad.enadmovil.ui.theme.EnadMovilTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            AppTheme {
-                AppShell()
+            EnadMovilTheme {
+                AppNavigation()
             }
         }
     }

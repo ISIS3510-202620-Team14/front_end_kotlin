@@ -1,6 +1,8 @@
-package com.enad.enadmovil.core.ui.theme
+package com.enad.enadmovil.ui.theme
 
+import android.app.Activity
 import android.os.Build
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -35,8 +37,8 @@ private val LightColorScheme = lightColorScheme(
 )
 
 @Composable
-fun AppTheme(
-    darkTheme: Boolean = false,
+fun EnadMovilTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {

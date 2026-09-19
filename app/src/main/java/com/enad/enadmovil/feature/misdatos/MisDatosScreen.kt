@@ -32,9 +32,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.enad.enadmovil.core.ui.theme.EnadPending
-import com.enad.enadmovil.core.ui.theme.EnadSuccessBg
-import com.enad.enadmovil.core.ui.theme.EnadSuccessText
+import com.enad.enadmovil.ui.theme.EnadPending
+import com.enad.enadmovil.ui.theme.EnadSuccessBg
+import com.enad.enadmovil.ui.theme.EnadSuccessText
 import com.enad.enadmovil.domain.model.EnvioPendiente
 
 private val enviosEjemplo = listOf(

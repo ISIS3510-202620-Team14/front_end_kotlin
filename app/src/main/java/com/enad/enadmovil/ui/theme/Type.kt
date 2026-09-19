@@ -1,6 +1,6 @@
 @file:OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
 
-package com.enad.enadmovil.core.ui.theme
+package com.enad.enadmovil.ui.theme
 
 import com.enad.enadmovil.R
 import androidx.compose.material3.Typography
