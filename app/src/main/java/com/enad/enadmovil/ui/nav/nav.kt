@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -17,6 +18,7 @@ import com.enad.enadmovil.ui.screens.teacher.ClasificacionScreen
 import com.enad.enadmovil.ui.screens.teacher.MATERIA_LECTURA
 import com.enad.enadmovil.ui.screens.teacher.MATERIA_MATEMATICAS
 import com.enad.enadmovil.ui.screens.teacher.TeacherHomeScreen
+import com.enad.enadmovil.ui.screens.teacher.TeacherTabs
 
 private object Routes {
     const val LOGIN = "login"
@@ -50,6 +52,10 @@ private fun volverALogin(navController: NavHostController) {
 @Composable
 fun AppNavigation(navController: NavHostController = rememberNavController()) {
     var nombreUsuario by remember { mutableStateOf("") }
+    // Vive aquí (no dentro de TeacherHomeScreen) para que sobreviva cuando navegas a
+    // Asistencia/Clasificación y vuelves, y para poder saltar a un tab específico
+    // (ej. Horas) desde otra pantalla en vez de siempre caer en "Hoy".
+    var teacherTabSeleccionado by rememberSaveable { mutableStateOf(TeacherTabs.HOY) }
 
     NavHost(navController = navController, startDestination = Routes.LOGIN) {
 
@@ -70,6 +76,8 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
         composable(Routes.TEACHER_HOME) {
             TeacherHomeScreen(
                 profesorNombre = nombreUsuario,
+                tabSeleccionado = teacherTabSeleccionado,
+                onTabSeleccionadoChange = { teacherTabSeleccionado = it },
                 onCambiarUsuario = { volverALogin(navController) },
                 onTabClick = { tab ->
                     if (tab.label == "Mi lista") {
@@ -80,6 +88,11 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                     when (item.title) {
                         "Lectura" -> navController.navigate(Routes.CLASIFICACION_LECTURA)
                         "Matemáticas" -> navController.navigate(Routes.CLASIFICACION_MATEMATICAS)
+                    }
+                },
+                onAccionClick = { item ->
+                    if (item.title == "Tomar asistencia") {
+                        navController.navigate(Routes.ASISTENCIA)
                     }
                 }
             )
@@ -104,8 +117,23 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                 profesorNombre = nombreUsuario,
                 onCambiarUsuario = { volverALogin(navController) },
                 onTabClick = { label ->
-                    if (label == "Hoy") {
-                        navController.popBackStack()
+                    // "Mi lista" es esta misma pantalla, no hace nada. Grupos y Horas
+                    // viven como tabs dentro de TeacherHomeScreen, así que antes de
+                    // regresar le decimos a cuál pestaña saltar.
+                    when (label) {
+                        "Mi lista" -> {}
+                        "Grupos" -> {
+                            teacherTabSeleccionado = TeacherTabs.GRUPOS
+                            navController.popBackStack()
+                        }
+                        "Horas" -> {
+                            teacherTabSeleccionado = TeacherTabs.HORAS
+                            navController.popBackStack()
+                        }
+                        else -> {
+                            teacherTabSeleccionado = TeacherTabs.HOY
+                            navController.popBackStack()
+                        }
                     }
                 }
             )

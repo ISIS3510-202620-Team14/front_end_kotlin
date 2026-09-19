@@ -1,5 +1,6 @@
 package com.enad.enadmovil.ui.screens.teacher
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -51,6 +52,17 @@ data class ProgressItem(val title: String, val percent: Int, val evaluatedText: 
 data class ActionItem(val title: String, val subtitle: String)
 data class BottomTab(val label: String, val icon: ImageVector, val selected: Boolean)
 
+// Índices del tab por defecto de TeacherHomeScreen. nav.kt los usa para poder
+// mandarte directo a una pestaña específica (ej. desde Asistencia a Horas), ya que
+// "tabSeleccionado" ahora vive afuera de esta pantalla (ver onTabSeleccionadoChange).
+object TeacherTabs {
+    const val HOY = 0
+    const val MI_LISTA = 1
+    const val GRUPOS = 2
+    const val HORAS = 3
+    const val MIS_DATOS = 4
+}
+
 private sealed class SubPantallaGrupos {
     data object Lista : SubPantallaGrupos()
     data object Crear : SubPantallaGrupos()
@@ -78,6 +90,8 @@ fun TeacherHomeScreen(
         BottomTab("Horas", Icons.Filled.Schedule, false),
         BottomTab("Mis datos", Icons.Filled.Person, false)
     ),
+    tabSeleccionado: Int = tabs.indexOfFirst { it.selected }.coerceAtLeast(0),
+    onTabSeleccionadoChange: (Int) -> Unit = {},
     onCambiarUsuario: () -> Unit = {},
     onAccionClick: (ActionItem) -> Unit = {},
     onTabClick: (BottomTab) -> Unit = {},
@@ -85,13 +99,13 @@ fun TeacherHomeScreen(
 ) {
     val gruposViewModel: GruposViewModel = viewModel()
     val gruposUiState by gruposViewModel.uiState.collectAsStateWithLifecycle()
-    var tabSeleccionado by remember { mutableStateOf(tabs.indexOfFirst { it.selected }.coerceAtLeast(0)) }
     var subPantallaGrupos by remember { mutableStateOf<SubPantallaGrupos>(SubPantallaGrupos.Lista) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     when (val actual = subPantallaGrupos) {
         is SubPantallaGrupos.Crear -> {
+            BackHandler { subPantallaGrupos = SubPantallaGrupos.Lista }
             CrearGrupoScreen(
                 materia = gruposUiState.subjectAreas[gruposUiState.selectedTabIndex],
                 onBack = { subPantallaGrupos = SubPantallaGrupos.Lista },
@@ -105,6 +119,7 @@ fun TeacherHomeScreen(
         is SubPantallaGrupos.Ver -> {
             val grupo = gruposUiState.grupos.find { it.id == actual.grupoId }
             if (grupo != null) {
+                BackHandler { subPantallaGrupos = SubPantallaGrupos.Lista }
                 VerGrupoScreen(
                     grupo = grupo,
                     materia = gruposUiState.subjectAreas[gruposUiState.selectedTabIndex],
@@ -118,6 +133,7 @@ fun TeacherHomeScreen(
         is SubPantallaGrupos.Editar -> {
             val grupo = gruposUiState.grupos.find { it.id == actual.grupoId }
             if (grupo != null) {
+                BackHandler { subPantallaGrupos = SubPantallaGrupos.Lista }
                 EditarGrupoScreen(
                     grupo = grupo,
                     materia = gruposUiState.subjectAreas[gruposUiState.selectedTabIndex],
@@ -150,13 +166,13 @@ fun TeacherHomeScreen(
                 tabs = tabsConSeleccion,
                 onTabClick = { tab ->
                     val index = tabsConSeleccion.indexOf(tab)
-                    if (index >= 0) tabSeleccionado = index
+                    if (index >= 0) onTabSeleccionadoChange(index)
                     onTabClick(tab)
                 }
             )
         }
     ) { padding ->
-        if (tabSeleccionado == 2) {
+        if (tabSeleccionado == TeacherTabs.GRUPOS) {
             GruposScreen(
                 viewModel = gruposViewModel,
                 onVerGrupo = { id -> subPantallaGrupos = SubPantallaGrupos.Ver(id) },
@@ -166,7 +182,7 @@ fun TeacherHomeScreen(
                     .fillMaxSize()
                     .padding(padding)
             )
-        } else if (tabSeleccionado == 3) {
+        } else if (tabSeleccionado == TeacherTabs.HORAS) {
             HorasScreen(
                 nombreGrupo = grupoTitulo,
                 onEnviarReporte = {
@@ -201,7 +217,13 @@ fun TeacherHomeScreen(
                 }
 
                 acciones.forEach { accion ->
-                    ActionRow(accion) { onAccionClick(accion) }
+                    ActionRow(accion) {
+                        if (accion.title == "Planear horas") {
+                            onTabSeleccionadoChange(TeacherTabs.HORAS)
+                        } else {
+                            onAccionClick(accion)
+                        }
+                    }
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
@@ -301,6 +323,7 @@ private fun ActionRow(item: ActionItem, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -343,6 +366,7 @@ private fun TeacherBottomBar(tabs: List<BottomTab>, onTabClick: (BottomTab) -> U
 @Composable
 private fun TeacherHomeScreenPreview() {
     EnadMovilTheme {
-        TeacherHomeScreen()
+        var tab by remember { mutableStateOf(TeacherTabs.HOY) }
+        TeacherHomeScreen(tabSeleccionado = tab, onTabSeleccionadoChange = { tab = it })
     }
 }
