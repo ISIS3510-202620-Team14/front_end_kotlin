@@ -22,10 +22,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import com.enad.enadmovil.core.ui.theme.EnadChipPink
-import com.enad.enadmovil.core.ui.theme.EnadHeatmapEmpty
-import com.enad.enadmovil.core.ui.theme.EnadHeatmapStep2
-import com.enad.enadmovil.core.ui.theme.EnadHeatmapStep3
+import com.enad.enadmovil.ui.theme.EnadChipPink
+import com.enad.enadmovil.ui.theme.EnadHeatmapEmpty
+import com.enad.enadmovil.ui.theme.EnadHeatmapStep2
+import com.enad.enadmovil.ui.theme.EnadHeatmapStep3
 import com.enad.enadmovil.domain.model.DiaSesion
 
 @Composable

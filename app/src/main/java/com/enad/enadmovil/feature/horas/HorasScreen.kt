@@ -36,9 +36,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.enad.enadmovil.core.ui.theme.EnadAmberBg
-import com.enad.enadmovil.core.ui.theme.EnadChipPink
-import com.enad.enadmovil.core.ui.theme.EnadPending
+import com.enad.enadmovil.ui.theme.EnadAmberBg
+import com.enad.enadmovil.ui.theme.EnadChipPink
+import com.enad.enadmovil.ui.theme.EnadPending
 import com.enad.enadmovil.domain.model.DiaSesion
 import java.time.LocalDate
 import java.time.YearMonth
