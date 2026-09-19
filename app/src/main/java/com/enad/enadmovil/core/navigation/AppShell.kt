@@ -36,7 +36,6 @@ import com.enad.enadmovil.feature.horas.HorasScreen
 import com.enad.enadmovil.core.ui.theme.onInkContainerLight
 import com.enad.enadmovil.core.ui.theme.onInkLight
 import com.enad.enadmovil.core.ui.theme.pillBackgroundLight
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
