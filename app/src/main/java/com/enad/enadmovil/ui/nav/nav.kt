@@ -130,6 +130,10 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                             teacherTabSeleccionado = TeacherTabs.HORAS
                             navController.popBackStack()
                         }
+                        "Mis datos" -> {
+                            teacherTabSeleccionado = TeacherTabs.MIS_DATOS
+                            navController.popBackStack()
+                        }
                         else -> {
                             teacherTabSeleccionado = TeacherTabs.HOY
                             navController.popBackStack()

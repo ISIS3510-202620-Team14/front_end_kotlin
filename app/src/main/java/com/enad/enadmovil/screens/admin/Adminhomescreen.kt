@@ -20,7 +20,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -28,8 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.enad.enadmovil.ui.theme.EnadHeader
-import com.enad.enadmovil.ui.theme.EnadHeaderChip
+import com.enad.enadmovil.ui.screens.teacher.TeacherTopBar
 import com.enad.enadmovil.ui.theme.EnadMovilTheme
 
 // Pantalla puramente visual (sin datos reales todavía). Reutiliza la misma
@@ -54,7 +52,7 @@ fun AdminHomeScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        topBar = { AdminTopBar(nombreUsuario, portalLabel, onCambiarUsuario) },
+        topBar = { TeacherTopBar(nombreUsuario, onCambiarUsuario, portalLabel = portalLabel) },
         bottomBar = {
             AdminBottomBar(
                 tabs = ADMIN_TABS,
@@ -129,38 +127,6 @@ private fun AdminSectionPlaceholder(tab: String) {
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(text = subtitulo, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun AdminTopBar(nombreUsuario: String, portalLabel: String, onCambiarUsuario: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(EnadHeader)
-            .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = "ENAd", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Text(text = "Móvil", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        }
-        Text(
-            text = portalLabel,
-            fontSize = 11.sp,
-            color = Color(0xFFCFC7BB),
-            modifier = Modifier.padding(end = 12.dp)
-        )
-        Text(text = nombreUsuario, fontSize = 13.sp, color = Color.White, modifier = Modifier.padding(end = 12.dp))
-        Box(
-            modifier = Modifier
-                .background(EnadHeaderChip, RoundedCornerShape(8.dp))
-                .clickable(onClick = onCambiarUsuario)
-                .padding(horizontal = 10.dp, vertical = 8.dp)
-        ) {
-            Text(text = "Cambiar\nusuario", fontSize = 11.sp, color = Color.White)
-        }
     }
 }
 

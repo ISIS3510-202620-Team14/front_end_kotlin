@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -123,23 +124,25 @@ private fun FoundationTopBar(miembroNombre: String, onCambiarUsuario: () -> Unit
             .background(EnadHeader)
             .windowInsetsPadding(WindowInsets.statusBars)
             .padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Column {
             Text(text = "ENAd", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
             Text(text = "Móvil", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
         Text(
             text = "Portal\nfundación",
             fontSize = 11.sp,
-            color = Color(0xFFCFC7BB),
-            modifier = Modifier.padding(end = 12.dp)
+            color = Color(0xFFCFC7BB)
         )
         Text(
-            text = "Miembro de fundación",
+            text = miembroNombre,
             fontSize = 12.sp,
             color = Color.White,
-            modifier = Modifier.padding(end = 12.dp)
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
         )
         Box(
             modifier = Modifier
