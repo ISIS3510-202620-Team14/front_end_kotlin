@@ -29,13 +29,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.enad.enadmovil.core.ui.theme.inkContainerLight
+import com.enad.enadmovil.core.ui.theme.EnadChipPink
+import com.enad.enadmovil.core.ui.theme.EnadHeader
+import com.enad.enadmovil.core.ui.theme.EnadHeaderMuted
 import com.enad.enadmovil.feature.horas.HorasScreen
-import com.enad.enadmovil.core.ui.theme.onInkContainerLight
-import com.enad.enadmovil.core.ui.theme.onInkLight
-import com.enad.enadmovil.core.ui.theme.pillBackgroundLight
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -50,8 +50,8 @@ fun AppShell(modifier: Modifier = Modifier) {
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Surface(
-                color = inkContainerLight,
-                contentColor = onInkLight,
+                color = EnadHeader,
+                contentColor = Color.White,
                 modifier = modifier.fillMaxWidth().statusBarsPadding()
             ) {
                 Row(
@@ -64,8 +64,8 @@ fun AppShell(modifier: Modifier = Modifier) {
                         Text(text = "móvil", style = typography.titleLarge)
                     }
                     Column {
-                        Text(text = "Portal", style = typography.labelSmall, color = onInkContainerLight)
-                        Text(text = "Docente", style = typography.labelSmall, color = onInkContainerLight)
+                        Text(text = "Portal", style = typography.labelSmall, color = EnadHeaderMuted)
+                        Text(text = "Docente", style = typography.labelSmall, color = EnadHeaderMuted)
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(text = "Mateo", style = typography.labelSmall)
@@ -74,8 +74,8 @@ fun AppShell(modifier: Modifier = Modifier) {
                         onClick = { },
                         shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = onInkLight),
-                        border = BorderStroke(1.dp, onInkLight)
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                        border = BorderStroke(1.dp, Color.White)
                     ) {
                         Text("Cambiar\nusuario", style = typography.labelSmall, textAlign = TextAlign.Center)
                     }
@@ -96,7 +96,7 @@ fun AppShell(modifier: Modifier = Modifier) {
                         },
                         label = { Text(destination.label) },
                         colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = pillBackgroundLight,
+                            indicatorColor = EnadChipPink,
                             selectedIconColor = colorScheme.primary,
                             selectedTextColor = colorScheme.primary
                         )

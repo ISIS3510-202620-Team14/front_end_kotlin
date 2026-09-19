@@ -22,10 +22,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import com.enad.enadmovil.core.ui.theme.heatmapEmptyLight
-import com.enad.enadmovil.core.ui.theme.heatmapStep1Light
-import com.enad.enadmovil.core.ui.theme.heatmapStep2Light
-import com.enad.enadmovil.core.ui.theme.heatmapStep3Light
+import com.enad.enadmovil.core.ui.theme.EnadChipPink
+import com.enad.enadmovil.core.ui.theme.EnadHeatmapEmpty
+import com.enad.enadmovil.core.ui.theme.EnadHeatmapStep2
+import com.enad.enadmovil.core.ui.theme.EnadHeatmapStep3
 import com.enad.enadmovil.domain.model.DiaSesion
 
 @Composable
@@ -78,10 +78,10 @@ private fun CeldaHeatmap(
 ) {
     val nivel = dia.nivelIntensidad(maxHorasReales)
     val color = when (nivel) {
-        0 -> heatmapEmptyLight
-        1 -> heatmapStep1Light
-        2 -> heatmapStep2Light
-        3 -> heatmapStep3Light
+        0 -> EnadHeatmapEmpty
+        1 -> EnadChipPink
+        2 -> EnadHeatmapStep2
+        3 -> EnadHeatmapStep3
         else -> colorScheme.primary
     }
     Box(
@@ -98,7 +98,7 @@ private fun LeyendaHeatmap() {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(text = "Menos", style = typography.bodyMedium, color = colorScheme.onSurfaceVariant)
         Spacer(Modifier.width(6.dp))
-        listOf(heatmapEmptyLight, heatmapStep1Light, heatmapStep2Light, heatmapStep3Light, colorScheme.primary)
+        listOf(EnadHeatmapEmpty, EnadChipPink, EnadHeatmapStep2, EnadHeatmapStep3, colorScheme.primary)
             .forEach { color ->
                 Box(
                     modifier = Modifier

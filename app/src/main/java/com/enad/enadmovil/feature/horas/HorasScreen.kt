@@ -36,9 +36,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.enad.enadmovil.core.ui.theme.amberBackgroundContainerLight
-import com.enad.enadmovil.core.ui.theme.pendingLight
-import com.enad.enadmovil.core.ui.theme.pillBackgroundLight
+import com.enad.enadmovil.core.ui.theme.EnadAmberBg
+import com.enad.enadmovil.core.ui.theme.EnadChipPink
+import com.enad.enadmovil.core.ui.theme.EnadPending
 import com.enad.enadmovil.domain.model.DiaSesion
 import java.time.LocalDate
 import java.time.YearMonth
@@ -154,7 +154,7 @@ fun HorasScreen(nombreGrupo: String,onEnviarReporte: () -> Unit, modifier: Modif
                                     { Icon(Icons.Filled.Check, contentDescription = null) }
                                 } else null,
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = pillBackgroundLight,
+                                    selectedContainerColor = EnadChipPink,
                                     selectedLabelColor = colorScheme.primary,
                                     selectedLeadingIconColor = colorScheme.primary
                                 )
@@ -163,13 +163,13 @@ fun HorasScreen(nombreGrupo: String,onEnviarReporte: () -> Unit, modifier: Modif
                     }
                     if (diferencia > 0) {
                         Surface(
-                            color = amberBackgroundContainerLight,
+                            color = EnadAmberBg,
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
                                 text = "Diferencia: ${formatearHoras(diferencia)} h no realizadas.",
-                                color = pendingLight,
+                                color = EnadPending,
                                 style = typography.bodyMedium,
                                 modifier = Modifier.padding(12.dp)
                             )
