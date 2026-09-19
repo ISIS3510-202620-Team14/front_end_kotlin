@@ -298,3 +298,5 @@ val onInkContainerDarkHighContrast = Color(0xFF0D0B0B)
 
 val pillBackgroundLight = Color(0xFFF6DAD6)
 
+val pendingLight = Color(0xFF955D0C)
+
