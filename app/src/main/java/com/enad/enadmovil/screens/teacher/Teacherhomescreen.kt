@@ -42,6 +42,7 @@ import com.enad.enadmovil.feature.grupos.GruposScreen
 import com.enad.enadmovil.feature.grupos.GruposViewModel
 import com.enad.enadmovil.feature.grupos.VerGrupoScreen
 import com.enad.enadmovil.feature.horas.HorasScreen
+import com.enad.enadmovil.feature.misdatos.MisDatosScreen
 import com.enad.enadmovil.ui.theme.EnadHeader
 import com.enad.enadmovil.ui.theme.EnadHeaderChip
 import com.enad.enadmovil.ui.theme.EnadMovilTheme
@@ -187,6 +188,17 @@ fun TeacherHomeScreen(
                 nombreGrupo = grupoTitulo,
                 onEnviarReporte = {
                     scope.launch { snackbarHostState.showSnackbar("Reporte enviado.") }
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            )
+        } else if (tabSeleccionado == TeacherTabs.MIS_DATOS) {
+            MisDatosScreen(
+                onEnviar = {
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Envío simulado. No se transmitieron datos al mentor.")
+                    }
                 },
                 modifier = Modifier
                     .fillMaxSize()

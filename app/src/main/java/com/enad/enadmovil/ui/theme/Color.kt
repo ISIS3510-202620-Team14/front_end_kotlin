@@ -40,3 +40,7 @@ val EnadPending = Color(0xFF955D0C)      // texto de la alerta de horas no reali
 val EnadHeatmapEmpty = Color(0xFFF1EAE0) // celda del heatmap sin registrar
 val EnadHeatmapStep2 = Color(0xFFECAAA5)
 val EnadHeatmapStep3 = Color(0xFFD6635D)
+
+// Agregados para la pantalla de Mis datos.
+val EnadSuccessBg = Color(0xFFEAF3EC)    // círculo detrás del check de "Guardado en esta sesión demo"
+val EnadSuccessText = Color(0xFF3E7C59)  // no reutilizo EnadPillBg/EnadPillText: son un verde distinto
