@@ -4,15 +4,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
@@ -29,12 +33,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.enad.enadmovil.ui.theme.EnadBorder
 import com.enad.enadmovil.ui.theme.EnadMovilTheme
+import com.enad.enadmovil.ui.theme.EnadPendienteBg
+import com.enad.enadmovil.ui.theme.EnadPendienteText
 
 // Paso 1: solo el esqueleto (flecha atrás + título + subtítulo), sin chips ni lista
 // todavía. "materia" ya queda parametrizada para que Lectura y Matemáticas compartan
@@ -48,20 +55,37 @@ val MATERIA_MATEMATICAS = MateriaConfig(titulo = "Matemáticas")
 // no filtran ninguna lista de estudiantes, porque esa lista no existe aún.
 private val CLASIFICACION_CURSOS = listOf("Todos", "Grado 3", "Grado 4", "Grado 5")
 
+// Paso 3: lista de estudiantes en modo plano (sin acordeón todavía). Mismos 8
+// estudiantes del salón usados en Asistencia, para que se sienta el mismo grupo.
+data class EstudianteClasificacion(val numero: Int, val nombre: String)
+
+private fun estudiantesClasificacionDemo(): List<EstudianteClasificacion> = listOf(
+    EstudianteClasificacion(1, "María López Quintero"),
+    EstudianteClasificacion(2, "Juan Carlos Cruz"),
+    EstudianteClasificacion(3, "Juan Carlos Cruz"),
+    EstudianteClasificacion(4, "Lucía Restrepo"),
+    EstudianteClasificacion(5, "Valentina Ríos Peña"),
+    EstudianteClasificacion(6, "Sofía Betancur"),
+    EstudianteClasificacion(7, "Andrés Mejía"),
+    EstudianteClasificacion(8, "Nicolás Pardo Salazar")
+)
+
 @Composable
 fun ClasificacionScreen(
     materia: MateriaConfig,
-    totalEstudiantes: Int = 8,
     onBack: () -> Unit = {}
 ) {
     var cursoSeleccionado by remember { mutableStateOf(CLASIFICACION_CURSOS.first()) }
+    val estudiantes = remember { estudiantesClasificacionDemo() }
 
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp)
         ) {
             IconButton(onClick = onBack, modifier = Modifier.padding(top = 4.dp)) {
                 Icon(
@@ -78,7 +102,7 @@ fun ClasificacionScreen(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "$totalEstudiantes de $totalEstudiantes estudiantes activos",
+                text = "${estudiantes.size} de ${estudiantes.size} estudiantes activos",
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -96,7 +120,51 @@ fun ClasificacionScreen(
                 seleccionado = cursoSeleccionado,
                 onSeleccionar = { cursoSeleccionado = it }
             )
+
+            Spacer(modifier = Modifier.height(20.dp))
+            Text(
+                text = "SIN EVALUAR · ${estudiantes.size}",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            estudiantes.forEach { estudiante ->
+                EstudianteClasificacionCard(estudiante)
+                Spacer(modifier = Modifier.height(14.dp))
+            }
         }
+    }
+}
+
+@Composable
+private fun EstudianteClasificacionCard(estudiante: EstudianteClasificacion) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "${estudiante.numero}  ${estudiante.nombre}",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        PillGenerico("Pendiente", EnadPendienteBg, EnadPendienteText)
+    }
+}
+
+@Composable
+private fun PillGenerico(texto: String, fondo: Color, textoColor: Color) {
+    Box(
+        modifier = Modifier
+            .background(fondo, RoundedCornerShape(20.dp))
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    ) {
+        Text(text = texto, fontSize = 12.sp, color = textoColor, fontWeight = FontWeight.Medium)
     }
 }
 
