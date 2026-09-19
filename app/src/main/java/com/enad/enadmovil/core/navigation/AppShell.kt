@@ -19,6 +19,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,12 +36,19 @@ import com.enad.enadmovil.feature.horas.HorasScreen
 import com.enad.enadmovil.core.ui.theme.onInkContainerLight
 import com.enad.enadmovil.core.ui.theme.onInkLight
 import com.enad.enadmovil.core.ui.theme.pillBackgroundLight
-
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 @Composable
 fun AppShell(modifier: Modifier = Modifier) {
     var selectedDestination by rememberSaveable { mutableStateOf(EnadDestination.HORAS) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Surface(
                 color = inkContainerLight,
@@ -103,7 +111,7 @@ fun AppShell(modifier: Modifier = Modifier) {
                 EnadDestination.HOY -> PlaceholderScreen("Hoy")
                 EnadDestination.MI_LISTA -> PlaceholderScreen("Mi lista")
                 EnadDestination.GRUPOS -> PlaceholderScreen("Grupos")
-                EnadDestination.HORAS -> HorasScreen(nombreGrupo = "Grupo Abejitas")
+                EnadDestination.HORAS -> HorasScreen(nombreGrupo = "Grupo Abejitas", onEnviarReporte = { scope.launch { snackbarHostState.showSnackbar(("Reporte enviado.")) }})
                 EnadDestination.MIS_DATOS -> PlaceholderScreen("Mis datos")
             }
         }

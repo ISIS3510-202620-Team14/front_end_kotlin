@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -47,7 +48,7 @@ private val meses = listOf(
     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
 )
 @Composable
-fun HorasScreen(nombreGrupo: String, modifier: Modifier = Modifier) {
+fun HorasScreen(nombreGrupo: String,onEnviarReporte: () -> Unit, modifier: Modifier = Modifier) {
     val hoy = remember { LocalDate.now() }
     var anio by remember { mutableIntStateOf(hoy.year) }
     var mesIndex by remember { mutableIntStateOf(hoy.monthValue - 1) }
@@ -173,6 +174,13 @@ fun HorasScreen(nombreGrupo: String, modifier: Modifier = Modifier) {
                             minLines = 3,
                             modifier = Modifier.fillMaxWidth()
                         )
+                    }
+                    Button(
+                        onClick = onEnviarReporte,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Enviar reporte")
                     }
                 }
             }
