@@ -75,7 +75,8 @@ fun TeacherHomeScreen(
     ),
     onCambiarUsuario: () -> Unit = {},
     onAccionClick: (ActionItem) -> Unit = {},
-    onTabClick: (BottomTab) -> Unit = {}
+    onTabClick: (BottomTab) -> Unit = {},
+    onProgresoClick: (ProgressItem) -> Unit = {}
 ) {
     val gruposViewModel: GruposViewModel = viewModel()
     val gruposUiState by gruposViewModel.uiState.collectAsStateWithLifecycle()
@@ -177,7 +178,7 @@ fun TeacherHomeScreen(
                 Spacer(modifier = Modifier.height(20.dp))
 
                 progreso.forEach { item ->
-                    ProgressCard(item)
+                    ProgressCard(item, onClick = { onProgresoClick(item) })
                     Spacer(modifier = Modifier.height(14.dp))
                 }
 
@@ -231,11 +232,12 @@ private fun TeacherTopBar(profesorNombre: String, onCambiarUsuario: () -> Unit) 
 }
 
 @Composable
-private fun ProgressCard(item: ProgressItem) {
+private fun ProgressCard(item: ProgressItem, onClick: () -> Unit = {}) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
             .padding(18.dp)
     ) {
         Row(

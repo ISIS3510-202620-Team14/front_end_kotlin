@@ -13,6 +13,9 @@ import com.enad.enadmovil.ui.screens.admin.AdminHomeScreen
 import com.enad.enadmovil.ui.screens.auth.LoginScreen
 import com.enad.enadmovil.ui.screens.foundation.FoundationReportsScreen
 import com.enad.enadmovil.ui.screens.teacher.AsistenciaScreen
+import com.enad.enadmovil.ui.screens.teacher.ClasificacionScreen
+import com.enad.enadmovil.ui.screens.teacher.MATERIA_LECTURA
+import com.enad.enadmovil.ui.screens.teacher.MATERIA_MATEMATICAS
 import com.enad.enadmovil.ui.screens.teacher.TeacherHomeScreen
 
 private object Routes {
@@ -21,6 +24,8 @@ private object Routes {
     const val ADMIN_HOME = "admin_home"
     const val FOUNDATION_REPORTS = "foundation_reports"
     const val ASISTENCIA = "asistencia"
+    const val CLASIFICACION_LECTURA = "clasificacion_lectura"
+    const val CLASIFICACION_MATEMATICAS = "clasificacion_matematicas"
 }
 
 // Mapeo temporal usando las mismas credenciales de la tarjeta "Credenciales de
@@ -70,7 +75,27 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                     if (tab.label == "Mi lista") {
                         navController.navigate(Routes.ASISTENCIA)
                     }
+                },
+                onProgresoClick = { item ->
+                    when (item.title) {
+                        "Lectura" -> navController.navigate(Routes.CLASIFICACION_LECTURA)
+                        "Matemáticas" -> navController.navigate(Routes.CLASIFICACION_MATEMATICAS)
+                    }
                 }
+            )
+        }
+
+        composable(Routes.CLASIFICACION_LECTURA) {
+            ClasificacionScreen(
+                materia = MATERIA_LECTURA,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.CLASIFICACION_MATEMATICAS) {
+            ClasificacionScreen(
+                materia = MATERIA_MATEMATICAS,
+                onBack = { navController.popBackStack() }
             )
         }
 

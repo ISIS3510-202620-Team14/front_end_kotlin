@@ -27,8 +27,6 @@ val EnadPillText = Color(0xFF2E6B45)
 val EnadPendienteBg = Color(0xFFF4E3C8)  // pill "Pendiente" en Asistencia
 val EnadPendienteText = Color(0xFF8A5A22)
 val EnadNoAsistioBg = Color(0xFFF6D9D6)  // pill "No asistió" en Asistencia
-val EnadPillBg = Color(0xFFD7ECDD)       // pill "Disponible · demo"
-val EnadPillText = Color(0xFF2E6B45)
 
 // Agregados para la pantalla de Grupos: banner ámbar de "niños sin grupo".
 // No reutilizo colorScheme.tertiary porque ya está tomado por Pink40/Pink80.
