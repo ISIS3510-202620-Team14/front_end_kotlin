@@ -1,6 +1,10 @@
 package com.enad.enadmovil.ui.nav
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -8,6 +12,7 @@ import androidx.navigation.compose.rememberNavController
 import com.enad.enadmovil.ui.screens.admin.AdminHomeScreen
 import com.enad.enadmovil.ui.screens.auth.LoginScreen
 import com.enad.enadmovil.ui.screens.foundation.FoundationReportsScreen
+import com.enad.enadmovil.ui.screens.teacher.AsistenciaScreen
 import com.enad.enadmovil.ui.screens.teacher.TeacherHomeScreen
 
 private object Routes {
@@ -15,6 +20,7 @@ private object Routes {
     const val TEACHER_HOME = "teacher_home"
     const val ADMIN_HOME = "admin_home"
     const val FOUNDATION_REPORTS = "foundation_reports"
+    const val ASISTENCIA = "asistencia"
 }
 
 // Mapeo temporal usando las mismas credenciales de la tarjeta "Credenciales de
@@ -38,6 +44,8 @@ private fun volverALogin(navController: NavHostController) {
 
 @Composable
 fun AppNavigation(navController: NavHostController = rememberNavController()) {
+    var nombreUsuario by remember { mutableStateOf("") }
+
     NavHost(navController = navController, startDestination = Routes.LOGIN) {
 
         composable(Routes.LOGIN) {
@@ -45,6 +53,7 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                 onEntrarClick = { usuario, _ ->
                     val destino = rolParaUsuario(usuario)
                     if (destino != null) {
+                        nombreUsuario = usuario.trim().replaceFirstChar { it.uppercase() }
                         navController.navigate(destino) {
                             popUpTo(Routes.LOGIN) { inclusive = true }
                         }
@@ -55,7 +64,25 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
 
         composable(Routes.TEACHER_HOME) {
             TeacherHomeScreen(
-                onCambiarUsuario = { volverALogin(navController) }
+                profesorNombre = nombreUsuario,
+                onCambiarUsuario = { volverALogin(navController) },
+                onTabClick = { tab ->
+                    if (tab.label == "Mi lista") {
+                        navController.navigate(Routes.ASISTENCIA)
+                    }
+                }
+            )
+        }
+
+        composable(Routes.ASISTENCIA) {
+            AsistenciaScreen(
+                profesorNombre = nombreUsuario,
+                onCambiarUsuario = { volverALogin(navController) },
+                onTabClick = { label ->
+                    if (label == "Hoy") {
+                        navController.popBackStack()
+                    }
+                }
             )
         }
 

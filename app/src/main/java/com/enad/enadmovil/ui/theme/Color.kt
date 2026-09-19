@@ -22,6 +22,11 @@ val EnadMuted = Color(0xFF7A7168)        // texto secundario / subtítulos
 val EnadBorder = Color(0xFFE7DFD3)       // bordes de inputs y tarjetas suaves
 val EnadTrack = Color(0xFFE7DFD3)        // fondo de las barras de progreso
 val EnadCardAlt = Color(0xFFEFE7D8)      // tarjeta "Credenciales de prueba"
+val EnadPillBg = Color(0xFFD7ECDD)       // pill "Disponible · demo" / "Asistió"
+val EnadPillText = Color(0xFF2E6B45)
+val EnadPendienteBg = Color(0xFFF4E3C8)  // pill "Pendiente" en Asistencia
+val EnadPendienteText = Color(0xFF8A5A22)
+val EnadNoAsistioBg = Color(0xFFF6D9D6)  // pill "No asistió" en Asistencia
 val EnadPillBg = Color(0xFFD7ECDD)       // pill "Disponible · demo"
 val EnadPillText = Color(0xFF2E6B45)
 
