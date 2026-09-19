@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
@@ -15,15 +16,22 @@ import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,9 +41,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.enad.enadmovil.ui.theme.EnadBorder
 import com.enad.enadmovil.ui.theme.EnadHeader
 import com.enad.enadmovil.ui.theme.EnadHeaderChip
@@ -47,8 +57,6 @@ import com.enad.enadmovil.ui.theme.EnadPillBg
 import com.enad.enadmovil.ui.theme.EnadPillText
 import com.enad.enadmovil.ui.theme.EnadTrack
 
-// Paso 5/6: tarjetas de estudiante con botones "Asistió" / "No asistió".
-// El resumen y el porcentaje ahora se calculan a partir del estado real de la lista.
 private val CURSOS_DISPONIBLES = listOf("Todos", "Grado 3", "Grado 4", "Grado 5")
 
 data class DiaSemana(val abreviatura: String, val numero: Int, val nombreLargo: String)
@@ -82,15 +90,43 @@ private fun estudiantesDemo(): List<EstudianteAsistencia> = listOf(
     EstudianteAsistencia(8, "Nicolás Pardo Salazar", "M")
 )
 
+// Paso 8: lista ficticia que simula el resultado de un "escaneo". No usa cámara ni OCR real.
+private val LISTA_ESCANEADA_DEMO = listOf(
+    "Laura Jiménez Rico",
+    "Diego Alejandro Mora",
+    "Isabella Castro Niño",
+    "Samuel Rojas Beltrán",
+    "Mariana Gil Escobar",
+    "Tomás Restrepo Silva"
+)
+
+// Paso 9: roster completo del salón (varios grados) para buscar un "estudiante inesperado".
+data class EstudianteSalon(val id: Int, val nombre: String, val grado: String)
+
+private val SALON_COMPLETO = listOf(
+    EstudianteSalon(1, "María López Quintero", "Grado 3"),
+    EstudianteSalon(2, "Juan Carlos Cruz", "Grado 3"),
+    EstudianteSalon(3, "Juan Carlos Cruz", "Grado 4"),
+    EstudianteSalon(4, "Lucía Restrepo", "Grado 4"),
+    EstudianteSalon(5, "Mateo Salcedo Rendón", "Grado 3"),
+    EstudianteSalon(6, "Daniela Peña Ochoa", "Grado 4"),
+    EstudianteSalon(7, "Emmanuel Cárdenas Ruiz", "Grado 5"),
+    EstudianteSalon(8, "Gabriela Muñoz Serna", "Grado 5")
+)
+
 @Composable
 fun AsistenciaScreen(
     profesorNombre: String = "Mateo",
     grupoSubtitulo: String = "Antonia Santos · Grado 5",
-    onCambiarUsuario: () -> Unit = {}
+    onCambiarUsuario: () -> Unit = {},
+    onTabClick: (String) -> Unit = {}
 ) {
     var cursoSeleccionado by remember { mutableStateOf(CURSOS_DISPONIBLES.first()) }
     var diaSeleccionado by remember { mutableStateOf(DIAS_SEMANA[1]) }
     var estudiantes by remember { mutableStateOf(estudiantesDemo()) }
+    var mostrarConfirmacionGuardado by remember { mutableStateOf(false) }
+    var mostrarEscaner by remember { mutableStateOf(false) }
+    var mostrarInesperado by remember { mutableStateOf(false) }
 
     fun actualizarEstado(numero: Int, nuevoEstado: EstadoAsistencia) {
         estudiantes = estudiantes.map { estudiante ->
@@ -105,7 +141,7 @@ fun AsistenciaScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = { AsistenciaTopBar(profesorNombre, onCambiarUsuario) },
-        bottomBar = { AsistenciaBottomBar() }
+        bottomBar = { AsistenciaBottomBar(onTabClick) }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -160,7 +196,8 @@ fun AsistenciaScreen(
 
             AsistenciaListaHeader(
                 totalEstudiantes = estudiantes.size,
-                fechaLarga = "${diaSeleccionado.nombreLargo} ${diaSeleccionado.numero} de septiembre"
+                fechaLarga = "${diaSeleccionado.nombreLargo} ${diaSeleccionado.numero} de septiembre",
+                onInesperadoClick = { mostrarInesperado = true }
             )
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -181,7 +218,149 @@ fun AsistenciaScreen(
                 )
                 Spacer(modifier = Modifier.height(14.dp))
             }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = {
+                        estudiantes = estudiantes.map { it.copy(estado = EstadoAsistencia.PENDIENTE) }
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, EnadBorder),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground)
+                ) {
+                    Text(text = "Limpiar", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                }
+                Button(
+                    onClick = { mostrarConfirmacionGuardado = true },
+                    enabled = sinRegistrar == 0,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.White,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Text(text = "Guardar asistencia", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedButton(
+                onClick = { mostrarEscaner = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, EnadBorder),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground)
+            ) {
+                Text(text = "Cargar lista con escáner", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Escáner de demostración: permite revisar e importar una lista ficticia. No usa cámara ni OCR.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
+    }
+
+    if (mostrarInesperado) {
+        EstudianteInesperadoDialog(
+            roster = SALON_COMPLETO,
+            onSeleccionar = { alumno ->
+                estudiantes = estudiantes + EstudianteAsistencia(
+                    numero = estudiantes.size + 1,
+                    nombre = alumno.nombre,
+                    etiqueta = "—"
+                )
+                mostrarInesperado = false
+            },
+            onCrear = { nombre ->
+                estudiantes = estudiantes + EstudianteAsistencia(
+                    numero = estudiantes.size + 1,
+                    nombre = nombre,
+                    etiqueta = "—"
+                )
+                mostrarInesperado = false
+            },
+            onDismiss = { mostrarInesperado = false }
+        )
+    }
+
+    if (mostrarEscaner) {
+        AlertDialog(
+            onDismissRequest = { mostrarEscaner = false },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(16.dp),
+            title = {
+                Text(text = "Lista escaneada (demo)", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Se \"detectaron\" ${LISTA_ESCANEADA_DEMO.size} estudiantes. Revisa antes de importar.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    LISTA_ESCANEADA_DEMO.forEach { nombre ->
+                        Text(
+                            text = "• $nombre",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.padding(vertical = 2.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    estudiantes = LISTA_ESCANEADA_DEMO.mapIndexed { index, nombre ->
+                        EstudianteAsistencia(numero = index + 1, nombre = nombre, etiqueta = "—")
+                    }
+                    mostrarEscaner = false
+                }) {
+                    Text(text = "Importar", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarEscaner = false }) {
+                    Text(text = "Cancelar", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        )
+    }
+
+    if (mostrarConfirmacionGuardado) {
+        AlertDialog(
+            onDismissRequest = { mostrarConfirmacionGuardado = false },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(16.dp),
+            title = {
+                Text(text = "Asistencia guardada", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    text = "Demostración: los datos no se envían a ningún servidor todavía.",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { mostrarConfirmacionGuardado = false }) {
+                    Text(text = "Cerrar", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
     }
 }
 
@@ -219,12 +398,18 @@ private fun EstudianteCard(
         Spacer(modifier = Modifier.height(12.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            val asistioSeleccionado = estudiante.estado == EstadoAsistencia.ASISTIO
+            val noAsistioSeleccionado = estudiante.estado == EstadoAsistencia.NO_ASISTIO
+
             OutlinedButton(
                 onClick = onAsistioClick,
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, EnadBorder),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground)
+                border = BorderStroke(1.dp, if (asistioSeleccionado) Color.Transparent else EnadBorder),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = if (asistioSeleccionado) EnadPillBg else Color.Transparent,
+                    contentColor = if (asistioSeleccionado) EnadPillText else MaterialTheme.colorScheme.onBackground
+                )
             ) {
                 Text(text = "✓ Asistió", fontSize = 13.sp, fontWeight = FontWeight.Medium)
             }
@@ -232,8 +417,15 @@ private fun EstudianteCard(
                 onClick = onNoAsistioClick,
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, EnadBorder),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground)
+                border = BorderStroke(1.dp, if (noAsistioSeleccionado) Color.Transparent else EnadBorder),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = if (noAsistioSeleccionado) EnadNoAsistioBg else Color.Transparent,
+                    contentColor = if (noAsistioSeleccionado) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onBackground
+                    }
+                )
             ) {
                 Text(text = "✗ No asistió", fontSize = 13.sp, fontWeight = FontWeight.Medium)
             }
@@ -242,10 +434,159 @@ private fun EstudianteCard(
 }
 
 @Composable
+private fun EstudianteInesperadoDialog(
+    roster: List<EstudianteSalon>,
+    onSeleccionar: (EstudianteSalon) -> Unit,
+    onCrear: (nombre: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var busqueda by remember { mutableStateOf("") }
+    val resultados = remember(busqueda) {
+        if (busqueda.isBlank()) roster else roster.filter { it.nombre.contains(busqueda, ignoreCase = true) }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text(
+                    text = "Estudiante inesperado",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Busca en la lista completa del salón antes de crear uno nuevo.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = busqueda,
+                    onValueChange = { busqueda = it },
+                    label = { Text("Buscar por nombre") },
+                    leadingIcon = { Icon(imageVector = Icons.Filled.Search, contentDescription = null) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (resultados.isEmpty()) {
+                    CrearEstudianteInesperadoForm(
+                        busqueda = busqueda,
+                        onCancelar = onDismiss,
+                        onCrear = onCrear
+                    )
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 260.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        resultados.forEach { alumno ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onSeleccionar(alumno) }
+                                    .padding(vertical = 10.dp)
+                            ) {
+                                Text(text = alumno.nombre, fontSize = 15.sp, color = MaterialTheme.colorScheme.onBackground)
+                                Text(text = alumno.grado, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            HorizontalDivider(color = EnadBorder)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, EnadBorder),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground)
+                    ) {
+                        Text(text = "Cancelar", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// El campo "Edad" se captura por fidelidad visual con el mockup, pero todavía no se
+// guarda en ningún lado (EstudianteAsistencia no tiene ese campo). El "código
+// provisional" es solo texto explicativo, no genera un código real todavía.
+@Composable
+private fun CrearEstudianteInesperadoForm(
+    busqueda: String,
+    onCancelar: () -> Unit,
+    onCrear: (nombre: String) -> Unit
+) {
+    var nombreCompleto by remember { mutableStateOf(busqueda) }
+    var edad by remember { mutableStateOf("") }
+
+    Text(
+        text = "\"$busqueda\" no está en la lista. Se creará con código provisional.",
+        fontSize = 12.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Spacer(modifier = Modifier.height(12.dp))
+    OutlinedTextField(
+        value = nombreCompleto,
+        onValueChange = { nombreCompleto = it },
+        label = { Text("Apellidos y nombre") },
+        singleLine = true,
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier.fillMaxWidth()
+    )
+    Spacer(modifier = Modifier.height(10.dp))
+    OutlinedTextField(
+        value = edad,
+        onValueChange = { nuevo -> edad = nuevo.filter { it.isDigit() } },
+        label = { Text("Edad") },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier.fillMaxWidth()
+    )
+    Spacer(modifier = Modifier.height(16.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(
+            onClick = onCancelar,
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(10.dp),
+            border = BorderStroke(1.dp, EnadBorder),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground)
+        ) {
+            Text(text = "Cancelar", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        }
+        Button(
+            onClick = { onCrear(nombreCompleto) },
+            enabled = nombreCompleto.isNotBlank(),
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.White,
+                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        ) {
+            Text(text = "Crear", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
 private fun EstadoPill(estado: EstadoAsistencia) {
     val (texto, fondo, textoColor) = when (estado) {
         EstadoAsistencia.PENDIENTE -> Triple("Pendiente", EnadPendienteBg, EnadPendienteText)
-        EstadoAsistencia.ASISTIO -> Triple("Asistió", EnadPillBg, EnadPillText)
+        EstadoAsistencia.ASISTIO -> Triple("Presente", EnadPillBg, EnadPillText)
         EstadoAsistencia.NO_ASISTIO -> Triple("No asistió", EnadNoAsistioBg, MaterialTheme.colorScheme.primary)
     }
     Box(
@@ -286,13 +627,19 @@ private fun AsistenciaListaHeader(
                 Text(text = fechaLarga, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        Text(
-            text = "+ Inesperado",
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.clickable(onClick = onInesperadoClick)
-        )
+        Box(
+            modifier = Modifier
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), RoundedCornerShape(20.dp))
+                .clickable(onClick = onInesperadoClick)
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Text(
+                text = "+ Inesperado",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
     }
 }
 
@@ -466,7 +813,7 @@ private fun AsistenciaTopBar(profesorNombre: String, onCambiarUsuario: () -> Uni
 }
 
 @Composable
-private fun AsistenciaBottomBar() {
+private fun AsistenciaBottomBar(onTabClick: (String) -> Unit = {}) {
     data class Tab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector, val selected: Boolean)
 
     val tabs = listOf(
@@ -481,7 +828,7 @@ private fun AsistenciaBottomBar() {
         tabs.forEach { tab ->
             NavigationBarItem(
                 selected = tab.selected,
-                onClick = {},
+                onClick = { onTabClick(tab.label) },
                 icon = { Icon(imageVector = tab.icon, contentDescription = tab.label) },
                 label = { Text(text = tab.label, fontSize = 11.sp) },
                 colors = NavigationBarItemDefaults.colors(

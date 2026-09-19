@@ -77,7 +77,12 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
         composable(Routes.ASISTENCIA) {
             AsistenciaScreen(
                 profesorNombre = nombreUsuario,
-                onCambiarUsuario = { volverALogin(navController) }
+                onCambiarUsuario = { volverALogin(navController) },
+                onTabClick = { label ->
+                    if (label == "Hoy") {
+                        navController.popBackStack()
+                    }
+                }
             )
         }
 
