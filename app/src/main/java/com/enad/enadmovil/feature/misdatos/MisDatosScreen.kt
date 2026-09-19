@@ -11,8 +11,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme.colorScheme
@@ -20,12 +23,18 @@ import androidx.compose.material3.MaterialTheme.typography
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.enad.enadmovil.core.ui.theme.greenBackgroundContainerLight
-import com.enad.enadmovil.core.ui.theme.pendingLight
+import com.enad.enadmovil.core.ui.theme.EnadPending
+import com.enad.enadmovil.core.ui.theme.EnadSuccessBg
+import com.enad.enadmovil.core.ui.theme.EnadSuccessText
 import com.enad.enadmovil.domain.model.EnvioPendiente
 
 private val enviosEjemplo = listOf(
@@ -35,7 +44,10 @@ private val enviosEjemplo = listOf(
 )
 
 @Composable
-fun MisDatosScreen(modifier: Modifier = Modifier) {
+fun MisDatosScreen(onEnviar: () -> Unit, modifier: Modifier = Modifier) {
+    var pendientes by remember { mutableStateOf(enviosEjemplo) }
+    var ultimoEnvio by remember { mutableStateOf("Ayer, 4:12 p. m. · 31 registros") }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -56,13 +68,13 @@ fun MisDatosScreen(modifier: Modifier = Modifier) {
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(greenBackgroundContainerLight),
+                            .background(EnadSuccessBg),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Check,
                             contentDescription = null,
-                            tint = colorScheme.secondary
+                            tint = EnadSuccessText
                         )
                     }
                     Column {
@@ -86,15 +98,33 @@ fun MisDatosScreen(modifier: Modifier = Modifier) {
                             modifier = Modifier.weight(1f)
                         )
                         Text(
-                            text = enviosEjemplo.sumOf { it.cantidad }.toString(),
+                            text = pendientes.sumOf { it.cantidad }.toString(),
                             style = typography.displaySmall,
-                            color = pendingLight
+                            color = EnadPending
                         )
                     }
-                    enviosEjemplo.forEachIndexed { index, envio ->
-                        FilaEnvioPendiente(envio)
-                        if (index != enviosEjemplo.lastIndex) {
-                            HorizontalDivider()
+                    if (pendientes.isEmpty()) {
+                        EstadoVacioPendientes()
+                    } else {
+                        pendientes.forEachIndexed { index, envio ->
+                            FilaEnvioPendiente(envio)
+                            if (index != pendientes.lastIndex) {
+                                HorizontalDivider()
+                            }
+                        }
+                        Button(
+                            onClick = {
+                                val total = pendientes.sumOf { it.cantidad }
+                                ultimoEnvio = "Ahora · $total registros"
+                                pendientes = emptyList()
+                                onEnviar()
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 12.dp)
+                        ) {
+                            Text("Enviar cuando haya señal")
                         }
                     }
                 }
@@ -111,10 +141,40 @@ fun MisDatosScreen(modifier: Modifier = Modifier) {
                         style = typography.labelSmall,
                         color = colorScheme.onSurfaceVariant
                     )
-                    Text(text = "Ayer, 4:12 p. m. · 31 registros", style = typography.bodyLarge)
+                    Text(text = ultimoEnvio, style = typography.bodyLarge)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun EstadoVacioPendientes() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = Icons.Filled.CloudDone,
+            contentDescription = null,
+            tint = colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(48.dp)
+        )
+        Text(
+            text = "No hay nada pendiente",
+            style = typography.titleMedium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 12.dp)
+        )
+        Text(
+            text = "La simulación está al día. No se enviaron datos a un servidor.",
+            style = typography.bodyMedium,
+            color = colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 4.dp)
+        )
     }
 }
 
