@@ -34,6 +34,7 @@ import com.enad.enadmovil.core.ui.theme.inkContainerLight
 import com.enad.enadmovil.core.ui.theme.onInkContainerLight
 import com.enad.enadmovil.core.ui.theme.onInkLight
 import com.enad.enadmovil.core.ui.theme.pillBackgroundLight
+import com.enad.enadmovil.feature.misdatos.MisDatosScreen
 
 @Composable
 fun AppShell(modifier: Modifier = Modifier) {
@@ -103,7 +104,7 @@ fun AppShell(modifier: Modifier = Modifier) {
                 EnadDestination.MI_LISTA -> PlaceholderScreen("Mi lista")
                 EnadDestination.GRUPOS -> PlaceholderScreen("Grupos")
                 EnadDestination.HORAS -> PlaceholderScreen("Horas")
-                EnadDestination.MIS_DATOS -> PlaceholderScreen("Mis datos")
+                EnadDestination.MIS_DATOS -> MisDatosScreen()
             }
         }
     }
