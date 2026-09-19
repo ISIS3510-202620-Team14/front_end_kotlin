@@ -303,3 +303,5 @@ val heatmapStep1Light = Color(0xFFF6DAD6)
 val heatmapStep2Light = Color(0xFFECAAA5)
 val heatmapStep3Light = Color(0xFFD6635D)
 
+val pendingLight = Color(0xFF955D0C)
+
