@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import com.enad.enadmovil.core.ui.theme.amberBackgroundContainerLight
 import com.enad.enadmovil.core.ui.theme.pendingLight
 import com.enad.enadmovil.core.ui.theme.pillBackgroundLight
+import com.enad.enadmovil.domain.model.DiaSesion
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlin.math.round
@@ -70,6 +71,12 @@ fun HorasScreen(nombreGrupo: String,onEnviarReporte: () -> Unit, modifier: Modif
     }
     val diferencia = ((horasProgramadas.toDoubleOrNull() ?: 0.0) - (horasRealizadas.toDoubleOrNull() ?: 0.0))
         .let { if (it > 0) it else 0.0 }
+
+    var dias by remember { mutableStateOf(diasEjemploUltimasSemanas()) }
+    var diaSeleccionado by remember { mutableStateOf<DiaSesion?>(null) }
+    val maxHorasReales = remember(dias) { dias.maxOfOrNull { it.horasReales ?: 0.0 } ?: 0.0 }
+    val totalReales = remember(dias) { dias.sumOf { it.horasReales ?: 0.0 } }
+    val totalPlaneadas = remember(dias) { dias.sumOf { it.horasProgramadas } }
 
     LazyColumn(
         modifier = modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 18.dp),
@@ -185,6 +192,38 @@ fun HorasScreen(nombreGrupo: String,onEnviarReporte: () -> Unit, modifier: Modif
                 }
             }
         }
+        item {
+            OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(text = "Últimas 12 semanas", style = typography.titleMedium)
+                    Text(
+                        text = "${formatearHoras(totalReales)} h realizadas de ${formatearHoras(totalPlaneadas)} h " +
+                            "programadas. Toca un día para registrar horas de ejemplo.",
+                        style = typography.bodyMedium,
+                        color = colorScheme.onSurfaceVariant
+                    )
+                    HorasHeatmap(
+                        dias = dias,
+                        maxHorasReales = maxHorasReales,
+                        onDiaClick = { diaSeleccionado = it }
+                    )
+                }
+            }
+        }
+    }
+
+    diaSeleccionado?.let { dia ->
+        RegistrarHorasSheet(
+            dia = dia,
+            onRegistrar = { horas ->
+                dias = dias.map { if (it.fecha == dia.fecha) it.copy(horasReales = horas) else it }
+                diaSeleccionado = null
+            },
+            onDismiss = { diaSeleccionado = null }
+        )
     }
 }
 
@@ -225,7 +264,7 @@ private fun DropdownCampo(
     }
 }
 
-private fun formatearHoras(horas: Double): String {
+fun formatearHoras(horas: Double): String {
     val redondeado = round(horas * 10) / 10
     return if (redondeado == redondeado.toInt().toDouble()) {
         redondeado.toInt().toString()
