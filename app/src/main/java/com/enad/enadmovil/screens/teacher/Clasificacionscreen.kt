@@ -20,6 +20,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -77,6 +79,7 @@ fun ClasificacionScreen(
 ) {
     var cursoSeleccionado by remember { mutableStateOf(CLASIFICACION_CURSOS.first()) }
     val estudiantes = remember { estudiantesClasificacionDemo() }
+    var expandidoNumero by remember { mutableStateOf(estudiantes.firstOrNull()?.numero) }
 
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
         Column(
@@ -131,27 +134,53 @@ fun ClasificacionScreen(
             )
             Spacer(modifier = Modifier.height(10.dp))
             estudiantes.forEach { estudiante ->
-                EstudianteClasificacionCard(estudiante)
+                EstudianteClasificacionCard(
+                    estudiante = estudiante,
+                    expandido = expandidoNumero == estudiante.numero,
+                    onToggleExpand = {
+                        expandidoNumero = if (expandidoNumero == estudiante.numero) null else estudiante.numero
+                    }
+                )
                 Spacer(modifier = Modifier.height(14.dp))
             }
         }
     }
 }
 
+// Paso 4: acordeón (solo una tarjeta abierta a la vez). Todavía no hay nada que
+// mostrar al expandir — eso llega en los próximos pasos (sexo/edad, niveles).
 @Composable
-private fun EstudianteClasificacionCard(estudiante: EstudianteClasificacion) {
+private fun EstudianteClasificacionCard(
+    estudiante: EstudianteClasificacion,
+    expandido: Boolean,
+    onToggleExpand: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
             .padding(16.dp)
     ) {
-        Text(
-            text = "${estudiante.numero}  ${estudiante.nombre}",
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onBackground
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggleExpand),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "${estudiante.numero}  ${estudiante.nombre}",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = if (expandido) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                contentDescription = null,
+                tint = if (expandido) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         Spacer(modifier = Modifier.height(8.dp))
         PillGenerico("Pendiente", EnadPendienteBg, EnadPendienteText)
     }
