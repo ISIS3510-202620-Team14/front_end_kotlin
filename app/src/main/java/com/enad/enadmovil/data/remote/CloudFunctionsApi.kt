@@ -11,7 +11,7 @@ import java.net.URL
  */
 object CloudFunctionsApi {
 
-    private const val BASE_URL = "BASE_URL"
+    private const val BASE_URL = "https://us-central1-enad-movil.cloudfunctions.net"
 
     data class RespuestaAuth(
         val uid: String,
