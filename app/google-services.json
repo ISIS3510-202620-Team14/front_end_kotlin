@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1033137996",
+    "project_id": "enad-movil",
+    "storage_bucket": "enad-movil.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1033137996:android:4b3cdcd704b240d3b5a9e9",
+        "android_client_info": {
+          "package_name": "com.enad.enadmovil"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBmbFyGHgBYO1vqdwDbTqXdotyXP6wtxwQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
