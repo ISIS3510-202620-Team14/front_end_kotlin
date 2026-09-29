@@ -6,8 +6,9 @@ import com.enad.enadmovil.domain.model.Usuario
 import kotlinx.coroutines.tasks.await
 
 /**
- * Pattern Facade: oculta los dos pasos reales del login/registro (llamar la Cloud Function
- * + abrir sesión con el customToken en Firebase Auth) detrás de una sola función.
+ * Facade: hides the two real steps of login/register (calling the Cloud
+ * Function + signing in with the customToken in Firebase Auth) behind a
+ * single function.
  */
 class AuthRepository {
 

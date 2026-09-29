@@ -1,11 +1,16 @@
 package com.enad.enadmovil.ui.screens.auth
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -16,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -27,11 +33,17 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.enad.enadmovil.domain.model.Usuario
 
+// Same palette as the high-fidelity mockup. Kept local to this file on purpose.
 private val BgCream = Color(0xFFF7F1E8)
 private val TextDark = Color(0xFF2B2320)
 private val TextMuted = Color(0xFF7A7168)
 private val PrimaryRed = Color(0xFFA6241F)
 private val FieldBorder = Color(0xFFDCD2C0)
+
+// Generic serif family (maps to the system serif font, no extra font files
+// needed) — gives the title the same display-serif look as the mockup without
+// touching the rest of the app's typography.
+private val TitleFont = FontFamily.Serif
 
 @Composable
 fun LoginScreen(
@@ -51,43 +63,57 @@ fun LoginScreen(
                 text = "ENAd Móvil",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
+                fontFamily = TitleFont,
                 color = TextDark
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "Ingresa con tu correo y tu contraseña.",
+                text = if (uiState.modoRegistro) {
+                    "Crea tu cuenta para comenzar."
+                } else {
+                    "Ingresa con tu usuario y contraseña."
+                },
                 fontSize = 15.sp,
                 color = TextMuted
             )
 
             Spacer(modifier = Modifier.height(28.dp))
 
+            if (uiState.modoRegistro) {
+                OutlinedTextField(
+                    value = uiState.nombreCompleto,
+                    onValueChange = viewModel::onNombreCompletoChange,
+                    placeholder = { Text("Nombre completo", color = TextMuted) },
+                    singleLine = true,
+                    enabled = !uiState.cargando,
+                    isError = uiState.error != null,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = campoColors(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+
             OutlinedTextField(
-                value = uiState.email,
-                onValueChange = viewModel::onEmailChange,
-                placeholder = { Text("Correo electrónico", color = TextMuted) },
+                value = uiState.usuario,
+                onValueChange = viewModel::onUsuarioChange,
+                placeholder = { Text("Usuario", color = TextMuted) },
                 singleLine = true,
                 enabled = !uiState.cargando,
                 isError = uiState.error != null,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 shape = RoundedCornerShape(10.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = FieldBorder,
-                    focusedBorderColor = PrimaryRed,
-                    unfocusedTextColor = TextDark,
-                    focusedTextColor = TextDark,
-                    cursorColor = PrimaryRed
-                ),
+                colors = campoColors(),
                 modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(14.dp))
 
             OutlinedTextField(
-                value = uiState.password,
-                onValueChange = viewModel::onPasswordChange,
+                value = uiState.contrasena,
+                onValueChange = viewModel::onContrasenaChange,
                 placeholder = { Text("Contraseña", color = TextMuted) },
                 singleLine = true,
                 enabled = !uiState.cargando,
@@ -96,21 +122,15 @@ fun LoginScreen(
                 visualTransformation = if (uiState.mostrarContrasena) VisualTransformation.None else PasswordVisualTransformation(),
                 trailingIcon = {
                     IconButton(onClick = viewModel::onMostrarContrasenaToggle) {
-                        Text(
-                            text = if (uiState.mostrarContrasena) "Ocultar" else "Ver",
-                            fontSize = 12.sp,
-                            color = TextMuted
+                        Icon(
+                            imageVector = if (uiState.mostrarContrasena) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            contentDescription = if (uiState.mostrarContrasena) "Ocultar contraseña" else "Mostrar contraseña",
+                            tint = TextMuted
                         )
                     }
                 },
                 shape = RoundedCornerShape(10.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = FieldBorder,
-                    focusedBorderColor = PrimaryRed,
-                    unfocusedTextColor = TextDark,
-                    focusedTextColor = TextDark,
-                    cursorColor = PrimaryRed
-                ),
+                colors = campoColors(),
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -127,7 +147,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             Button(
-                onClick = { viewModel.onEntrarClick(onLoginExitoso) },
+                onClick = { viewModel.onSubmitClick(onLoginExitoso) },
                 enabled = !uiState.cargando,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -145,23 +165,45 @@ fun LoginScreen(
                         strokeWidth = 2.dp
                     )
                 } else {
-                    Text(text = "Entrar", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (uiState.modoRegistro) "Registrarme" else "Entrar",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Necesitas una cuenta ya registrada en Firebase para entrar.",
-                fontSize = 12.sp,
-                color = TextMuted
+                text = if (uiState.modoRegistro) {
+                    "¿Ya tienes cuenta? Inicia sesión"
+                } else {
+                    "¿No tienes cuenta? Regístrate"
+                },
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = PrimaryRed,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .clickable(enabled = !uiState.cargando) { viewModel.onToggleModoRegistro() }
             )
         }
     }
 }
 
+@Composable
+private fun campoColors() = OutlinedTextFieldDefaults.colors(
+    unfocusedBorderColor = FieldBorder,
+    focusedBorderColor = PrimaryRed,
+    unfocusedTextColor = TextDark,
+    focusedTextColor = TextDark,
+    cursorColor = PrimaryRed
+)
+
 @Preview(showBackground = true)
 @Composable
 private fun LoginScreenPreview() {
-    LoginScreen(viewModel = AuthViewModel())
+    val authViewModel: AuthViewModel = viewModel()
+    LoginScreen(viewModel = authViewModel)
 }

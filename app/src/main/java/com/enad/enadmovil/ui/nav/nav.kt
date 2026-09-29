@@ -58,7 +58,7 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                         Rol.DOCENTE -> Routes.TEACHER_HOME
                         Rol.ADMINISTRADOR -> Routes.ADMIN_HOME
                         Rol.VOLUNTARIO -> Routes.FOUNDATION_REPORTS
-                        else -> null // AuthViewModel ya filtra esto antes de llamar aquí
+                        else -> null // AuthViewModel already filters this out before calling here
                     }
                     if (destino != null) {
                         navController.navigate(destino) {
