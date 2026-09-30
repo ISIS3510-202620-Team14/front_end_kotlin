@@ -29,4 +29,12 @@ class AuthRepository {
     }
 
     fun usuarioActual() = FirebaseModule.auth.currentUser
+
+    /**
+     ID token to send as "Authorization: Bearer <token>" to any protected
+     Cloud Function (e.g. /students, which checks this with verifyIdToken).
+     Different from the customToken used only once at login/register.
+     */
+    suspend fun obtenerIdToken(): String? =
+        FirebaseModule.auth.currentUser?.getIdToken(false)?.await()?.token
 }
