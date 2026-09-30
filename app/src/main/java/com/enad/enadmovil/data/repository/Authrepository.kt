@@ -12,10 +12,24 @@ import kotlinx.coroutines.tasks.await
  */
 class AuthRepository {
 
+    private suspend fun cargarSchoolId(uid: String): String? =
+        FirebaseModule.firestore
+            .collection("users")
+            .document(uid).get().await()
+            .getString("schoolId")
     suspend fun iniciarSesion(email: String, password: String): Usuario {
-        val respuesta = CloudFunctionsApi.login(email, password)
-        FirebaseModule.auth.signInWithCustomToken(respuesta.customToken).await()
-        return Usuario(uid = respuesta.uid, email = email, rol = respuesta.rol)
+        val r = CloudFunctionsApi.login(email, password)
+        FirebaseModule.auth.signInWithCustomToken(r.customToken).await()
+        return Usuario(r.uid, email, rol = r.rol, schoolId = cargarSchoolId(r.uid))
+    }
+
+    suspend fun usuarioActualConColegio(): Usuario? {
+        val u = FirebaseModule.auth.currentUser ?: return null
+        return runCatching {
+            val doc = FirebaseModule.firestore.collection("users").document(u.uid).get().await()
+            Usuario(u.uid, u.email.orEmpty(), doc.getString("fullName").orEmpty(),
+                doc.getString("rol").orEmpty(), doc.getString("schoolId"))
+        }.getOrNull()
     }
 
     suspend fun registrarse(email: String, password: String, fullName: String): Usuario {
