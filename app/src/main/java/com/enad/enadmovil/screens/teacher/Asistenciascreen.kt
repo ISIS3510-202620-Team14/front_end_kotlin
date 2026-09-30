@@ -46,6 +46,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.enad.enadmovil.ui.screens.teacher.scan.ScanReviewDialog
+import com.enad.enadmovil.ui.screens.teacher.scan.ScanViewModel
+import com.enad.enadmovil.ui.screens.teacher.scan.CameraCapture
 import com.enad.enadmovil.ui.theme.EnadBorder
 import com.enad.enadmovil.ui.theme.EnadHeader
 import com.enad.enadmovil.ui.theme.EnadHeaderChip
@@ -90,16 +96,6 @@ private fun estudiantesDemo(): List<EstudianteAsistencia> = listOf(
     EstudianteAsistencia(8, "Nicolás Pardo Salazar", "M")
 )
 
-// Paso 8: lista ficticia que simula el resultado de un "escaneo". No usa cámara ni OCR real.
-private val LISTA_ESCANEADA_DEMO = listOf(
-    "Laura Jiménez Rico",
-    "Diego Alejandro Mora",
-    "Isabella Castro Niño",
-    "Samuel Rojas Beltrán",
-    "Mariana Gil Escobar",
-    "Tomás Restrepo Silva"
-)
-
 // Paso 9: roster completo del salón (varios grados) para buscar un "estudiante inesperado".
 data class EstudianteSalon(val id: Int, val nombre: String, val grado: String)
 
@@ -127,6 +123,9 @@ fun AsistenciaScreen(
     var mostrarConfirmacionGuardado by remember { mutableStateOf(false) }
     var mostrarEscaner by remember { mutableStateOf(false) }
     var mostrarInesperado by remember { mutableStateOf(false) }
+    var mostrarCamara by remember { mutableStateOf(false) }
+    val scanViewModel: ScanViewModel = viewModel()
+    val scanState by scanViewModel.uiState.collectAsStateWithLifecycle()
 
     fun actualizarEstado(numero: Int, nuevoEstado: EstadoAsistencia) {
         estudiantes = estudiantes.map { estudiante ->
@@ -252,7 +251,7 @@ fun AsistenciaScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             OutlinedButton(
-                onClick = { mostrarEscaner = true },
+                onClick = { mostrarCamara = true }, // antes: mostrarEscaner = true
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
@@ -266,7 +265,7 @@ fun AsistenciaScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Escáner de demostración: permite revisar e importar una lista ficticia. No usa cámara ni OCR.",
+                text = "Toma una foto de tu lista física. Se lee en el teléfono, sin internet, y la revisas antes de importar.",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -296,46 +295,42 @@ fun AsistenciaScreen(
         )
     }
 
+    // Cámara a pantalla completa encima de la lista. Al tomar la foto se cierra.
+    if (mostrarCamara) {
+        Dialog(
+            onDismissRequest = { mostrarCamara = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            CameraCapture(
+                onFotoCapturada = { uri ->
+                    mostrarCamara = false
+                    mostrarEscaner = true
+                    scanViewModel.onFotoCapturada(uri) // OCR en el teléfono, sin internet
+                },
+                onError = { mostrarCamara = false },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
+
     if (mostrarEscaner) {
-        AlertDialog(
-            onDismissRequest = { mostrarEscaner = false },
-            containerColor = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(16.dp),
-            title = {
-                Text(text = "Lista escaneada (demo)", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            },
-            text = {
-                Column {
-                    Text(
-                        text = "Se \"detectaron\" ${LISTA_ESCANEADA_DEMO.size} estudiantes. Revisa antes de importar.",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+        ScanReviewDialog(
+            estado = scanState,
+            onImportar = { filas ->
+                estudiantes = filas.mapIndexed { index, f ->
+                    EstudianteAsistencia(
+                        numero = index + 1,
+                        nombre = f.nombre,
+                        etiqueta = listOfNotNull(f.codigo, f.grado?.let { "Gr. $it" }, f.edad?.let { "$it años" })
+                            .joinToString(" · ").ifBlank { "—" }
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    LISTA_ESCANEADA_DEMO.forEach { nombre ->
-                        Text(
-                            text = "• $nombre",
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.padding(vertical = 2.dp)
-                        )
-                    }
                 }
+                mostrarEscaner = false
+                scanViewModel.limpiar()
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    estudiantes = LISTA_ESCANEADA_DEMO.mapIndexed { index, nombre ->
-                        EstudianteAsistencia(numero = index + 1, nombre = nombre, etiqueta = "—")
-                    }
-                    mostrarEscaner = false
-                }) {
-                    Text(text = "Importar", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { mostrarEscaner = false }) {
-                    Text(text = "Cancelar", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+            onCancelar = {
+                mostrarEscaner = false
+                scanViewModel.limpiar()
             }
         )
     }
