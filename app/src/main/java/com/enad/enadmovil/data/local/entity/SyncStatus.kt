@@ -1,3 +1,3 @@
 package com.enad.enadmovil.data.local.entity
 
-enum class SyncStatus { PENDING, SYNCED }
+enum class SyncStatus { PENDING, SYNCED, FAILED }

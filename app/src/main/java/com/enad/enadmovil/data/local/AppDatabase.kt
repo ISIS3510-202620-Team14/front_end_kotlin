@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.enad.enadmovil.data.local.dao.AsistenciaDao
+import com.enad.enadmovil.data.local.dao.EstudianteDao
 import com.enad.enadmovil.data.local.entity.AsistenciaEntity
 import com.enad.enadmovil.data.local.entity.EstudianteEntity
 
@@ -13,7 +15,8 @@ import com.enad.enadmovil.data.local.entity.EstudianteEntity
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
-    // Los DAO se agregan aquí en el siguiente paso.
+    abstract fun estudianteDao(): EstudianteDao
+    abstract fun asistenciaDao(): AsistenciaDao
 
     companion object {
         @Volatile private var instancia: AppDatabase? = null

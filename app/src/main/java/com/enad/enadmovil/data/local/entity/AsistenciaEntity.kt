@@ -2,11 +2,18 @@ package com.enad.enadmovil.data.local.entity
 
 import androidx.room.Entity
 
-@Entity(tableName = "asistencias", primaryKeys = ["grupoId", "estudianteId", "fecha"])
+/** Estados tal como los espera PUT /students/{id}/attendance. */
+object EstadoRemoto {
+    const val VINO = "vino"
+    const val NO_VINO = "no_vino"
+    const val SIN_REGISTRO = "sin_registro"
+}
+
+@Entity(tableName = "asistencias", primaryKeys = ["estudianteId", "fecha"])
 data class AsistenciaEntity(
-    val grupoId: String,              // el grupo es independiente del curso/grado
     val estudianteId: String,
     val fecha: String,                // yyyy-MM-dd
-    val presente: Boolean,
-    val syncStatus: SyncStatus = SyncStatus.PENDING
+    val estado: String,               // EstadoRemoto
+    val docenteUid: String,
+    val syncStatus: SyncStatus
 )
