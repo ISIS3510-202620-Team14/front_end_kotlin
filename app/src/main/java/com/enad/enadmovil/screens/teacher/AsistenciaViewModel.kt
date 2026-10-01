@@ -67,18 +67,21 @@ class AsistenciaViewModel(app: Application) : AndroidViewModel(app) {
     private val estudiantesFlow = schoolId.flatMapLatest { sid ->
         if (sid == null) flowOf(emptyList<EstudianteEntity>()) else repo.observarEstudiantes(sid)
     }
-    private val marcasFlow = filtros.map { it.fecha }.distinctUntilChanged()
-        .flatMapLatest { repo.observarAsistencia(it) }
+    // La asistencia se guarda por día; una semana son 5 días seguidos (lunes a viernes).
+    private val fechasSemana = diasDeLaSemana().map { it.fecha.toString() }
+    private val marcasFlow = repo.observarSemana(fechasSemana.first(), fechasSemana.last())
     private val pendientesFlow = repo.observarPendientes(uid)
 
     val uiState: StateFlow<AsistenciaUiState> = combine(
         estudiantesFlow, marcasFlow, filtros, pendientesFlow, meta
     ) { alumnos, marcas, f, pendientes, m ->
-        val marcaPorId = marcas.associateBy { it.estudianteId }
+        val porEstudiante = marcas.groupBy { it.estudianteId }
+            .mapValues { (_, lista) -> lista.associate { it.fecha to it.estado } }
+        fun estadoDe(id: String, fecha: String): String? = porEstudiante[id]?.get(fecha)
         // Se ven los del curso elegido y, además, cualquiera que ya tenga marca ese día (los "inesperados").
         val visibles = alumnos.filter { a ->
             (f.grado == null || a.grade == f.grado) ||
-                    (marcaPorId[a.id]?.estado ?: EstadoRemoto.SIN_REGISTRO) != EstadoRemoto.SIN_REGISTRO
+                    (estadoDe(a.id, f.fecha) ?: EstadoRemoto.SIN_REGISTRO) != EstadoRemoto.SIN_REGISTRO
         }
         AsistenciaUiState(
             cargando = m.cargando,
@@ -89,7 +92,8 @@ class AsistenciaViewModel(app: Application) : AndroidViewModel(app) {
                     numero = i + 1,
                     nombre = a.fullName,
                     etiqueta = etiqueta(a),
-                    estado = aEstado(marcaPorId[a.id]?.estado)
+                    estado = aEstado(estadoDe(a.id, f.fecha)),
+                    semana = fechasSemana.map { aEstado(estadoDe(a.id, it)) }
                 )
             },
             roster = alumnos.map { EstudianteSalon(it.id, it.fullName, it.grade?.let { g -> "Grado $g" } ?: "—") },
@@ -114,14 +118,13 @@ class AsistenciaViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun refrescar() {
         val sid = schoolId.value ?: return
-        viewModelScope.launch { repo.descargarRoster(sid, uid, filtros.value.fecha) }
+        viewModelScope.launch { repo.descargarSemana(sid, uid, fechasSemana) }
     }
 
     fun seleccionarGrado(grado: Int?) = filtros.update { it.copy(grado = grado) }
 
     fun seleccionarFecha(fecha: LocalDate) {
-        filtros.update { it.copy(fecha = fecha.toString()) }
-        refrescar()
+        filtros.update { it.copy(fecha = fecha.toString()) } // la semana ya está descargada
     }
 
     fun marcar(id: String, estado: EstadoAsistencia) {

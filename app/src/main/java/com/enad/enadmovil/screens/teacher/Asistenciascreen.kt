@@ -80,7 +80,8 @@ data class EstudianteAsistencia(
     val numero: Int,
     val nombre: String,
     val etiqueta: String,
-    val estado: EstadoAsistencia = EstadoAsistencia.PENDIENTE
+    val estado: EstadoAsistencia = EstadoAsistencia.PENDIENTE,
+    val semana: List<EstadoAsistencia> = emptyList() // lunes a viernes
 )
 
 data class EstudianteSalon(val id: String, val nombre: String, val grado: String)
@@ -216,6 +217,11 @@ fun AsistenciaScreen(
             estudiantes.forEach { estudiante ->
                 EstudianteCard(
                     estudiante = estudiante,
+                    diaSeleccionado = dias.indexOf(diaSeleccionado),
+                    onDiaClick = { i ->
+                        diaSeleccionado = dias[i]
+                        viewModel.seleccionarFecha(dias[i].fecha)
+                    },
                     onAsistioClick = { viewModel.marcar(estudiante.id, EstadoAsistencia.ASISTIO) },
                     onNoAsistioClick = { viewModel.marcar(estudiante.id, EstadoAsistencia.NO_ASISTIO) }
                 )
@@ -349,6 +355,9 @@ fun AsistenciaScreen(
             containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(16.dp),
             title = {
+                Text(text = "Asistencia guardada", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            },
+            text = {
                 Text(
                     text = if (ui.pendientesSync > 0) {
                         "Guardada en tu teléfono. Enviando al servidor… Si no hay internet, " +
@@ -389,6 +398,8 @@ fun AsistenciaScreen(
 @Composable
 private fun EstudianteCard(
     estudiante: EstudianteAsistencia,
+    diaSeleccionado: Int,
+    onDiaClick: (Int) -> Unit,
     onAsistioClick: () -> Unit,
     onNoAsistioClick: () -> Unit
 ) {
@@ -416,6 +427,10 @@ private fun EstudianteCard(
         Spacer(modifier = Modifier.height(8.dp))
 
         EstadoPill(estudiante.estado)
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        SemanaChips(estudiante.semana, diaSeleccionado, onDiaClick)
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -450,6 +465,40 @@ private fun EstudianteCard(
                 )
             ) {
                 Text(text = "✗ No asistió", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+    }
+}
+
+private val LETRAS_DIAS = listOf("L", "M", "X", "J", "V")
+
+/** La semana del estudiante de un vistazo: lunes a viernes, con el estado de cada día. Tocar uno elige ese día. */
+@Composable
+private fun SemanaChips(semana: List<EstadoAsistencia>, seleccionado: Int, onDiaClick: (Int) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(text = "Semana", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(modifier = Modifier.width(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            LETRAS_DIAS.forEachIndexed { i, letra ->
+                val (fondo, texto) = when (semana.getOrElse(i) { EstadoAsistencia.PENDIENTE }) {
+                    EstadoAsistencia.ASISTIO -> EnadPillBg to EnadPillText
+                    EstadoAsistencia.NO_ASISTIO -> EnadNoAsistioBg to MaterialTheme.colorScheme.primary
+                    EstadoAsistencia.PENDIENTE -> EnadPendienteBg to EnadPendienteText
+                }
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(28.dp)
+                        .background(fondo, RoundedCornerShape(8.dp))
+                        .let {
+                            if (i == seleccionado) {
+                                it.border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
+                            } else it
+                        }
+                        .clickable { onDiaClick(i) }
+                ) {
+                    Text(text = letra, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = texto)
+                }
             }
         }
     }

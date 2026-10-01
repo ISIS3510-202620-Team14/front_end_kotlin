@@ -5,6 +5,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 
 /**
  * Llama directo a las Cloud Functions de firebase_backend:
@@ -23,6 +24,7 @@ object CloudFunctionsApi {
 
     data class EstudianteRemoto(
         val id: String,
+        val schoolId: String,
         val code: String,
         val fullName: String,
         val grade: Int,
@@ -79,6 +81,7 @@ object CloudFunctionsApi {
     /** POST /students. Con clientId, repetir el envío devuelve el mismo estudiante (200) en vez de duplicarlo. */
     suspend fun crearEstudiante(
         token: String,
+        schoolId: String,
         clientId: String,
         fullName: String,
         grade: Int,
@@ -86,6 +89,7 @@ object CloudFunctionsApi {
         code: String?
     ): EstudianteRemoto {
         val cuerpo = JSONObject()
+            .put("schoolId", schoolId) // obligatorio si el docente tiene varias escuelas
             .put("clientId", clientId)
             .put("fullName", fullName)
             .put("grade", grade)
@@ -100,14 +104,19 @@ object CloudFunctionsApi {
     }
 
     /** GET /students (del colegio del docente). Con fecha, cada estudiante trae su asistencia de ese día. */
-    suspend fun listarEstudiantes(token: String, fecha: String?): List<EstudianteRemoto> {
-        val ruta = if (fecha != null) "?date=$fecha" else ""
+    suspend fun listarEstudiantes(token: String, schoolId: String?, fecha: String?): List<EstudianteRemoto> {
+        val params = listOfNotNull(
+            schoolId?.let { "schoolId=${URLEncoder.encode(it, "UTF-8")}" },
+            fecha?.let { "date=$it" }
+        )
+        val ruta = if (params.isEmpty()) "" else "?" + params.joinToString("&")
         val arreglo = solicitar("GET", ruta, token, null).getJSONArray("students")
         return List(arreglo.length()) { aEstudiante(arreglo.getJSONObject(it)) }
     }
 
     private fun aEstudiante(o: JSONObject) = EstudianteRemoto(
         id = o.getString("id"),
+        schoolId = o.getString("schoolId"),
         code = o.getString("code"),
         fullName = o.getString("fullName"),
         grade = o.getInt("grade"),

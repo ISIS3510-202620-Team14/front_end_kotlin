@@ -51,13 +51,19 @@ class AuthRepository {
     suspend fun obtenerToken(): String? =
         FirebaseModule.auth.currentUser?.getIdToken(false)?.await()?.token
 
+    /**
+     * El backend ahora guarda las escuelas del docente en `schoolIds` (lista); los perfiles
+     * viejos traen un solo `schoolId`. Se leen ambos. Con varias escuelas se usa la primera
+     * (falta un selector de escuela).
+     */
     private suspend fun cargarSchoolId(uid: String): String? =
         runCatching {
-            FirebaseModule.firestore
+            val doc = FirebaseModule.firestore
                 .collection("users")
                 .document(uid)
                 .get()
                 .await()
-                .getString("schoolId")
+            val lista = (doc.get("schoolIds") as? List<*>)?.filterIsInstance<String>().orEmpty()
+            lista.firstOrNull() ?: doc.getString("schoolId")
         }.getOrNull()
 }

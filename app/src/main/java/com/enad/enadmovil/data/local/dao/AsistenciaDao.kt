@@ -15,6 +15,10 @@ interface AsistenciaDao {
     @Query("SELECT * FROM asistencias WHERE fecha = :fecha")
     fun observarDelDia(fecha: String): Flow<List<AsistenciaEntity>>
 
+    // Las fechas yyyy-MM-dd se ordenan como texto, así que BETWEEN sirve para una semana.
+    @Query("SELECT * FROM asistencias WHERE fecha BETWEEN :desde AND :hasta")
+    fun observarRango(desde: String, hasta: String): Flow<List<AsistenciaEntity>>
+
     @Query("SELECT * FROM asistencias WHERE fecha = :fecha")
     suspend fun delDia(fecha: String): List<AsistenciaEntity>
 

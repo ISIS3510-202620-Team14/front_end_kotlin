@@ -29,7 +29,7 @@ class AsistenciaRepository(context: Context) {
     data class ResultadoImportacion(val nuevos: Int, val existentes: Int, val sinGrado: Int)
 
     fun observarEstudiantes(schoolId: String): Flow<List<EstudianteEntity>> = estudiantes.observar(schoolId)
-    fun observarAsistencia(fecha: String): Flow<List<AsistenciaEntity>> = asistencias.observarDelDia(fecha)
+    fun observarSemana(desde: String, hasta: String): Flow<List<AsistenciaEntity>> = asistencias.observarRango(desde, hasta)
     fun observarPendientes(uid: String): Flow<Int> = asistencias.contarPendientes(uid)
 
     // ---------- Escritura local (siempre funciona, con o sin internet) ----------
@@ -112,36 +112,43 @@ class AsistenciaRepository(context: Context) {
 
     // ---------- Bajar del backend ----------
 
-    /** GET /students?date=...: actualiza el roster y la asistencia del día sin pisar lo que está pendiente. */
-    suspend fun descargarRoster(schoolId: String, uid: String, fecha: String): Boolean {
+    /**
+     * Para cada día de la semana: GET /students?schoolId=...&date=... Actualiza el roster y las
+     * marcas sin pisar lo que está pendiente. Hoy son 5 llamadas (el backend filtra por un día).
+     */
+    suspend fun descargarSemana(schoolId: String, uid: String, fechas: List<String>): Boolean {
         val token = runCatching { auth.obtenerToken() }.getOrNull() ?: return false
-        return try {
-            val remotos = CloudFunctionsApi.listarEstudiantes(token, fecha)
-            val entidades = mutableListOf<EstudianteEntity>()
-            val marcas = mutableListOf<AsistenciaEntity>()
+        var alguno = false
+        for (fecha in fechas) {
+            try {
+                val remotos = CloudFunctionsApi.listarEstudiantes(token, schoolId, fecha)
+                val entidades = mutableListOf<EstudianteEntity>()
+                val marcas = mutableListOf<AsistenciaEntity>()
 
-            for (r in remotos) {
-                if (estudiantes.porId(r.id)?.syncStatus != SyncStatus.PENDING) {
-                    entidades += EstudianteEntity(
-                        id = r.id, schoolId = schoolId, docenteUid = uid, fullName = r.fullName,
-                        code = r.code, grade = r.grade, age = r.age, provisional = r.provisional,
-                        syncStatus = SyncStatus.SYNCED
-                    )
+                for (r in remotos) {
+                    if (estudiantes.porId(r.id)?.syncStatus != SyncStatus.PENDING) {
+                        entidades += EstudianteEntity(
+                            id = r.id, schoolId = r.schoolId, docenteUid = uid, fullName = r.fullName,
+                            code = r.code, grade = r.grade, age = r.age, provisional = r.provisional,
+                            syncStatus = SyncStatus.SYNCED
+                        )
+                    }
+                    if ((r.attendance == EstadoRemoto.VINO || r.attendance == EstadoRemoto.NO_VINO) &&
+                        asistencias.buscar(r.id, fecha)?.syncStatus != SyncStatus.PENDING
+                    ) {
+                        marcas += AsistenciaEntity(r.id, fecha, r.attendance, uid, SyncStatus.SYNCED)
+                    }
                 }
-                if ((r.attendance == EstadoRemoto.VINO || r.attendance == EstadoRemoto.NO_VINO) &&
-                    asistencias.buscar(r.id, fecha)?.syncStatus != SyncStatus.PENDING
-                ) {
-                    marcas += AsistenciaEntity(r.id, fecha, r.attendance, uid, SyncStatus.SYNCED)
+                db.withTransaction {
+                    estudiantes.upsertAll(entidades)
+                    asistencias.upsertAll(marcas)
                 }
+                alguno = true
+            } catch (e: Exception) {
+                // sin internet o error del servidor ese día: se sigue con lo que hay en el teléfono
             }
-            db.withTransaction {
-                estudiantes.upsertAll(entidades)
-                asistencias.upsertAll(marcas)
-            }
-            true
-        } catch (e: Exception) {
-            false // sin internet o error del servidor: se sigue con lo que hay en el teléfono
         }
+        return alguno
     }
 
     // ---------- Subir al backend ----------
@@ -156,7 +163,7 @@ class AsistenciaRepository(context: Context) {
         for (e in estudiantes.pendientes(uid)) {
             val grado = e.grade ?: continue
             try {
-                val remoto = CloudFunctionsApi.crearEstudiante(token, e.id, e.fullName, grado, e.age, e.code)
+                val remoto = CloudFunctionsApi.crearEstudiante(token, e.schoolId, e.id, e.fullName, grado, e.age, e.code)
                 estudiantes.actualizarSync(e.id, SyncStatus.SYNCED, remoto.code)
             } catch (ex: CloudFunctionsApi.ApiException) {
                 if (ex.status == 409) {
@@ -198,7 +205,7 @@ class AsistenciaRepository(context: Context) {
      */
     private suspend fun resolverConflicto(token: String, local: EstudianteEntity): Boolean {
         val codigo = local.code ?: return false
-        val remoto = CloudFunctionsApi.listarEstudiantes(token, null).firstOrNull { it.code == codigo }
+        val remoto = CloudFunctionsApi.listarEstudiantes(token, local.schoolId, null).firstOrNull { it.code == codigo }
             ?: return false
         db.withTransaction {
             asistencias.reasignar(local.id, remoto.id)
