@@ -8,20 +8,32 @@ import kotlinx.coroutines.tasks.await
 /**
  * Facade: hides the two real steps of login/register (calling the Cloud
  * Function + signing in with the customToken in Firebase Auth) behind a
- * single function.
+ * single function. Also loads the user's schoolId from users/{uid} and
+ * exposes the ID token the students endpoints need.
  */
 class AuthRepository {
 
     suspend fun iniciarSesion(email: String, password: String): Usuario {
         val respuesta = CloudFunctionsApi.login(email, password)
         FirebaseModule.auth.signInWithCustomToken(respuesta.customToken).await()
-        return Usuario(uid = respuesta.uid, email = email, rol = respuesta.rol)
+        return Usuario(
+            uid = respuesta.uid,
+            email = email,
+            rol = respuesta.rol,
+            schoolId = cargarSchoolId(respuesta.uid)
+        )
     }
 
     suspend fun registrarse(email: String, password: String, fullName: String): Usuario {
         val respuesta = CloudFunctionsApi.register(email, password, fullName)
         FirebaseModule.auth.signInWithCustomToken(respuesta.customToken).await()
-        return Usuario(uid = respuesta.uid, email = email, fullName = fullName, rol = respuesta.rol)
+        return Usuario(
+            uid = respuesta.uid,
+            email = email,
+            fullName = fullName,
+            rol = respuesta.rol,
+            schoolId = null // cuenta nueva: aún sin colegio
+        )
     }
 
     fun cerrarSesion() {
@@ -30,11 +42,28 @@ class AuthRepository {
 
     fun usuarioActual() = FirebaseModule.auth.currentUser
 
-    /**
-     ID token to send as "Authorization: Bearer <token>" to any protected
-     Cloud Function (e.g. /students, which checks this with verifyIdToken).
-     Different from the customToken used only once at login/register.
-     */
-    suspend fun obtenerIdToken(): String? =
+    fun uidActual(): String? = FirebaseModule.auth.currentUser?.uid
+
+    /** schoolId del docente con sesión abierta (Firestore lo cachea, así que funciona sin internet). */
+    suspend fun schoolIdActual(): String? = uidActual()?.let { cargarSchoolId(it) }
+
+    /** ID token para el header Authorization: Bearer. Firebase lo renueva solo cuando vence. */
+    suspend fun obtenerToken(): String? =
         FirebaseModule.auth.currentUser?.getIdToken(false)?.await()?.token
+
+    /**
+     * El backend ahora guarda las escuelas del docente en `schoolIds` (lista); los perfiles
+     * viejos traen un solo `schoolId`. Se leen ambos. Con varias escuelas se usa la primera
+     * (falta un selector de escuela).
+     */
+    private suspend fun cargarSchoolId(uid: String): String? =
+        runCatching {
+            val doc = FirebaseModule.firestore
+                .collection("users")
+                .document(uid)
+                .get()
+                .await()
+            val lista = (doc.get("schoolIds") as? List<*>)?.filterIsInstance<String>().orEmpty()
+            lista.firstOrNull() ?: doc.getString("schoolId")
+        }.getOrNull()
 }

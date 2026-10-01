@@ -42,98 +42,74 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.enad.enadmovil.ui.screens.teacher.scan.CameraCapture
+import com.enad.enadmovil.ui.screens.teacher.scan.ScanReviewDialog
+import com.enad.enadmovil.ui.screens.teacher.scan.ScanViewModel
 import com.enad.enadmovil.ui.theme.EnadBorder
 import com.enad.enadmovil.ui.theme.EnadHeader
 import com.enad.enadmovil.ui.theme.EnadHeaderChip
-import com.enad.enadmovil.ui.theme.EnadMovilTheme
 import com.enad.enadmovil.ui.theme.EnadNoAsistioBg
 import com.enad.enadmovil.ui.theme.EnadPendienteBg
 import com.enad.enadmovil.ui.theme.EnadPendienteText
 import com.enad.enadmovil.ui.theme.EnadPillBg
 import com.enad.enadmovil.ui.theme.EnadPillText
 import com.enad.enadmovil.ui.theme.EnadTrack
+import java.time.LocalDate
+import java.time.format.TextStyle
+import java.util.Locale
 
 private val CURSOS_DISPONIBLES = listOf("Todos", "Grado 3", "Grado 4", "Grado 5")
 
-data class DiaSemana(val abreviatura: String, val numero: Int, val nombreLargo: String)
-
-private val DIAS_SEMANA = listOf(
-    DiaSemana("Lun", 1, "Lunes"),
-    DiaSemana("Mar", 2, "Martes"),
-    DiaSemana("Mié", 3, "Miércoles"),
-    DiaSemana("Jue", 4, "Jueves"),
-    DiaSemana("Vie", 5, "Viernes")
+data class DiaSemana(
+    val abreviatura: String,
+    val numero: Int,
+    val nombreLargo: String,
+    val fecha: LocalDate
 )
 
 enum class EstadoAsistencia { PENDIENTE, ASISTIO, NO_ASISTIO }
 
 data class EstudianteAsistencia(
+    val id: String,
     val numero: Int,
     val nombre: String,
     val etiqueta: String,
-    val estado: EstadoAsistencia = EstadoAsistencia.PENDIENTE
+    val estado: EstadoAsistencia = EstadoAsistencia.PENDIENTE,
+    val semana: List<EstadoAsistencia> = emptyList() // lunes a viernes
 )
 
-// Datos de ejemplo, en memoria. Sin conexión a datos reales todavía.
-private fun estudiantesDemo(): List<EstudianteAsistencia> = listOf(
-    EstudianteAsistencia(1, "María López Quintero", "F"),
-    EstudianteAsistencia(2, "Juan Carlos Cruz", "M"),
-    EstudianteAsistencia(3, "Sofía Ramírez Toro", "F"),
-    EstudianteAsistencia(4, "Andrés Felipe Gómez", "M"),
-    EstudianteAsistencia(5, "Valentina Ríos Peña", "F"),
-    EstudianteAsistencia(6, "Santiago Herrera Vargas", "M"),
-    EstudianteAsistencia(7, "Camila Torres Duarte", "F"),
-    EstudianteAsistencia(8, "Nicolás Pardo Salazar", "M")
-)
+data class EstudianteSalon(val id: String, val nombre: String, val grado: String)
 
-// Paso 8: lista ficticia que simula el resultado de un "escaneo". No usa cámara ni OCR real.
-private val LISTA_ESCANEADA_DEMO = listOf(
-    "Laura Jiménez Rico",
-    "Diego Alejandro Mora",
-    "Isabella Castro Niño",
-    "Samuel Rojas Beltrán",
-    "Mariana Gil Escobar",
-    "Tomás Restrepo Silva"
-)
-
-// Paso 9: roster completo del salón (varios grados) para buscar un "estudiante inesperado".
-data class EstudianteSalon(val id: Int, val nombre: String, val grado: String)
-
-private val SALON_COMPLETO = listOf(
-    EstudianteSalon(1, "María López Quintero", "Grado 3"),
-    EstudianteSalon(2, "Juan Carlos Cruz", "Grado 3"),
-    EstudianteSalon(3, "Juan Carlos Cruz", "Grado 4"),
-    EstudianteSalon(4, "Lucía Restrepo", "Grado 4"),
-    EstudianteSalon(5, "Mateo Salcedo Rendón", "Grado 3"),
-    EstudianteSalon(6, "Daniela Peña Ochoa", "Grado 4"),
-    EstudianteSalon(7, "Emmanuel Cárdenas Ruiz", "Grado 5"),
-    EstudianteSalon(8, "Gabriela Muñoz Serna", "Grado 5")
-)
+private fun nombreDelMes(fecha: LocalDate): String =
+    fecha.month.getDisplayName(TextStyle.FULL, Locale.forLanguageTag("es"))
 
 @Composable
 fun AsistenciaScreen(
     profesorNombre: String = "Mateo",
     grupoSubtitulo: String = "Antonia Santos · Grado 5",
     onCambiarUsuario: () -> Unit = {},
-    onTabClick: (String) -> Unit = {}
+    onTabClick: (String) -> Unit = {},
+    viewModel: AsistenciaViewModel = viewModel()
 ) {
+    val ui by viewModel.uiState.collectAsStateWithLifecycle()
+    val scanViewModel: ScanViewModel = viewModel()
+    val scanState by scanViewModel.uiState.collectAsStateWithLifecycle()
+
+    val dias = remember { diasDeLaSemana() }
     var cursoSeleccionado by remember { mutableStateOf(CURSOS_DISPONIBLES.first()) }
-    var diaSeleccionado by remember { mutableStateOf(DIAS_SEMANA[1]) }
-    var estudiantes by remember { mutableStateOf(estudiantesDemo()) }
+    var diaSeleccionado by remember { mutableStateOf(diaInicial(dias)) }
     var mostrarConfirmacionGuardado by remember { mutableStateOf(false) }
     var mostrarEscaner by remember { mutableStateOf(false) }
     var mostrarInesperado by remember { mutableStateOf(false) }
+    var mostrarCamara by remember { mutableStateOf(false) }
 
-    fun actualizarEstado(numero: Int, nuevoEstado: EstadoAsistencia) {
-        estudiantes = estudiantes.map { estudiante ->
-            if (estudiante.numero == numero) estudiante.copy(estado = nuevoEstado) else estudiante
-        }
-    }
-
+    val estudiantes = ui.estudiantes
     val asistieron = estudiantes.count { it.estado == EstadoAsistencia.ASISTIO }
     val noAsistieron = estudiantes.count { it.estado == EstadoAsistencia.NO_ASISTIO }
     val sinRegistrar = estudiantes.count { it.estado == EstadoAsistencia.PENDIENTE }
@@ -173,7 +149,10 @@ fun AsistenciaScreen(
             CursoFiltroChips(
                 opciones = CURSOS_DISPONIBLES,
                 seleccionado = cursoSeleccionado,
-                onSeleccionar = { cursoSeleccionado = it }
+                onSeleccionar = {
+                    cursoSeleccionado = it
+                    viewModel.seleccionarGrado(it.removePrefix("Grado ").toIntOrNull()) // "Todos" -> null
+                }
             )
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -187,16 +166,19 @@ fun AsistenciaScreen(
             )
             Spacer(modifier = Modifier.height(10.dp))
             DiaSelector(
-                dias = DIAS_SEMANA,
+                dias = dias,
                 seleccionado = diaSeleccionado,
-                onSeleccionar = { diaSeleccionado = it }
+                onSeleccionar = {
+                    diaSeleccionado = it
+                    viewModel.seleccionarFecha(it.fecha)
+                }
             )
 
             Spacer(modifier = Modifier.height(24.dp))
 
             AsistenciaListaHeader(
                 totalEstudiantes = estudiantes.size,
-                fechaLarga = "${diaSeleccionado.nombreLargo} ${diaSeleccionado.numero} de septiembre",
+                fechaLarga = "${diaSeleccionado.nombreLargo} ${diaSeleccionado.numero} de ${nombreDelMes(diaSeleccionado.fecha)}",
                 onInesperadoClick = { mostrarInesperado = true }
             )
 
@@ -210,11 +192,38 @@ fun AsistenciaScreen(
 
             Spacer(modifier = Modifier.height(18.dp))
 
+            if (estudiantes.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
+                        .padding(20.dp)
+                ) {
+                    Text(
+                        text = when {
+                            ui.cargando -> "Cargando…"
+                            ui.sinColegio -> "Tu cuenta todavía no tiene un colegio asignado. " +
+                                    "Pide a un administrador que lo asigne."
+                            else -> "Aún no hay estudiantes en esta lista. Toca «Cargar lista con escáner» " +
+                                    "o agrégalos con «+ Inesperado»."
+                        },
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+
             estudiantes.forEach { estudiante ->
                 EstudianteCard(
                     estudiante = estudiante,
-                    onAsistioClick = { actualizarEstado(estudiante.numero, EstadoAsistencia.ASISTIO) },
-                    onNoAsistioClick = { actualizarEstado(estudiante.numero, EstadoAsistencia.NO_ASISTIO) }
+                    diaSeleccionado = dias.indexOf(diaSeleccionado),
+                    onDiaClick = { i ->
+                        diaSeleccionado = dias[i]
+                        viewModel.seleccionarFecha(dias[i].fecha)
+                    },
+                    onAsistioClick = { viewModel.marcar(estudiante.id, EstadoAsistencia.ASISTIO) },
+                    onNoAsistioClick = { viewModel.marcar(estudiante.id, EstadoAsistencia.NO_ASISTIO) }
                 )
                 Spacer(modifier = Modifier.height(14.dp))
             }
@@ -223,9 +232,7 @@ fun AsistenciaScreen(
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 OutlinedButton(
-                    onClick = {
-                        estudiantes = estudiantes.map { it.copy(estado = EstadoAsistencia.PENDIENTE) }
-                    },
+                    onClick = { viewModel.limpiar() },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(10.dp),
                     border = BorderStroke(1.dp, EnadBorder),
@@ -234,8 +241,11 @@ fun AsistenciaScreen(
                     Text(text = "Limpiar", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
                 Button(
-                    onClick = { mostrarConfirmacionGuardado = true },
-                    enabled = sinRegistrar == 0,
+                    onClick = {
+                        viewModel.guardar()
+                        mostrarConfirmacionGuardado = true
+                    },
+                    enabled = estudiantes.isNotEmpty() && sinRegistrar == 0,
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(
@@ -252,7 +262,7 @@ fun AsistenciaScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             OutlinedButton(
-                onClick = { mostrarEscaner = true },
+                onClick = { mostrarCamara = true },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
@@ -266,76 +276,75 @@ fun AsistenciaScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Escáner de demostración: permite revisar e importar una lista ficticia. No usa cámara ni OCR.",
+                text = "Toma una foto de tu lista física. Se lee en el teléfono, sin internet, y la revisas antes de importar.",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = if (ui.pendientesSync > 0) {
+                    "${ui.pendientesSync} cambios guardados en el teléfono, pendientes de subir. " +
+                            "Se enviarán cuando haya internet."
+                } else {
+                    "Todo está sincronizado."
+                },
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (ui.pendientesSync > 0) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
             )
         }
     }
 
     if (mostrarInesperado) {
         EstudianteInesperadoDialog(
-            roster = SALON_COMPLETO,
+            roster = ui.roster,
             onSeleccionar = { alumno ->
-                estudiantes = estudiantes + EstudianteAsistencia(
-                    numero = estudiantes.size + 1,
-                    nombre = alumno.nombre,
-                    etiqueta = "—"
-                )
+                viewModel.agregarInesperado(alumno.id)
                 mostrarInesperado = false
             },
-            onCrear = { nombre ->
-                estudiantes = estudiantes + EstudianteAsistencia(
-                    numero = estudiantes.size + 1,
-                    nombre = nombre,
-                    etiqueta = "—"
-                )
+            onCrear = { nombre, edad ->
+                viewModel.crearInesperado(nombre, edad)
                 mostrarInesperado = false
             },
             onDismiss = { mostrarInesperado = false }
         )
     }
 
+    // Cámara a pantalla completa encima de la lista. Al tomar la foto se cierra.
+    if (mostrarCamara) {
+        Dialog(
+            onDismissRequest = { mostrarCamara = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            CameraCapture(
+                onFotoCapturada = { uri ->
+                    mostrarCamara = false
+                    mostrarEscaner = true
+                    scanViewModel.onFotoCapturada(uri) // OCR en el teléfono, sin internet
+                },
+                onError = { mostrarCamara = false },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
+
     if (mostrarEscaner) {
-        AlertDialog(
-            onDismissRequest = { mostrarEscaner = false },
-            containerColor = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(16.dp),
-            title = {
-                Text(text = "Lista escaneada (demo)", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        ScanReviewDialog(
+            estado = scanState,
+            onImportar = { filas ->
+                viewModel.importar(filas) // guarda en Room y programa la subida
+                mostrarEscaner = false
+                scanViewModel.limpiar()
             },
-            text = {
-                Column {
-                    Text(
-                        text = "Se \"detectaron\" ${LISTA_ESCANEADA_DEMO.size} estudiantes. Revisa antes de importar.",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    LISTA_ESCANEADA_DEMO.forEach { nombre ->
-                        Text(
-                            text = "• $nombre",
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.padding(vertical = 2.dp)
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    estudiantes = LISTA_ESCANEADA_DEMO.mapIndexed { index, nombre ->
-                        EstudianteAsistencia(numero = index + 1, nombre = nombre, etiqueta = "—")
-                    }
-                    mostrarEscaner = false
-                }) {
-                    Text(text = "Importar", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { mostrarEscaner = false }) {
-                    Text(text = "Cancelar", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+            onCancelar = {
+                mostrarEscaner = false
+                scanViewModel.limpiar()
             }
         )
     }
@@ -350,7 +359,12 @@ fun AsistenciaScreen(
             },
             text = {
                 Text(
-                    text = "Demostración: los datos no se envían a ningún servidor todavía.",
+                    text = if (ui.pendientesSync > 0) {
+                        "Guardada en tu teléfono. Enviando al servidor… Si no hay internet, " +
+                                "se enviará sola cuando vuelva la conexión."
+                    } else {
+                        "Tu asistencia quedó guardada y enviada al servidor."
+                    },
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -362,11 +376,30 @@ fun AsistenciaScreen(
             }
         )
     }
+
+    ui.mensaje?.let { mensaje ->
+        AlertDialog(
+            onDismissRequest = viewModel::consumirMensaje,
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(16.dp),
+            title = { Text(text = "Aviso", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(text = mensaje, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::consumirMensaje) {
+                    Text(text = "Entendido", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
 }
 
 @Composable
 private fun EstudianteCard(
     estudiante: EstudianteAsistencia,
+    diaSeleccionado: Int,
+    onDiaClick: (Int) -> Unit,
     onAsistioClick: () -> Unit,
     onNoAsistioClick: () -> Unit
 ) {
@@ -394,6 +427,10 @@ private fun EstudianteCard(
         Spacer(modifier = Modifier.height(8.dp))
 
         EstadoPill(estudiante.estado)
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        SemanaChips(estudiante.semana, diaSeleccionado, onDiaClick)
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -433,11 +470,45 @@ private fun EstudianteCard(
     }
 }
 
+private val LETRAS_DIAS = listOf("L", "M", "X", "J", "V")
+
+/** La semana del estudiante de un vistazo: lunes a viernes, con el estado de cada día. Tocar uno elige ese día. */
+@Composable
+private fun SemanaChips(semana: List<EstadoAsistencia>, seleccionado: Int, onDiaClick: (Int) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(text = "Semana", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(modifier = Modifier.width(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            LETRAS_DIAS.forEachIndexed { i, letra ->
+                val (fondo, texto) = when (semana.getOrElse(i) { EstadoAsistencia.PENDIENTE }) {
+                    EstadoAsistencia.ASISTIO -> EnadPillBg to EnadPillText
+                    EstadoAsistencia.NO_ASISTIO -> EnadNoAsistioBg to MaterialTheme.colorScheme.primary
+                    EstadoAsistencia.PENDIENTE -> EnadPendienteBg to EnadPendienteText
+                }
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(28.dp)
+                        .background(fondo, RoundedCornerShape(8.dp))
+                        .let {
+                            if (i == seleccionado) {
+                                it.border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
+                            } else it
+                        }
+                        .clickable { onDiaClick(i) }
+                ) {
+                    Text(text = letra, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = texto)
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun EstudianteInesperadoDialog(
     roster: List<EstudianteSalon>,
     onSeleccionar: (EstudianteSalon) -> Unit,
-    onCrear: (nombre: String) -> Unit,
+    onCrear: (nombre: String, edad: Int?) -> Unit,
     onDismiss: () -> Unit
 ) {
     var busqueda by remember { mutableStateOf("") }
@@ -518,14 +589,13 @@ private fun EstudianteInesperadoDialog(
     }
 }
 
-// El campo "Edad" se captura por fidelidad visual con el mockup, pero todavía no se
-// guarda en ningún lado (EstudianteAsistencia no tiene ese campo). El "código
-// provisional" es solo texto explicativo, no genera un código real todavía.
+// El estudiante se crea con código provisional: el servidor asigna PROV-XXXX y un
+// mentor lo reemplaza después. Se guarda primero en el teléfono y se sube con internet.
 @Composable
 private fun CrearEstudianteInesperadoForm(
     busqueda: String,
     onCancelar: () -> Unit,
-    onCrear: (nombre: String) -> Unit
+    onCrear: (nombre: String, edad: Int?) -> Unit
 ) {
     var nombreCompleto by remember { mutableStateOf(busqueda) }
     var edad by remember { mutableStateOf("") }
@@ -566,7 +636,7 @@ private fun CrearEstudianteInesperadoForm(
             Text(text = "Cancelar", fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
         Button(
-            onClick = { onCrear(nombreCompleto) },
+            onClick = { onCrear(nombreCompleto.trim(), edad.toIntOrNull()) },
             enabled = nombreCompleto.isNotBlank(),
             modifier = Modifier.weight(1f),
             shape = RoundedCornerShape(10.dp),
@@ -840,13 +910,5 @@ private fun AsistenciaBottomBar(onTabClick: (String) -> Unit = {}) {
                 )
             )
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun AsistenciaScreenPreview() {
-    EnadMovilTheme {
-        AsistenciaScreen()
     }
 }

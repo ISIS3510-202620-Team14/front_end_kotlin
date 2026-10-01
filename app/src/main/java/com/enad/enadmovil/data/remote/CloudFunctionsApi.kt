@@ -5,13 +5,16 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 
 /**
- * Llama directo a las Cloud Functions register/login que ya existen en firebase_backend.
+ * Llama directo a las Cloud Functions de firebase_backend:
+ * register/login (sin token) y students (con Authorization: Bearer <idToken>).
  */
 object CloudFunctionsApi {
 
     private const val BASE_URL = "https://us-central1-enad-movil.cloudfunctions.net"
+    private const val STUDENTS_URL = "$BASE_URL/students"
 
     data class RespuestaAuth(
         val uid: String,
@@ -19,7 +22,24 @@ object CloudFunctionsApi {
         val customToken: String
     )
 
-    class ApiException(val code: String, message: String) : Exception(message)
+    data class EstudianteRemoto(
+        val id: String,
+        val schoolId: String,
+        val code: String,
+        val fullName: String,
+        val grade: Int,
+        val age: Int?,
+        val provisional: Boolean,
+        val attendance: String?   // solo viene si se pidió ?date=
+    )
+
+    /** status = código HTTP (0 si no aplica). */
+    class ApiException(val code: String, message: String, val status: Int = 0) : Exception(message) {
+        /** Errores que valen la pena reintentar más tarde. */
+        val esTransitorio: Boolean get() = status >= 500 || status == 429 || status == 408 || status == 401
+    }
+
+    // ---------- Auth ----------
 
     suspend fun register(email: String, password: String, fullName: String): RespuestaAuth =
         llamar("register", mapOf("email" to email, "password" to password, "fullName" to fullName))
@@ -46,7 +66,7 @@ object CloudFunctionsApi {
 
             if (codigo !in 200..299) {
                 val error = respuesta.getJSONObject("error")
-                throw ApiException(error.getString("code"), error.getString("message"))
+                throw ApiException(error.getString("code"), error.getString("message"), codigo)
             }
 
             RespuestaAuth(
@@ -54,5 +74,84 @@ object CloudFunctionsApi {
                 rol = respuesta.getString("rol"),
                 customToken = respuesta.getString("customToken")
             )
+        }
+
+    // ---------- Estudiantes ----------
+
+    /** POST /students. Con clientId, repetir el envío devuelve el mismo estudiante (200) en vez de duplicarlo. */
+    suspend fun crearEstudiante(
+        token: String,
+        schoolId: String,
+        clientId: String,
+        fullName: String,
+        grade: Int,
+        age: Int?,
+        code: String?
+    ): EstudianteRemoto {
+        val cuerpo = JSONObject()
+            .put("schoolId", schoolId) // obligatorio si el docente tiene varias escuelas
+            .put("clientId", clientId)
+            .put("fullName", fullName)
+            .put("grade", grade)
+        if (age != null) cuerpo.put("age", age)
+        if (code != null) cuerpo.put("code", code) else cuerpo.put("provisional", true)
+        return aEstudiante(solicitar("POST", "", token, cuerpo))
+    }
+
+    /** PUT /students/{id}/attendance con estado vino | no_vino | sin_registro. */
+    suspend fun marcarAsistencia(token: String, id: String, fecha: String, estado: String) {
+        solicitar("PUT", "/$id/attendance", token, JSONObject().put("date", fecha).put("status", estado))
+    }
+
+    /** GET /students (del colegio del docente). Con fecha, cada estudiante trae su asistencia de ese día. */
+    suspend fun listarEstudiantes(token: String, schoolId: String?, fecha: String?): List<EstudianteRemoto> {
+        val params = listOfNotNull(
+            schoolId?.let { "schoolId=${URLEncoder.encode(it, "UTF-8")}" },
+            fecha?.let { "date=$it" }
+        )
+        val ruta = if (params.isEmpty()) "" else "?" + params.joinToString("&")
+        val arreglo = solicitar("GET", ruta, token, null).getJSONArray("students")
+        return List(arreglo.length()) { aEstudiante(arreglo.getJSONObject(it)) }
+    }
+
+    private fun aEstudiante(o: JSONObject) = EstudianteRemoto(
+        id = o.getString("id"),
+        schoolId = o.getString("schoolId"),
+        code = o.getString("code"),
+        fullName = o.getString("fullName"),
+        grade = o.getInt("grade"),
+        age = if (o.isNull("age")) null else o.getInt("age"),
+        provisional = o.optBoolean("provisional", false),
+        attendance = if (o.has("attendance")) o.optString("attendance") else null
+    )
+
+    private suspend fun solicitar(metodo: String, ruta: String, token: String, cuerpo: JSONObject?): JSONObject =
+        withContext(Dispatchers.IO) {
+            val conexion = (URL("$STUDENTS_URL$ruta").openConnection() as HttpURLConnection).apply {
+                requestMethod = metodo
+                connectTimeout = 15_000
+                readTimeout = 20_000
+                setRequestProperty("Authorization", "Bearer $token")
+                setRequestProperty("Content-Type", "application/json")
+                if (cuerpo != null) doOutput = true
+            }
+            try {
+                if (cuerpo != null) conexion.outputStream.use { it.write(cuerpo.toString().toByteArray(Charsets.UTF_8)) }
+                val codigo = conexion.responseCode
+                val stream = if (codigo in 200..299) conexion.inputStream else conexion.errorStream
+                val texto = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                val json = runCatching { JSONObject(texto) }.getOrDefault(JSONObject())
+                if (codigo !in 200..299) {
+                    val error = json.optJSONObject("error")
+                    throw ApiException(
+                        code = error?.optString("code")?.ifBlank { null } ?: "http-$codigo",
+                        message = error?.optString("message")?.ifBlank { null } ?: "Error $codigo",
+                        status = codigo
+                    )
+                }
+                json
+            } finally {
+                conexion.disconnect()
+            }
         }
 }
