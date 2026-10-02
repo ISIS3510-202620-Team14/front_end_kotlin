@@ -1,5 +1,6 @@
 package com.enad.enadmovil.data.remote
 
+import com.enad.enadmovil.data.local.entity.SesionAgrupacionEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -15,6 +16,7 @@ object CloudFunctionsApi {
 
     private const val BASE_URL = "https://us-central1-enad-movil.cloudfunctions.net"
     private const val STUDENTS_URL = "$BASE_URL/students"
+    private const val GROUPINGS_URL = "$BASE_URL/groupings"
 
     data class RespuestaAuth(
         val uid: String,
@@ -125,9 +127,25 @@ object CloudFunctionsApi {
         attendance = if (o.has("attendance")) o.optString("attendance") else null
     )
 
-    private suspend fun solicitar(metodo: String, ruta: String, token: String, cuerpo: JSONObject?): JSONObject =
+    suspend fun enviarSesionAgrupacion(token: String, s: SesionAgrupacionEntity, intento: Int) {
+        val cuerpo = JSONObject().put("clientId", s.id)
+            .put("platform", s.platform)
+            .put("appVersion", s.appVersion)
+            .put("connectivity", s.connectivity)
+            .put("createdAt", java.time.Instant.ofEpochMilli(s.creadaEn).toString())
+            .put("sentAt", java.time.Instant.now().toString())
+            .put("attempt", intento)
+            .put("subject", s.subject)
+            .put("groupName", s.groupName)
+            .put("studentsCounted", s.studentsCounted)
+            .put("teachersCounted", s.teachersCounted)
+            .put("studentsAssigned", s.studentsAssigned)
+        if (s.schoolId != null) cuerpo.put("schoolId", s.schoolId)
+        solicitar("POST", "", token, cuerpo, GROUPINGS_URL)
+    }
+    private suspend fun solicitar(metodo: String, ruta: String, token: String, cuerpo: JSONObject?, base: String = STUDENTS_URL): JSONObject =
         withContext(Dispatchers.IO) {
-            val conexion = (URL("$STUDENTS_URL$ruta").openConnection() as HttpURLConnection).apply {
+            val conexion = (URL("$base$ruta").openConnection() as HttpURLConnection).apply {
                 requestMethod = metodo
                 connectTimeout = 15_000
                 readTimeout = 20_000
