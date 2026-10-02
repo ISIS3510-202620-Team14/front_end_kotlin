@@ -1,5 +1,6 @@
 package com.enad.enadmovil.ui.screens.auth
 
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -26,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -58,6 +60,7 @@ fun LoginScreen(
     onLoginExitoso: (Usuario) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     Surface(color = BgCream, modifier = Modifier.fillMaxSize()) {
         Column(
@@ -168,7 +171,19 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             Button(
-                onClick = { viewModel.onSubmitClick(onLoginExitoso) },
+                onClick = {
+                    viewModel.onSubmitClick { usuario ->
+                        // El Toast sobrevive a la navegación, así que se ve ya dentro de la app.
+                        if (viewModel.uiState.value.correoBienvenidaEnviado) {
+                            Toast.makeText(
+                                context,
+                                "Te enviamos un correo de bienvenida a ${usuario.email}.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                        onLoginExitoso(usuario)
+                    }
+                },
                 enabled = !uiState.cargando,
                 modifier = Modifier
                     .fillMaxWidth()
