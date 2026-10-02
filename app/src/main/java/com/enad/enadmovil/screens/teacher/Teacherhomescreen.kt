@@ -101,6 +101,8 @@ fun TeacherHomeScreen(
 ) {
     val gruposViewModel: GruposViewModel = viewModel()
     val gruposUiState by gruposViewModel.uiState.collectAsStateWithLifecycle()
+    val aperturasViewModel: AperturasViewModel = viewModel()
+    val aperturasState by aperturasViewModel.uiState.collectAsStateWithLifecycle()
     var subPantallaGrupos by remember { mutableStateOf<SubPantallaGrupos>(SubPantallaGrupos.Lista) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -223,6 +225,10 @@ fun TeacherHomeScreen(
                 Text(text = grupoSubtitulo, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                 Spacer(modifier = Modifier.height(20.dp))
+
+                AperturasSemanaCard(aperturasState)
+                Spacer(modifier = Modifier.height(14.dp))
+
 
                 progreso.forEach { item ->
                     ProgressCard(item, onClick = { onProgresoClick(item) })
