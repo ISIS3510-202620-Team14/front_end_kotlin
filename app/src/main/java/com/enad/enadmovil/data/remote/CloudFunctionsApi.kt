@@ -20,6 +20,8 @@ object CloudFunctionsApi {
     private const val STUDENTS_URL = "$BASE_URL/students"
     private const val GROUPINGS_URL = "$BASE_URL/groupings"
     private const val OPENS_URL = "$BASE_URL/appOpens"
+    private const val SCHOOLS_URL = "$BASE_URL/schools"
+    private const val GROUPS_URL = "$BASE_URL/groups"
 
     data class RespuestaAuth(
         val uid: String,
@@ -218,6 +220,55 @@ object CloudFunctionsApi {
         provisional = o.optBoolean("provisional", false)
     )
 
+    //Contexto de la sesión
+    data class SedeRemota(val id: String, val nombre: String, val lat: Double?, val lng: Double?)
+    data class EscuelaRemota(val id: String, val nombre: String, val sedes: List<SedeRemota>)
+    data class GrupoRemoto(val id: String, val nombre: String, val materia: String, val schoolId: String, val campusId: String?, val horario: List<Pair<Int, Double>>)
+    /** GET /schools: las escuelas del docente con sus sedes y coordenadas. */
+    suspend fun listarEscuelas(token: String): List<EscuelaRemota> {
+        val arreglo = solicitar("GET", "", token, null, SCHOOLS_URL).getJSONArray("schools")
+        return List(arreglo.length()) { i ->
+            val escuela = arreglo.getJSONObject(i)
+            val sedes = escuela.optJSONArray("campuses") ?: JSONArray()
+            EscuelaRemota(
+                id = escuela.getString("id"),
+                nombre = escuela.optString("name"),
+                sedes = List(sedes.length()) { j ->
+                    val sede = sedes.getJSONObject(j)
+                    SedeRemota(
+                        id = sede.getString("id"),
+                        nombre = sede.optString("name"),
+                        lat = if (sede.isNull("lat")) null else sede.getDouble("lat"),
+                        lng = if (sede.isNull("lng")) null else sede.getDouble("lng")
+                    )
+
+                }
+            )
+
+        }
+    }
+    /** GET /groups?teacherId=: los grupos del docente con su sede y su horario semanal. */
+    suspend fun listarGruposDelDocente(token: String, uid: String): List<GrupoRemoto> {
+        val ruta = "?teacherId=${URLEncoder.encode(uid, "UTF-8")}"
+        val arreglo = solicitar("GET", ruta, token, null, GROUPS_URL).getJSONArray("groups")
+        return List(arreglo.length()) { i ->
+            val grupo = arreglo.getJSONObject(i)
+            val horario = grupo.optJSONArray("schedule") ?: JSONArray()
+            GrupoRemoto(
+                id = grupo.getString("id"),
+                nombre = grupo.getString("name"),
+                materia = grupo.getString("subject"),
+                schoolId = grupo.getString("schoolId"),
+                campusId = if (grupo.isNull("campusId")) null else grupo.getString("campusId"),
+                horario = List(horario.length()) { j ->
+                    val dia = horario.getJSONObject(j)
+                    dia.getInt("day") to dia.getDouble("plannedHours")
+
+                }
+            )
+
+        }
+    }
     private suspend fun solicitar(metodo: String, ruta: String, token: String, cuerpo: JSONObject?, base: String = STUDENTS_URL): JSONObject =
         withContext(Dispatchers.IO) {
             val conexion = (URL("$base$ruta").openConnection() as HttpURLConnection).apply {
