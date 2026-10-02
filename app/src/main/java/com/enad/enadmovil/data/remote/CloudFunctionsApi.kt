@@ -1,5 +1,6 @@
 package com.enad.enadmovil.data.remote
 
+import com.enad.enadmovil.BuildConfig
 import com.enad.enadmovil.data.local.entity.SesionAgrupacionEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -16,12 +17,18 @@ import com.enad.enadmovil.data.local.entity.AperturaEntity
  */
 object CloudFunctionsApi {
 
-    private const val BASE_URL = "https://us-central1-enad-movil.cloudfunctions.net"
-    private const val STUDENTS_URL = "$BASE_URL/students"
-    private const val GROUPINGS_URL = "$BASE_URL/groupings"
-    private const val OPENS_URL = "$BASE_URL/appOpens"
-    private const val SCHOOLS_URL = "$BASE_URL/schools"
-    private const val CLASSIFICATIONS_URL = "$BASE_URL/classificationSessions"
+    // Con USAR_EMULADORES (solo debug) va al emulador de Functions del computador:
+    // 10.0.2.2 es el localhost del computador visto desde el emulador de Android.
+    private val BASE_URL = if (BuildConfig.USAR_EMULADORES) {
+        "http://10.0.2.2:5001/enad-movil/us-central1"
+    } else {
+        "https://us-central1-enad-movil.cloudfunctions.net"
+    }
+    private val STUDENTS_URL = "$BASE_URL/students"
+    private val GROUPINGS_URL = "$BASE_URL/groupings"
+    private val OPENS_URL = "$BASE_URL/appOpens"
+    private val SCHOOLS_URL = "$BASE_URL/schools"
+    private val CLASSIFICATIONS_URL = "$BASE_URL/classificationSessions"
 
     data class RespuestaAuth(
         val uid: String,
