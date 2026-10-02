@@ -93,15 +93,19 @@ fun AdminHomeScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            AdminSectionPlaceholder(tabSeleccionada)
+            if (tabSeleccionada == "Reportes") {
+                ReporteSincronizacionSection(modifier = Modifier.weight(1f))
+            } else {
+                AdminSectionPlaceholder(tabSeleccionada)
 
-            Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-            Text(
-                text = "Sesión de demostración · Contenido de ejemplo, sin datos reales todavía.",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+                Text(
+                    text = "Sesión de demostración · Contenido de ejemplo, sin datos reales todavía.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

@@ -143,6 +143,46 @@ object CloudFunctionsApi {
         if (s.schoolId != null) cuerpo.put("schoolId", s.schoolId)
         solicitar("POST", "", token, cuerpo, GROUPINGS_URL)
     }
+
+    /** Una fila del reporte. En el total de la semana, plataforma, versión y conectividad vienen en null. */
+    data class FilaReporte(
+        val semana: String,
+        val plataforma: String?,
+        val version: String?,
+        val conectividad: String?,
+        val total: Int,
+        val aTiempo: Int,
+        val tarde: Int,
+        val errores: Int,
+        val porcentaje: Double?,
+        val provisional: Boolean
+    )
+
+    data class ReporteSincronizacion(val semanas: List<FilaReporte>, val filas: List<FilaReporte>)
+
+    /** GET /groupings/report (solo admin): % de sesiones que no llegaron en 24 h o terminaron en error. */
+    suspend fun reporteSesionesAgrupacion(token: String): ReporteSincronizacion {
+        val json = solicitar("GET", "/report", token, null, GROUPINGS_URL)
+        fun filas(nombre: String): List<FilaReporte> {
+            val arreglo = json.getJSONArray(nombre)
+            return List(arreglo.length()) { aFilaReporte(arreglo.getJSONObject(it)) }
+        }
+        return ReporteSincronizacion(semanas = filas("weeks"), filas = filas("rows"))
+    }
+
+    private fun aFilaReporte(o: JSONObject) = FilaReporte(
+        semana = o.getString("week"),
+        plataforma = o.optString("platform").ifBlank { null },
+        version = o.optString("appVersion").ifBlank { null },
+        conectividad = o.optString("connectivity").ifBlank { null },
+        total = o.getInt("total"),
+        aTiempo = o.getInt("syncedOnTime"),
+        tarde = o.getInt("syncedLate"),
+        errores = o.getInt("errors"),
+        porcentaje = if (o.isNull("percentage")) null else o.getDouble("percentage"),
+        provisional = o.optBoolean("provisional", false)
+    )
+
     private suspend fun solicitar(metodo: String, ruta: String, token: String, cuerpo: JSONObject?, base: String = STUDENTS_URL): JSONObject =
         withContext(Dispatchers.IO) {
             val conexion = (URL("$base$ruta").openConnection() as HttpURLConnection).apply {
