@@ -20,6 +20,7 @@ object CloudFunctionsApi {
     private const val STUDENTS_URL = "$BASE_URL/students"
     private const val GROUPINGS_URL = "$BASE_URL/groupings"
     private const val OPENS_URL = "$BASE_URL/appOpens"
+    private const val SCHOOLS_URL = "$BASE_URL/schools"
 
     data class RespuestaAuth(
         val uid: String,
@@ -46,7 +47,9 @@ object CloudFunctionsApi {
         val grade: Int,
         val age: Int?,
         val provisional: Boolean,
-        val attendance: String?   // solo viene si se pidió ?date=
+        val attendance: String?,   // solo viene si se pidió ?date=
+        val gender: String? = null,
+        val niveles: Map<String, String> = emptyMap()   // materia -> etiqueta del nivel actual
     )
     suspend fun enviarAperturas(token: String, aperturas: List<AperturaEntity>) {
         val arreglo = JSONArray()
@@ -116,6 +119,25 @@ object CloudFunctionsApi {
     suspend fun login(email: String, password: String): RespuestaAuth =
         llamar("login", JSONObject().put("email", email).put("password", password))
 
+    /** GET /schools: al docente solo le llegan sus instituciones; al admin, todas. */
+    suspend fun misInstituciones(token: String): List<Institucion> {
+        val arreglo = solicitar("GET", "", token, null, SCHOOLS_URL).getJSONArray("schools")
+        return List(arreglo.length()) { aInstitucion(arreglo.getJSONObject(it)) }
+    }
+
+    private fun aInstitucion(o: JSONObject): Institucion {
+        val sedes = o.optJSONArray("campuses") ?: JSONArray()
+        return Institucion(
+            id = o.getString("id"),
+            name = o.getString("name"),
+            municipality = if (o.isNull("municipality")) null else o.optString("municipality"),
+            campuses = List(sedes.length()) { j ->
+                val sede = sedes.getJSONObject(j)
+                Sede(sede.getString("id"), sede.getString("name"))
+            }
+        )
+    }
+
     /** GET /registerSchools (sin token): instituciones activas con sus sedes, para el registro. */
     suspend fun institucionesRegistro(): List<Institucion> =
         withContext(Dispatchers.IO) {
@@ -130,19 +152,7 @@ object CloudFunctionsApi {
                 }
                 val arreglo = JSONObject(conexion.inputStream.bufferedReader().use { it.readText() })
                     .getJSONArray("schools")
-                List(arreglo.length()) { i ->
-                    val o = arreglo.getJSONObject(i)
-                    val sedes = o.optJSONArray("campuses") ?: JSONArray()
-                    Institucion(
-                        id = o.getString("id"),
-                        name = o.getString("name"),
-                        municipality = if (o.isNull("municipality")) null else o.optString("municipality"),
-                        campuses = List(sedes.length()) { j ->
-                            val sede = sedes.getJSONObject(j)
-                            Sede(sede.getString("id"), sede.getString("name"))
-                        }
-                    )
-                }
+                List(arreglo.length()) { aInstitucion(arreglo.getJSONObject(it)) }
             } finally {
                 conexion.disconnect()
             }
@@ -223,7 +233,14 @@ object CloudFunctionsApi {
         grade = o.getInt("grade"),
         age = if (o.isNull("age")) null else o.getInt("age"),
         provisional = o.optBoolean("provisional", false),
-        attendance = if (o.has("attendance")) o.optString("attendance") else null
+        attendance = if (o.has("attendance")) o.optString("attendance") else null,
+        gender = if (o.isNull("gender")) null else o.optString("gender"),
+        niveles = buildMap {
+            val levels = o.optJSONObject("levels") ?: return@buildMap
+            levels.keys().forEach { materia ->
+                levels.optJSONObject(materia)?.optString("etiqueta")?.ifBlank { null }?.let { put(materia, it) }
+            }
+        }
     )
 
     suspend fun enviarSesionAgrupacion(token: String, s: SesionAgrupacionEntity, intento: Int) {
