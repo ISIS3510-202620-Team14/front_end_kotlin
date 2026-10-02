@@ -4,7 +4,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Groups
@@ -101,6 +103,8 @@ fun TeacherHomeScreen(
 ) {
     val gruposViewModel: GruposViewModel = viewModel()
     val gruposUiState by gruposViewModel.uiState.collectAsStateWithLifecycle()
+    val aperturasViewModel: AperturasViewModel = viewModel()
+    val aperturasState by aperturasViewModel.uiState.collectAsStateWithLifecycle()
     var subPantallaGrupos by remember { mutableStateOf<SubPantallaGrupos>(SubPantallaGrupos.Lista) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -210,8 +214,9 @@ fun TeacherHomeScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp)
-                    .padding(top = 20.dp)
+                    .padding(top = 20.dp, bottom = 20.dp)
             ) {
                 Text(
                     text = grupoTitulo,
@@ -223,6 +228,10 @@ fun TeacherHomeScreen(
                 Text(text = grupoSubtitulo, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                 Spacer(modifier = Modifier.height(20.dp))
+
+                AperturasSemanaCard(aperturasState)
+                Spacer(modifier = Modifier.height(14.dp))
+
 
                 progreso.forEach { item ->
                     ProgressCard(item, onClick = { onProgresoClick(item) })

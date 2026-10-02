@@ -10,6 +10,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.enad.enadmovil.analytics.RegistrarAperturaEffect
 import com.enad.enadmovil.domain.model.Rol
 import com.enad.enadmovil.ui.screens.admin.AdminHomeScreen
 import com.enad.enadmovil.ui.screens.auth.LoginScreen
@@ -70,6 +71,7 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
         }
 
         composable(Routes.TEACHER_HOME) {
+            RegistrarAperturaEffect()
             TeacherHomeScreen(
                 profesorNombre = nombreUsuario,
                 tabSeleccionado = teacherTabSeleccionado,
