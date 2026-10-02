@@ -21,6 +21,7 @@ object CloudFunctionsApi {
     private const val GROUPINGS_URL = "$BASE_URL/groupings"
     private const val OPENS_URL = "$BASE_URL/appOpens"
     private const val SCHOOLS_URL = "$BASE_URL/schools"
+    private const val CLASSIFICATIONS_URL = "$BASE_URL/classificationSessions"
 
     data class RespuestaAuth(
         val uid: String,
@@ -298,6 +299,53 @@ object CloudFunctionsApi {
         porcentaje = if (o.isNull("percentage")) null else o.getDouble("percentage"),
         provisional = o.optBoolean("provisional", false)
     )
+
+    // ---------- BQ 9: tiempo de clasificación ----------
+
+    /** POST /classificationSessions. El cuerpo lo arma ClasificacionViewModel; con el mismo clientId no se duplica. */
+    suspend fun enviarSesionClasificacion(token: String, sesion: JSONObject) {
+        solicitar("POST", "", token, sesion, CLASSIFICATIONS_URL)
+    }
+
+    data class DocenteClasificacion(
+        val nombre: String?,
+        val sesiones: Int,
+        val estudiantes: Int,
+        val minutosPor25: Double
+    )
+
+    data class InstitucionClasificacion(
+        val nombre: String,
+        val sesiones: Int,
+        val estudiantes: Int,
+        val promedioMinutosPor25: Double,
+        val docentes: List<DocenteClasificacion>
+    )
+
+    /** GET /classificationSessions/report (solo admin): minutos por cada 25 estudiantes, por institución y docente. */
+    suspend fun reporteClasificacion(token: String, materia: String? = null): List<InstitucionClasificacion> {
+        val ruta = if (materia != null) "/report?subject=$materia" else "/report"
+        val escuelas = solicitar("GET", ruta, token, null, CLASSIFICATIONS_URL).getJSONArray("schools")
+        return List(escuelas.length()) { i ->
+            val e = escuelas.getJSONObject(i)
+            val docentes = e.getJSONArray("teachers")
+            InstitucionClasificacion(
+                nombre = e.getString("name"),
+                sesiones = e.getInt("sessions"),
+                estudiantes = e.getInt("studentsClassified"),
+                promedioMinutosPor25 = e.getDouble("avgMinutesPer25"),
+                docentes = List(docentes.length()) { j ->
+                    val d = docentes.getJSONObject(j)
+                    DocenteClasificacion(
+                        nombre = if (d.isNull("fullName")) null else d.getString("fullName"),
+                        sesiones = d.getInt("sessions"),
+                        estudiantes = d.getInt("studentsClassified"),
+                        minutosPor25 = d.getDouble("minutesPer25")
+                    )
+                }
+            )
+        }
+    }
 
     private suspend fun solicitar(metodo: String, ruta: String, token: String, cuerpo: JSONObject?, base: String = STUDENTS_URL): JSONObject =
         withContext(Dispatchers.IO) {

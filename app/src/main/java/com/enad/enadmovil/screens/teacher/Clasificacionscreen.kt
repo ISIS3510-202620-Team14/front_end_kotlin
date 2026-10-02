@@ -54,6 +54,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
@@ -71,7 +72,6 @@ data class NivelConfig(val nombre: String, val color: Color)
 // "clave" es la materia tal como la nombra el backend en levels (lectura | matematicas).
 data class MateriaConfig(val titulo: String, val clave: String, val niveles: List<NivelConfig> = emptyList())
 
-private const val NIVEL_RETIRADO = "Retirado"
 private val COLOR_RETIRADO = Color(0xFF8A8378)
 
 val MATERIA_LECTURA = MateriaConfig(
@@ -132,6 +132,11 @@ fun ClasificacionScreen(
     viewModel: ClasificacionViewModel = viewModel(key = "clasificacion-${materia.clave}")
 ) {
     LaunchedEffect(materia) { viewModel.iniciar(materia) }
+    // BQ 9: el cronómetro de clasificación solo corre mientras la pantalla está visible.
+    LifecycleResumeEffect(viewModel) {
+        viewModel.alReanudar()
+        onPauseOrDispose { viewModel.alPausar() }
+    }
     val estado by viewModel.uiState.collectAsStateWithLifecycle()
 
     ClasificacionContenido(
@@ -141,7 +146,8 @@ fun ClasificacionScreen(
         onSeleccionarInstitucion = viewModel::seleccionarInstitucion,
         onSeleccionarGrado = viewModel::seleccionarGrado,
         onReintentar = viewModel::reintentar,
-        onActualizar = viewModel::actualizar
+        onActualizar = viewModel::actualizar,
+        onClasificar = viewModel::clasificar
     )
 }
 
@@ -153,7 +159,8 @@ private fun ClasificacionContenido(
     onSeleccionarInstitucion: (String) -> Unit,
     onSeleccionarGrado: (Int?) -> Unit,
     onReintentar: () -> Unit,
-    onActualizar: (String, (EstudianteClasificacion) -> EstudianteClasificacion) -> Unit
+    onActualizar: (String, (EstudianteClasificacion) -> EstudianteClasificacion) -> Unit,
+    onClasificar: (String, String) -> Unit
 ) {
     val estudiantes = estado.visibles
     var expandidoId by remember { mutableStateOf<String?>(null) }
@@ -268,7 +275,7 @@ private fun ClasificacionContenido(
                         },
                         onSexoChange = { sexo -> onActualizar(estudiante.id) { it.copy(sexo = sexo) } },
                         onEdadChange = { edad -> onActualizar(estudiante.id) { it.copy(edad = edad) } },
-                        onNivelSeleccionado = { nivel -> onActualizar(estudiante.id) { it.copy(nivelActual = nivel) } }
+                        onNivelSeleccionado = { nivel -> onClasificar(estudiante.id, nivel) }
                     )
                     Spacer(modifier = Modifier.height(14.dp))
                 }
@@ -523,7 +530,8 @@ private fun ClasificacionPreview(materia: MateriaConfig) {
             onSeleccionarInstitucion = {},
             onSeleccionarGrado = {},
             onReintentar = {},
-            onActualizar = { _, _ -> }
+            onActualizar = { _, _ -> },
+            onClasificar = { _, _ -> }
         )
     }
 }
