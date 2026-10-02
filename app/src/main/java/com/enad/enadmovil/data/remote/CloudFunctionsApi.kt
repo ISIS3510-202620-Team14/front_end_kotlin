@@ -24,7 +24,18 @@ object CloudFunctionsApi {
     data class RespuestaAuth(
         val uid: String,
         val rol: String,
-        val customToken: String
+        val customToken: String,
+        val welcomeEmailSent: Boolean = false   // solo lo manda register
+    )
+
+    data class Sede(val id: String, val name: String)
+
+    /** Institución que se puede elegir al registrarse, con sus sedes. */
+    data class Institucion(
+        val id: String,
+        val name: String,
+        val municipality: String?,
+        val campuses: List<Sede>
     )
 
     data class EstudianteRemoto(
@@ -78,13 +89,66 @@ object CloudFunctionsApi {
 
     // ---------- Auth ----------
 
-    suspend fun register(email: String, password: String, fullName: String): RespuestaAuth =
-        llamar("register", mapOf("email" to email, "password" to password, "fullName" to fullName))
+    /**
+     * POST /register. [sedesPorInstitucion]: id de institución -> ids de las sedes elegidas en ella.
+     * Si va vacío, la cuenta se crea sin escuela y un admin la asigna después.
+     */
+    suspend fun register(
+        email: String,
+        password: String,
+        fullName: String,
+        sedesPorInstitucion: Map<String, List<String>> = emptyMap()
+    ): RespuestaAuth {
+        val schools = JSONArray()
+        sedesPorInstitucion.forEach { (schoolId, campusIds) ->
+            schools.put(JSONObject().put("schoolId", schoolId).put("campusIds", JSONArray(campusIds)))
+        }
+        return llamar(
+            "register",
+            JSONObject()
+                .put("email", email)
+                .put("password", password)
+                .put("fullName", fullName)
+                .put("schools", schools)
+        )
+    }
 
     suspend fun login(email: String, password: String): RespuestaAuth =
-        llamar("login", mapOf("email" to email, "password" to password))
+        llamar("login", JSONObject().put("email", email).put("password", password))
 
-    private suspend fun llamar(ruta: String, cuerpo: Map<String, String>): RespuestaAuth =
+    /** GET /registerSchools (sin token): instituciones activas con sus sedes, para el registro. */
+    suspend fun institucionesRegistro(): List<Institucion> =
+        withContext(Dispatchers.IO) {
+            val conexion = (URL("$BASE_URL/registerSchools").openConnection() as HttpURLConnection).apply {
+                connectTimeout = 15_000
+                readTimeout = 20_000
+            }
+            try {
+                val codigo = conexion.responseCode
+                if (codigo !in 200..299) {
+                    throw ApiException("http-$codigo", "No pudimos cargar las instituciones. Intenta más tarde.", codigo)
+                }
+                val arreglo = JSONObject(conexion.inputStream.bufferedReader().use { it.readText() })
+                    .getJSONArray("schools")
+                List(arreglo.length()) { i ->
+                    val o = arreglo.getJSONObject(i)
+                    val sedes = o.optJSONArray("campuses") ?: JSONArray()
+                    Institucion(
+                        id = o.getString("id"),
+                        name = o.getString("name"),
+                        municipality = if (o.isNull("municipality")) null else o.optString("municipality"),
+                        campuses = List(sedes.length()) { j ->
+                            val sede = sedes.getJSONObject(j)
+                            Sede(sede.getString("id"), sede.getString("name"))
+                        }
+                    )
+                }
+            } finally {
+                conexion.disconnect()
+            }
+        }
+
+    private suspend fun llamar(ruta: String, cuerpo: JSONObject): RespuestaAuth =
         withContext(Dispatchers.IO) {
             val url = URL("$BASE_URL/$ruta")
             val conexion = (url.openConnection() as HttpURLConnection).apply {
@@ -93,8 +157,7 @@ object CloudFunctionsApi {
                 doOutput = true
             }
 
-            val json = JSONObject(cuerpo).toString()
-            conexion.outputStream.use { it.write(json.toByteArray()) }
+            conexion.outputStream.use { it.write(cuerpo.toString().toByteArray(Charsets.UTF_8)) }
 
             val codigo = conexion.responseCode
             val stream = if (codigo in 200..299) conexion.inputStream else conexion.errorStream
@@ -109,7 +172,8 @@ object CloudFunctionsApi {
             RespuestaAuth(
                 uid = respuesta.getString("uid"),
                 rol = respuesta.getString("rol"),
-                customToken = respuesta.getString("customToken")
+                customToken = respuesta.getString("customToken"),
+                welcomeEmailSent = respuesta.optBoolean("welcomeEmailSent", false)
             )
         }
 
