@@ -7,6 +7,8 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import org.json.JSONArray
+import com.enad.enadmovil.data.local.entity.AperturaEntity
 
 /**
  * Llama directo a las Cloud Functions de firebase_backend:
@@ -17,6 +19,8 @@ object CloudFunctionsApi {
     private const val BASE_URL = "https://us-central1-enad-movil.cloudfunctions.net"
     private const val STUDENTS_URL = "$BASE_URL/students"
     private const val GROUPINGS_URL = "$BASE_URL/groupings"
+
+    private const val OPENS_URL = "$BASE_URL/appOpens"
 
     data class RespuestaAuth(
         val uid: String,
@@ -34,7 +38,39 @@ object CloudFunctionsApi {
         val provisional: Boolean,
         val attendance: String?   // solo viene si se pidió ?date=
     )
+    suspend fun enviarAperturas(token: String, aperturas: List<AperturaEntity>) {
+        val arreglo = JSONArray()
+        aperturas.forEach { a ->
+            arreglo.put(
+                JSONObject()
+                    .put("clientId", a.id)
+                    .put("openedAt", java.time.Instant.ofEpochMilli(a.abiertaEn).toString())
+                    .put("week", a.semana)
+                    .put("platform", a.platform)
+                    .put("appVersion", a.appVersion)
+            )
+        }
+        solicitar("POST", "", token, JSONObject().put("opens", arreglo), OPENS_URL)
+    }
 
+    data class ReporteAperturas(
+        val semana: String,
+        val docentes: Int,
+        val docentesMasDeUna: Int,
+        val provisional: Boolean
+    )
+
+    /** GET /appOpens/report (admin only): teachers that opened the app more than once in a week. */
+    suspend fun reporteAperturas(token: String, semana: String? = null): ReporteAperturas {
+        val ruta = if (semana != null) "/report?week=$semana" else "/report"
+        val json = solicitar("GET", ruta, token, null, OPENS_URL)
+        return ReporteAperturas(
+            semana = json.getString("week"),
+            docentes = json.getInt("teachers"),
+            docentesMasDeUna = json.getInt("teachersOverOnce"),
+            provisional = json.optBoolean("provisional", false)
+        )
+    }
     /** status = código HTTP (0 si no aplica). */
     class ApiException(val code: String, message: String, val status: Int = 0) : Exception(message) {
         /** Errores que valen la pena reintentar más tarde. */
