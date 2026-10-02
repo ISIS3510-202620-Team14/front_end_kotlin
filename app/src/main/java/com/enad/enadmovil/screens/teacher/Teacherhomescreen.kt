@@ -111,8 +111,8 @@ fun TeacherHomeScreen(
             CrearGrupoScreen(
                 materia = gruposUiState.subjectAreas[gruposUiState.selectedTabIndex],
                 onBack = { subPantallaGrupos = SubPantallaGrupos.Lista },
-                onGuardar = { nombre, ninos, docente ->
-                    gruposViewModel.agregarGrupo(nombre, ninos, docente)
+                onGuardar = { nombre, ninos, docente, cantidadNinos, cantidadDocentes ->
+                    gruposViewModel.agregarGrupo(nombre, ninos, docente, cantidadNinos, cantidadDocentes)
                     subPantallaGrupos = SubPantallaGrupos.Lista
                 }
             )
