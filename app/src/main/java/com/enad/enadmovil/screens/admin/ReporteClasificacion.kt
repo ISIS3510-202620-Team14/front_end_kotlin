@@ -86,7 +86,11 @@ class ReporteClasificacionViewModel(
                     )
                 }
             } catch (e: CloudFunctionsApi.ApiException) {
-                val mensaje = if (e.status == 403) "Solo un administrador puede ver este reporte." else e.message
+                val mensaje = when (e.status) {
+                    403 -> "Solo un administrador puede ver este reporte."
+                    404 -> "Este reporte todavía no está disponible en el servidor."
+                    else -> e.message
+                }
                 ReporteClasificacionUiState(cargando = false, materia = materia, error = mensaje)
             } catch (e: Exception) {
                 ReporteClasificacionUiState(cargando = false, materia = materia, error = "No se pudo cargar el reporte. Revisa tu conexión e intenta de nuevo.")
