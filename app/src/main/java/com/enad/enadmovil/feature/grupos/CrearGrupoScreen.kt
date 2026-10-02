@@ -56,7 +56,7 @@ val docentesDisponibles = listOf("Yo", "Prof. Nelson", "Prof. Marina", "Sin asig
 fun CrearGrupoScreen(
     materia: String,
     onBack: () -> Unit,
-    onGuardar: (nombre: String, ninos: List<Nino>, docente: String) -> Unit,
+    onGuardar: (nombre: String, ninos: List<Nino>, docente: String, cantidadNinos: Int, cantidadDocentes: Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var cantidadNinos by rememberSaveable { mutableIntStateOf(8) }
@@ -230,10 +230,10 @@ fun CrearGrupoScreen(
 
         Button(
             onClick = {
-                onGuardar(nombreGrupo, ninosSeleccionados.toList(), docenteSeleccionado)
+                onGuardar(nombreGrupo, ninosSeleccionados.toList(), docenteSeleccionado, cantidadNinos, cantidadDocentes)
                 onBack()
             },
-            enabled = nombreGrupo.isNotBlank(),
+            enabled = nombreGrupo.isNotBlank() && cantidadNinos > 0,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp)
