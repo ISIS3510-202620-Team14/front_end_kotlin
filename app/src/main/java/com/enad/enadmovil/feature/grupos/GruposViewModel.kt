@@ -8,6 +8,7 @@ import com.enad.enadmovil.data.local.GrupoEntity
 import com.enad.enadmovil.data.local.GrupoNinoCrossRef
 import com.enad.enadmovil.data.local.NinoEntity
 import com.enad.enadmovil.data.mapper.aGrupo
+import com.enad.enadmovil.data.repository.SesionAgrupacionRepository
 import com.enad.enadmovil.domain.model.AreaMateria
 import com.enad.enadmovil.domain.model.Nino
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +21,7 @@ import kotlinx.coroutines.launch
 class GruposViewModel(application: Application) : AndroidViewModel(application) {
     private val dao = EnadDatabase.obtener(application).gruposDao()
     private val selectedTabIndex = MutableStateFlow(0)
+    private val sesionesAgrupacion = SesionAgrupacionRepository(application)
 
     init {
         viewModelScope.launch {
@@ -92,13 +94,14 @@ class GruposViewModel(application: Application) : AndroidViewModel(application) 
         selectedTabIndex.value = index
     }
 
-    fun agregarGrupo(nombre: String, ninos: List<Nino>, docente: String) {
+    fun agregarGrupo(nombre: String, ninos: List<Nino>, docente: String, cantidadNinos: Int, cantidadDocentes: Int) {
         viewModelScope.launch {
             val area = if (selectedTabIndex.value == 0) AreaMateria.MATEMATICAS else AreaMateria.LECTURA
             val nuevoId = dao.insertarGrupo(
                 GrupoEntity(nombre = nombre, docente = docente, area = area)
             ).toInt()
             dao.insertarCrossRefs(ninos.map { GrupoNinoCrossRef(nuevoId, it.id) })
+            sesionesAgrupacion.registrar(area, nombre, cantidadNinos, cantidadDocentes, ninos.size)
         }
     }
 
