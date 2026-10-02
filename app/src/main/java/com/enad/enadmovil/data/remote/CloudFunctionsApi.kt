@@ -19,7 +19,6 @@ object CloudFunctionsApi {
     private const val BASE_URL = "https://us-central1-enad-movil.cloudfunctions.net"
     private const val STUDENTS_URL = "$BASE_URL/students"
     private const val GROUPINGS_URL = "$BASE_URL/groupings"
-
     private const val OPENS_URL = "$BASE_URL/appOpens"
 
     data class RespuestaAuth(

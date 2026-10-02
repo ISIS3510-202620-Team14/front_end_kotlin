@@ -1,14 +1,7 @@
 package com.enad.enadmovil.ui.screens.teacher
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -22,9 +15,7 @@ import com.enad.enadmovil.ui.theme.EnadTrack
 
 @Composable
 fun AperturasSemanaCard(state: AperturasUiState, modifier: Modifier = Modifier) {
-    // Progress toward the weekly goal, capped at 100%
     val fraccion = (state.aperturas.toFloat() / state.meta).coerceIn(0f, 1f)
-
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -37,40 +28,29 @@ fun AperturasSemanaCard(state: AperturasUiState, modifier: Modifier = Modifier) 
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Uso de la app esta semana",
+                "Uso de la app esta semana",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Text(
-                text = "${state.aperturas}/${state.meta}",
+                "${state.aperturas}/${state.meta}",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
         }
-
         Spacer(Modifier.height(10.dp))
-
-        // Same track style as the progress bars in ProgressCard
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(6.dp)
-                .background(EnadTrack, RoundedCornerShape(3.dp))
-        ) {
+        Box(Modifier.fillMaxWidth().height(6.dp).background(EnadTrack, RoundedCornerShape(3.dp))) {
             Box(
-                modifier = Modifier
-                    .fillMaxWidth(fraccion)
-                    .height(6.dp)
+                Modifier.fillMaxWidth(fraccion).height(6.dp)
                     .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(3.dp))
             )
         }
-
         if (state.mostrarRecordatorio) {
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "Vuelve a abrir la app esta semana para mantener al día el progreso de tus estudiantes.",
+                "Vuelve a abrir la app esta semana para mantener al día el progreso de tus estudiantes.",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
