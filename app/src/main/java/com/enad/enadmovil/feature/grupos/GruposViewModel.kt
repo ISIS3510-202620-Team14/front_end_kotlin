@@ -5,11 +5,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.enad.enadmovil.data.repository.GruposRepository
 import com.enad.enadmovil.domain.model.AreaMateria
+import com.enad.enadmovil.domain.model.MetodoAgrupacion
 import com.enad.enadmovil.domain.model.Nino
+import com.enad.enadmovil.domain.model.Recomendacion
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -19,9 +22,12 @@ import kotlinx.coroutines.launch
 class GruposViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = GruposRepository(application)
     private val selectedTabIndex = MutableStateFlow(0)
+    private val _recomendacion = MutableStateFlow<Recomendacion?>(null)
+    val recomendacion: StateFlow<Recomendacion?> = _recomendacion.asStateFlow()
 
     init {
         viewModelScope.launch { repo.sembrarSiVacio() }
+        repo.sincronizar() // trae los grupos del backend y sube los que estén pendientes
     }
 
     private fun areaDe(tabIndex: Int) = if (tabIndex == 0) AreaMateria.MATEMATICAS else AreaMateria.LECTURA
@@ -54,9 +60,15 @@ class GruposViewModel(application: Application) : AndroidViewModel(application) 
         selectedTabIndex.value = index
     }
 
-    fun agregarGrupo(nombre: String, ninos: List<Nino>, docente: String, cantidadNinos: Int, cantidadDocentes: Int) {
+    /** BQ 14: el método más usado en salones del mismo tamaño y materia, para dejarlo preseleccionado. */
+    fun pedirRecomendacion(tamano: Int) {
+        viewModelScope.launch { _recomendacion.value = repo.recomendarMetodo(areaDe(selectedTabIndex.value), tamano) }
+    }
+
+    fun agregarGrupo(nombre: String, ninos: List<Nino>, docente: String, cantidadNinos: Int, cantidadDocentes: Int, metodo: MetodoAgrupacion) {
         viewModelScope.launch {
-            repo.crearGrupo(nombre, docente, areaDe(selectedTabIndex.value), ninos, cantidadNinos, cantidadDocentes)
+            repo.crearGrupo(nombre, docente, areaDe(selectedTabIndex.value), ninos, cantidadNinos, cantidadDocentes, metodo)
+            _recomendacion.value = null
         }
     }
 
