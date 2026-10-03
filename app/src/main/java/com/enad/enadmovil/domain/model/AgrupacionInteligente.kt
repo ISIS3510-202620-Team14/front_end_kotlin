@@ -24,6 +24,10 @@ data class Recomendacion(val metodo: MetodoAgrupacion, val confianza: Double, va
     }
 }
 
+/** La materia como la llama el backend. */
+val AreaMateria.clave: String
+    get() = if (this == AreaMateria.MATEMATICAS) "matematicas" else "lectura"
+
 /** BQ 14: según la materia y el tamaño del salón, predice el método que más se usó en salones parecidos. */
 object RecomendadorAgrupacion {
 
