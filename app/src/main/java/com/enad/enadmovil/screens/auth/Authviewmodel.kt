@@ -133,7 +133,7 @@ class AuthViewModel(
         viewModelScope.launch {
             try {
                 val usuario = if (estado.modoRegistro) {
-                    val registro = authRepository.registrarse(
+                    val registro = authFacade.registrarse(
                         email = estado.usuario.trim(),
                         password = estado.contrasena,
                         fullName = estado.nombreCompleto.trim(),
