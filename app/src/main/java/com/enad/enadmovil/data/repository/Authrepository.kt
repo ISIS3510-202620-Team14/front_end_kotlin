@@ -47,6 +47,10 @@ class AuthRepository {
         return Registro(usuario, respuesta.welcomeEmailSent)
     }
 
+    /** Instituciones activas con sus sedes que se pueden elegir al registrarse (no pide sesión). */
+    suspend fun institucionesRegistro(): List<CloudFunctionsApi.Institucion> =
+        CloudFunctionsApi.institucionesRegistro()
+
     fun cerrarSesion() {
         FirebaseModule.auth.signOut()
     }

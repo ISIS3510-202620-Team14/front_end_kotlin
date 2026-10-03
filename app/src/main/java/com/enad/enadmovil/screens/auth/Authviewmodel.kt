@@ -52,7 +52,7 @@ class AuthViewModel(
         _uiState.update { it.copy(cargandoInstituciones = true) }
         viewModelScope.launch {
             try {
-                val lista = CloudFunctionsApi.institucionesRegistro()
+                val lista = authRepository.institucionesRegistro()
                 _uiState.update { it.copy(instituciones = lista, cargandoInstituciones = false) }
             } catch (e: Exception) {
                 _uiState.update {
