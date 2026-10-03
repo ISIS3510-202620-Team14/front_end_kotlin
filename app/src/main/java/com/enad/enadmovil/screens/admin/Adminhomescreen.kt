@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -41,6 +42,10 @@ private val ADMIN_TABS = listOf(
     AdminTab("Reportes", Icons.Filled.Description)
 )
 
+// Reportes de la pestaña "Reportes": BQ tipo 1 (sincronización) y BQ #9 (tiempo de clasificación).
+private const val REPORTE_CLASIFICACION = "Clasificación"
+private val REPORTES = listOf("Sincronización", REPORTE_CLASIFICACION)
+
 @Composable
 fun AdminHomeScreen(
     nombreUsuario: String = "Sofía",
@@ -49,6 +54,7 @@ fun AdminHomeScreen(
     onVerCatalogoAlianzas: () -> Unit = {}
 ) {
     var tabSeleccionada by remember { mutableStateOf(ADMIN_TABS.first().label) }
+    var reporteSeleccionado by remember { mutableStateOf(REPORTES.first()) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -94,7 +100,21 @@ fun AdminHomeScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             if (tabSeleccionada == "Reportes") {
-                ReporteSincronizacionSection(modifier = Modifier.weight(1f))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    REPORTES.forEach { reporte ->
+                        FilterChip(
+                            selected = reporteSeleccionado == reporte,
+                            onClick = { reporteSeleccionado = reporte },
+                            label = { Text(reporte) }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                if (reporteSeleccionado == REPORTE_CLASIFICACION) {
+                    ReporteClasificacionSection(modifier = Modifier.weight(1f))
+                } else {
+                    ReporteSincronizacionSection(modifier = Modifier.weight(1f))
+                }
             } else {
                 AdminSectionPlaceholder(tabSeleccionada)
 
