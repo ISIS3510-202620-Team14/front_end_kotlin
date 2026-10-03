@@ -29,7 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.data.remote.CloudFunctionsApi.DocenteClasificacion
 import com.enad.enadmovil.data.remote.CloudFunctionsApi.InstitucionClasificacion
-import com.enad.enadmovil.data.repository.AuthRepository
+import com.enad.enadmovil.data.repository.ReportesRepository
 import com.enad.enadmovil.ui.theme.EnadBackground
 import com.enad.enadmovil.ui.theme.EnadPrimary
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,7 +55,7 @@ data class ReporteClasificacionUiState(
 
 /** BQ tipo 3 (#9): cuánto tarda en promedio cada docente en clasificar 25 estudiantes, por institución. */
 class ReporteClasificacionViewModel(
-    private val auth: AuthRepository = AuthRepository()
+    private val repo: ReportesRepository = ReportesRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ReporteClasificacionUiState())
@@ -75,16 +75,11 @@ class ReporteClasificacionViewModel(
         _uiState.update { it.copy(cargando = true, error = null) }
         viewModelScope.launch {
             val nuevo = try {
-                val token = auth.obtenerToken()
-                if (token == null) {
-                    ReporteClasificacionUiState(cargando = false, materia = materia, error = "Inicia sesión de nuevo para ver el reporte.")
-                } else {
-                    ReporteClasificacionUiState(
-                        cargando = false,
-                        materia = materia,
-                        instituciones = CloudFunctionsApi.reporteClasificacion(token, materia)
-                    )
-                }
+                ReporteClasificacionUiState(
+                    cargando = false,
+                    materia = materia,
+                    instituciones = repo.tiempoClasificacion(materia)
+                )
             } catch (e: CloudFunctionsApi.ApiException) {
                 val mensaje = when (e.status) {
                     403 -> "Solo un administrador puede ver este reporte."

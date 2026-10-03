@@ -32,6 +32,7 @@ object CloudFunctionsApi {
     private val CLASSIFICATIONS_URL = "$BASE_URL/classificationSessions"
     private val GROUPS_URL = "$BASE_URL/groups"
     private val HOURS_URL = "$BASE_URL/workedHours"
+    private val ANALYTICS_URL = "$BASE_URL/analytics"
 
 
     data class RespuestaAuth(
@@ -324,6 +325,45 @@ object CloudFunctionsApi {
         if (r.motivo != null) cuerpo.put("reason", r.motivo)
         if (schoolId != null) cuerpo.put("schoolId", schoolId)
         solicitar("PUT", "/${r.fecha}", token, cuerpo, HOURS_URL)
+    }
+
+    // ---------- Grupos en el backend ----------
+
+    /** POST /groups: crea el grupo en el backend y devuelve su id. Sin teacherId, el docente queda como profesor. */
+    suspend fun crearGrupoRemoto(token: String, nombre: String, materia: String, schoolId: String?): String {
+        val cuerpo = JSONObject().put("name", nombre).put("subject", materia)
+        if (schoolId != null) cuerpo.put("schoolId", schoolId)
+        return solicitar("POST", "", token, cuerpo, GROUPS_URL).getString("id")
+    }
+
+    /** DELETE /groups/{id}: baja lógica del grupo. */
+    suspend fun eliminarGrupoRemoto(token: String, id: String) {
+        solicitar("DELETE", "/$id", token, null, GROUPS_URL)
+    }
+
+    // ---------- BQ 14: recomendación del método de agrupación ----------
+
+    data class EventoAgrupacionRemoto(val materia: String, val tamano: Int, val metodo: String)
+
+    /** POST /analytics/grouping-events: un evento por cada grupo creado, con el método que eligió el docente. */
+    suspend fun enviarEventoAgrupacion(token: String, materia: String, tamano: Int, metodo: String, teacherId: String, momento: Long) {
+        val cuerpo = JSONObject()
+            .put("subject", materia)
+            .put("classSize", tamano)
+            .put("method", metodo)
+            .put("teacherId", teacherId)
+            .put("timestamp", java.time.Instant.ofEpochMilli(momento).toString())
+        solicitar("POST", "/grouping-events", token, cuerpo, ANALYTICS_URL)
+    }
+
+    /** GET /analytics/grouping-events?subject=: los últimos eventos de esa materia (hasta 200). */
+    suspend fun eventosAgrupacion(token: String, materia: String): List<EventoAgrupacionRemoto> {
+        val arreglo = solicitar("GET", "/grouping-events?subject=${URLEncoder.encode(materia, "UTF-8")}", token, null, ANALYTICS_URL)
+            .optJSONArray("events") ?: JSONArray()
+        return List(arreglo.length()) { i ->
+            val e = arreglo.getJSONObject(i)
+            EventoAgrupacionRemoto(e.getString("subject"), e.getInt("classSize"), e.getString("method"))
+        }
     }
 
     //Contexto de la sesión
