@@ -6,8 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.data.remote.CloudFunctionsApi.Institucion
-import com.enad.enadmovil.data.repository.AuthRepository
-import com.enad.enadmovil.data.sync.EnviarClasificacionWorker
+import com.enad.enadmovil.data.repository.ClasificacionRepository
 import com.enad.enadmovil.data.telemetria.InfoDispositivo
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -44,7 +43,7 @@ internal const val NIVEL_RETIRADO = "Retirado"
  */
 class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val auth = AuthRepository()
+    private val repo = ClasificacionRepository(app)
     private var materiaClave = ""
     private var cargaEstudiantes: Job? = null
 
@@ -119,14 +118,14 @@ class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
         val terminada = sesion ?: return
         sesion = null
         val cuerpo = terminada.aJson(materiaClave, InfoDispositivo.versionApp(getApplication())) ?: return
-        EnviarClasificacionWorker.programar(getApplication(), cuerpo)
+        repo.enviarSesion(cuerpo)
     }
 
     private fun cargarInstituciones() {
         viewModelScope.launch {
             _uiState.update { it.copy(cargando = true, mensaje = null) }
             try {
-                val instituciones = CloudFunctionsApi.misInstituciones(token())
+                val instituciones = repo.misInstituciones()
                 val primera = instituciones.firstOrNull()?.id
                 _uiState.update {
                     it.copy(
@@ -148,7 +147,7 @@ class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
         cargaEstudiantes = viewModelScope.launch {
             _uiState.update { it.copy(cargando = true, mensaje = null) }
             try {
-                val remotos = CloudFunctionsApi.listarEstudiantes(token(), schoolId, null)
+                val remotos = repo.estudiantes(schoolId)
                 val estudiantes = remotos.mapIndexed { i, r ->
                     ediciones[r.id] ?: EstudianteClasificacion(
                         id = r.id,
@@ -170,9 +169,6 @@ class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
-
-    private suspend fun token(): String =
-        auth.obtenerToken() ?: throw CloudFunctionsApi.ApiException("unauthenticated", "Tu sesión expiró. Vuelve a iniciar sesión.", 401)
 
     private fun mensajeDe(e: Exception): String = when ((e as? CloudFunctionsApi.ApiException)?.code) {
         "no-school" -> "No tienes instituciones asignadas."
