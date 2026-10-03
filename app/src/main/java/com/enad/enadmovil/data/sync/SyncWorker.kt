@@ -5,6 +5,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.enad.enadmovil.data.repository.AperturasRepository
 import com.enad.enadmovil.data.repository.AsistenciaRepository
+import com.enad.enadmovil.data.repository.HorasRepository
 import com.enad.enadmovil.data.repository.SesionAgrupacionRepository
 
 class SyncWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
@@ -25,7 +26,12 @@ class SyncWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
         } catch (e: Exception) {
             false
         }
-        val terminado = asistencia && agrupaciones && aperturas
+        val horas = try {
+            HorasRepository(applicationContext).sincronizarPendientes()
+        } catch (e: Exception) {
+            false
+        }
+        val terminado = asistencia && agrupaciones && aperturas && horas
         return when {
             terminado -> Result.success()
             runAttemptCount >= 8 -> Result.failure() // el próximo cambio programa otra ronda
