@@ -1,5 +1,6 @@
 package com.enad.enadmovil.data.remote
 
+import com.enad.enadmovil.BuildConfig
 import com.enad.enadmovil.data.local.entity.SesionAgrupacionEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -16,10 +17,18 @@ import com.enad.enadmovil.data.local.entity.AperturaEntity
  */
 object CloudFunctionsApi {
 
-    private const val BASE_URL = "https://us-central1-enad-movil.cloudfunctions.net"
-    private const val STUDENTS_URL = "$BASE_URL/students"
-    private const val GROUPINGS_URL = "$BASE_URL/groupings"
-    private const val OPENS_URL = "$BASE_URL/appOpens"
+    // Con USAR_EMULADORES (solo debug) va al emulador de Functions del computador:
+    // 10.0.2.2 es el localhost del computador visto desde el emulador de Android.
+    private val BASE_URL = if (BuildConfig.USAR_EMULADORES) {
+        "http://10.0.2.2:5001/enad-movil/us-central1"
+    } else {
+        "https://us-central1-enad-movil.cloudfunctions.net"
+    }
+    private val STUDENTS_URL = "$BASE_URL/students"
+    private val GROUPINGS_URL = "$BASE_URL/groupings"
+    private val OPENS_URL = "$BASE_URL/appOpens"
+    private val SCHOOLS_URL = "$BASE_URL/schools"
+    private val CLASSIFICATIONS_URL = "$BASE_URL/classificationSessions"
 
     data class RespuestaAuth(
         val uid: String,
@@ -46,7 +55,9 @@ object CloudFunctionsApi {
         val grade: Int,
         val age: Int?,
         val provisional: Boolean,
-        val attendance: String?   // solo viene si se pidió ?date=
+        val attendance: String?,   // solo viene si se pidió ?date=
+        val gender: String? = null,
+        val niveles: Map<String, String> = emptyMap()   // materia -> etiqueta del nivel actual
     )
     suspend fun enviarAperturas(token: String, aperturas: List<AperturaEntity>) {
         val arreglo = JSONArray()
@@ -116,6 +127,25 @@ object CloudFunctionsApi {
     suspend fun login(email: String, password: String): RespuestaAuth =
         llamar("login", JSONObject().put("email", email).put("password", password))
 
+    /** GET /schools: al docente solo le llegan sus instituciones; al admin, todas. */
+    suspend fun misInstituciones(token: String): List<Institucion> {
+        val arreglo = solicitar("GET", "", token, null, SCHOOLS_URL).getJSONArray("schools")
+        return List(arreglo.length()) { aInstitucion(arreglo.getJSONObject(it)) }
+    }
+
+    private fun aInstitucion(o: JSONObject): Institucion {
+        val sedes = o.optJSONArray("campuses") ?: JSONArray()
+        return Institucion(
+            id = o.getString("id"),
+            name = o.getString("name"),
+            municipality = if (o.isNull("municipality")) null else o.optString("municipality"),
+            campuses = List(sedes.length()) { j ->
+                val sede = sedes.getJSONObject(j)
+                Sede(sede.getString("id"), sede.getString("name"))
+            }
+        )
+    }
+
     /** GET /registerSchools (sin token): instituciones activas con sus sedes, para el registro. */
     suspend fun institucionesRegistro(): List<Institucion> =
         withContext(Dispatchers.IO) {
@@ -130,19 +160,7 @@ object CloudFunctionsApi {
                 }
                 val arreglo = JSONObject(conexion.inputStream.bufferedReader().use { it.readText() })
                     .getJSONArray("schools")
-                List(arreglo.length()) { i ->
-                    val o = arreglo.getJSONObject(i)
-                    val sedes = o.optJSONArray("campuses") ?: JSONArray()
-                    Institucion(
-                        id = o.getString("id"),
-                        name = o.getString("name"),
-                        municipality = if (o.isNull("municipality")) null else o.optString("municipality"),
-                        campuses = List(sedes.length()) { j ->
-                            val sede = sedes.getJSONObject(j)
-                            Sede(sede.getString("id"), sede.getString("name"))
-                        }
-                    )
-                }
+                List(arreglo.length()) { aInstitucion(arreglo.getJSONObject(it)) }
             } finally {
                 conexion.disconnect()
             }
@@ -223,7 +241,14 @@ object CloudFunctionsApi {
         grade = o.getInt("grade"),
         age = if (o.isNull("age")) null else o.getInt("age"),
         provisional = o.optBoolean("provisional", false),
-        attendance = if (o.has("attendance")) o.optString("attendance") else null
+        attendance = if (o.has("attendance")) o.optString("attendance") else null,
+        gender = if (o.isNull("gender")) null else o.optString("gender"),
+        niveles = buildMap {
+            val levels = o.optJSONObject("levels") ?: return@buildMap
+            levels.keys().forEach { materia ->
+                levels.optJSONObject(materia)?.optString("etiqueta")?.ifBlank { null }?.let { put(materia, it) }
+            }
+        }
     )
 
     suspend fun enviarSesionAgrupacion(token: String, s: SesionAgrupacionEntity, intento: Int) {
@@ -281,6 +306,53 @@ object CloudFunctionsApi {
         porcentaje = if (o.isNull("percentage")) null else o.getDouble("percentage"),
         provisional = o.optBoolean("provisional", false)
     )
+
+    // ---------- BQ 9: tiempo de clasificación ----------
+
+    /** POST /classificationSessions. El cuerpo lo arma ClasificacionViewModel; con el mismo clientId no se duplica. */
+    suspend fun enviarSesionClasificacion(token: String, sesion: JSONObject) {
+        solicitar("POST", "", token, sesion, CLASSIFICATIONS_URL)
+    }
+
+    data class DocenteClasificacion(
+        val nombre: String?,
+        val sesiones: Int,
+        val estudiantes: Int,
+        val minutosPor25: Double
+    )
+
+    data class InstitucionClasificacion(
+        val nombre: String,
+        val sesiones: Int,
+        val estudiantes: Int,
+        val promedioMinutosPor25: Double,
+        val docentes: List<DocenteClasificacion>
+    )
+
+    /** GET /classificationSessions/report (solo admin): minutos por cada 25 estudiantes, por institución y docente. */
+    suspend fun reporteClasificacion(token: String, materia: String? = null): List<InstitucionClasificacion> {
+        val ruta = if (materia != null) "/report?subject=$materia" else "/report"
+        val escuelas = solicitar("GET", ruta, token, null, CLASSIFICATIONS_URL).getJSONArray("schools")
+        return List(escuelas.length()) { i ->
+            val e = escuelas.getJSONObject(i)
+            val docentes = e.getJSONArray("teachers")
+            InstitucionClasificacion(
+                nombre = e.getString("name"),
+                sesiones = e.getInt("sessions"),
+                estudiantes = e.getInt("studentsClassified"),
+                promedioMinutosPor25 = e.getDouble("avgMinutesPer25"),
+                docentes = List(docentes.length()) { j ->
+                    val d = docentes.getJSONObject(j)
+                    DocenteClasificacion(
+                        nombre = if (d.isNull("fullName")) null else d.getString("fullName"),
+                        sesiones = d.getInt("sessions"),
+                        estudiantes = d.getInt("studentsClassified"),
+                        minutosPor25 = d.getDouble("minutesPer25")
+                    )
+                }
+            )
+        }
+    }
 
     private suspend fun solicitar(metodo: String, ruta: String, token: String, cuerpo: JSONObject?, base: String = STUDENTS_URL): JSONObject =
         withContext(Dispatchers.IO) {

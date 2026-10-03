@@ -26,6 +26,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -37,7 +38,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +54,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.ui.theme.EnadBorder
 import com.enad.enadmovil.ui.theme.EnadMovilTheme
 import com.enad.enadmovil.ui.theme.EnadPendienteBg
@@ -62,13 +69,14 @@ import com.enad.enadmovil.ui.theme.EnadPillText
 // pantalla para que Lectura y Matemáticas la compartan (título + niveles propios).
 // Paso 6: se agregan los niveles con su color, y el nivel especial "Retirado".
 data class NivelConfig(val nombre: String, val color: Color)
-data class MateriaConfig(val titulo: String, val niveles: List<NivelConfig> = emptyList())
+// "clave" es la materia tal como la nombra el backend en levels (lectura | matematicas).
+data class MateriaConfig(val titulo: String, val clave: String, val niveles: List<NivelConfig> = emptyList())
 
-private const val NIVEL_RETIRADO = "Retirado"
 private val COLOR_RETIRADO = Color(0xFF8A8378)
 
 val MATERIA_LECTURA = MateriaConfig(
     titulo = "Lectura",
+    clave = "lectura",
     niveles = listOf(
         NivelConfig("Principiante", Color(0xFF3D6FEF)),
         NivelConfig("Letra", Color(0xFF45B8D6)),
@@ -81,6 +89,7 @@ val MATERIA_LECTURA = MateriaConfig(
 
 val MATERIA_MATEMATICAS = MateriaConfig(
     titulo = "Matemáticas",
+    clave = "matematicas",
     niveles = listOf(
         NivelConfig("Principiante", Color(0xFF3D6FEF)),
         NivelConfig("1 dígito", Color(0xFF45B8D6)),
@@ -91,53 +100,70 @@ val MATERIA_MATEMATICAS = MateriaConfig(
     )
 )
 
-// Paso 2: chips "CURSO DE ORIGEN" (mismo patrón visual que en Asistencia). Todavía
-// no filtran ninguna lista de estudiantes, porque esa lista no existe aún.
-private val CLASIFICACION_CURSOS = listOf("Todos", "Grado 3", "Grado 4", "Grado 5")
+// Chips "CURSO DE ORIGEN": grado -> etiqueta (null = Todos). Son los grados que maneja ENAd (3 a 5).
+private val CLASIFICACION_CURSOS = listOf<Pair<Int?, String>>(
+    null to "Todos", 3 to "Grado 3", 4 to "Grado 4", 5 to "Grado 5"
+)
 
-// Paso 3: lista de estudiantes en modo plano. Mismos 8 estudiantes del salón usados
-// en Asistencia, para que se sienta el mismo grupo.
-// Paso 5: se agregan "sexo" y "edad", editables desde la tarjeta expandida.
-// Paso 6: se agrega "nivelActual" (null = Pendiente, si no = Evaluado en ese nivel).
+// Estudiante de la institución elegida. "sexo" y "edad" son editables desde la tarjeta expandida;
+// "nivelActual" null = Pendiente, si no = Evaluado en ese nivel.
 data class EstudianteClasificacion(
+    val id: String,
     val numero: Int,
     val nombre: String,
+    val grado: Int,
     val sexo: String = "F",
     val edad: String = "",
     val nivelActual: String? = null
 )
 
 private fun estudiantesClasificacionDemo(): List<EstudianteClasificacion> = listOf(
-    EstudianteClasificacion(1, "María López Quintero", sexo = "F"),
-    EstudianteClasificacion(2, "Juan Carlos Cruz", sexo = "M"),
-    EstudianteClasificacion(3, "Juan Carlos Cruz", sexo = "M"),
-    EstudianteClasificacion(4, "Lucía Restrepo", sexo = "F"),
-    EstudianteClasificacion(5, "Valentina Ríos Peña", sexo = "F"),
-    EstudianteClasificacion(6, "Sofía Betancur", sexo = "F"),
-    EstudianteClasificacion(7, "Andrés Mejía", sexo = "M"),
-    EstudianteClasificacion(8, "Nicolás Pardo Salazar", sexo = "M")
+    EstudianteClasificacion("demo-1", 1, "María López Quintero", grado = 3, sexo = "F"),
+    EstudianteClasificacion("demo-2", 2, "Juan Carlos Cruz", grado = 3, sexo = "M"),
+    EstudianteClasificacion("demo-3", 3, "Lucía Restrepo", grado = 4, sexo = "F"),
+    EstudianteClasificacion("demo-4", 4, "Valentina Ríos Peña", grado = 4, sexo = "F"),
+    EstudianteClasificacion("demo-5", 5, "Andrés Mejía", grado = 5, sexo = "M")
 )
 
 @Composable
 fun ClasificacionScreen(
     materia: MateriaConfig,
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    viewModel: ClasificacionViewModel = viewModel(key = "clasificacion-${materia.clave}")
 ) {
-    var cursoSeleccionado by remember { mutableStateOf(CLASIFICACION_CURSOS.first()) }
-    var estudiantes by remember { mutableStateOf(estudiantesClasificacionDemo()) }
-    var expandidoNumero by remember { mutableStateOf(estudiantes.firstOrNull()?.numero) }
-
-    fun actualizarSexo(numero: Int, sexo: String) {
-        estudiantes = estudiantes.map { e -> if (e.numero == numero) e.copy(sexo = sexo) else e }
+    LaunchedEffect(materia) { viewModel.iniciar(materia) }
+    // BQ 9: el cronómetro de clasificación solo corre mientras la pantalla está visible.
+    LifecycleResumeEffect(viewModel) {
+        viewModel.alReanudar()
+        onPauseOrDispose { viewModel.alPausar() }
     }
+    val estado by viewModel.uiState.collectAsStateWithLifecycle()
 
-    fun actualizarEdad(numero: Int, edad: String) {
-        estudiantes = estudiantes.map { e -> if (e.numero == numero) e.copy(edad = edad) else e }
-    }
+    ClasificacionContenido(
+        materia = materia,
+        estado = estado,
+        onBack = onBack,
+        onSeleccionarInstitucion = viewModel::seleccionarInstitucion,
+        onSeleccionarGrado = viewModel::seleccionarGrado,
+        onReintentar = viewModel::reintentar,
+        onActualizar = viewModel::actualizar,
+        onClasificar = viewModel::clasificar
+    )
+}
 
-    fun actualizarNivel(numero: Int, nivel: String) {
-        estudiantes = estudiantes.map { e -> if (e.numero == numero) e.copy(nivelActual = nivel) else e }
-    }
+@Composable
+private fun ClasificacionContenido(
+    materia: MateriaConfig,
+    estado: ClasificacionUiState,
+    onBack: () -> Unit,
+    onSeleccionarInstitucion: (String) -> Unit,
+    onSeleccionarGrado: (Int?) -> Unit,
+    onReintentar: () -> Unit,
+    onActualizar: (String, (EstudianteClasificacion) -> EstudianteClasificacion) -> Unit,
+    onClasificar: (String, String) -> Unit
+) {
+    val estudiantes = estado.visibles
+    var expandidoId by remember { mutableStateOf<String?>(null) }
 
     val grupos = buildList {
         val sinEvaluar = estudiantes.filter { it.nivelActual == null }
@@ -184,26 +210,52 @@ fun ClasificacionScreen(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "${estudiantes.size} de ${estudiantes.size} estudiantes activos",
+                text = "${estudiantes.size} de ${estado.estudiantes.size} estudiantes activos",
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+            if (estado.instituciones.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(20.dp))
+                TituloSeccion("INSTITUCIÓN")
+                Spacer(modifier = Modifier.height(10.dp))
+                FiltroChips<String?>(
+                    opciones = estado.instituciones.map { it.id to it.name },
+                    seleccionado = estado.institucionId,
+                    onSeleccionar = { id -> id?.let(onSeleccionarInstitucion) }
+                )
+            }
+
             Spacer(modifier = Modifier.height(20.dp))
-            Text(
-                text = "CURSO DE ORIGEN",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            TituloSeccion("CURSO DE ORIGEN")
             Spacer(modifier = Modifier.height(10.dp))
-            ClasificacionCursoChips(
-                seleccionado = cursoSeleccionado,
-                onSeleccionar = { cursoSeleccionado = it }
+            FiltroChips(
+                opciones = CLASIFICACION_CURSOS,
+                seleccionado = estado.grado,
+                onSeleccionar = onSeleccionarGrado
             )
 
-            grupos.forEach { (nombreGrupo, lista) ->
+            when {
+                estado.cargando -> Box(
+                    modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
+                    contentAlignment = Alignment.Center
+                ) { CircularProgressIndicator() }
+
+                estado.mensaje != null -> Column(modifier = Modifier.padding(top = 32.dp)) {
+                    Text(text = estado.mensaje, fontSize = 14.sp, color = MaterialTheme.colorScheme.error)
+                    TextButton(onClick = onReintentar) { Text("Reintentar") }
+                }
+
+                estudiantes.isEmpty() -> Text(
+                    text = if (estado.grado == null) "Esta institución aún no tiene estudiantes."
+                    else "No hay estudiantes en este curso.",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 32.dp)
+                )
+            }
+
+            if (!estado.cargando && estado.mensaje == null) grupos.forEach { (nombreGrupo, lista) ->
                 Spacer(modifier = Modifier.height(20.dp))
                 Text(
                     text = "${nombreGrupo.uppercase()} · ${lista.size}",
@@ -217,13 +269,13 @@ fun ClasificacionScreen(
                     EstudianteClasificacionCard(
                         estudiante = estudiante,
                         materia = materia,
-                        expandido = expandidoNumero == estudiante.numero,
+                        expandido = expandidoId == estudiante.id,
                         onToggleExpand = {
-                            expandidoNumero = if (expandidoNumero == estudiante.numero) null else estudiante.numero
+                            expandidoId = if (expandidoId == estudiante.id) null else estudiante.id
                         },
-                        onSexoChange = { actualizarSexo(estudiante.numero, it) },
-                        onEdadChange = { actualizarEdad(estudiante.numero, it) },
-                        onNivelSeleccionado = { nivel -> actualizarNivel(estudiante.numero, nivel) }
+                        onSexoChange = { sexo -> onActualizar(estudiante.id) { it.copy(sexo = sexo) } },
+                        onEdadChange = { edad -> onActualizar(estudiante.id) { it.copy(edad = edad) } },
+                        onNivelSeleccionado = { nivel -> onClasificar(estudiante.id, nivel) }
                     )
                     Spacer(modifier = Modifier.height(14.dp))
                 }
@@ -400,13 +452,25 @@ private fun PillGenerico(texto: String, fondo: Color, textoColor: Color) {
 }
 
 @Composable
-private fun ClasificacionCursoChips(seleccionado: String, onSeleccionar: (String) -> Unit) {
+private fun TituloSeccion(texto: String) {
+    Text(
+        text = texto,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+// Chips de filtro (mismo patrón visual que en Asistencia). [opciones]: valor -> etiqueta.
+@Composable
+private fun <T> FiltroChips(opciones: List<Pair<T, String>>, seleccionado: T, onSeleccionar: (T) -> Unit) {
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        CLASIFICACION_CURSOS.forEach { opcion ->
-            val estaSeleccionado = opcion == seleccionado
+        opciones.forEach { (valor, etiqueta) ->
+            val estaSeleccionado = valor == seleccionado
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -421,7 +485,7 @@ private fun ClasificacionCursoChips(seleccionado: String, onSeleccionar: (String
                     .let {
                         if (estaSeleccionado) it else it.border(1.dp, EnadBorder, RoundedCornerShape(20.dp))
                     }
-                    .clickable { onSeleccionar(opcion) }
+                    .clickable { onSeleccionar(valor) }
                     .padding(horizontal = 14.dp, vertical = 8.dp)
             ) {
                 if (estaSeleccionado) {
@@ -434,7 +498,7 @@ private fun ClasificacionCursoChips(seleccionado: String, onSeleccionar: (String
                     Spacer(modifier = Modifier.width(4.dp))
                 }
                 Text(
-                    text = opcion,
+                    text = etiqueta,
                     fontSize = 13.sp,
                     fontWeight = if (estaSeleccionado) FontWeight.Bold else FontWeight.Normal,
                     color = if (estaSeleccionado) {
@@ -448,18 +512,34 @@ private fun ClasificacionCursoChips(seleccionado: String, onSeleccionar: (String
     }
 }
 
-@Preview(showBackground = true)
 @Composable
-private fun ClasificacionLecturaPreview() {
+private fun ClasificacionPreview(materia: MateriaConfig) {
     EnadMovilTheme {
-        ClasificacionScreen(materia = MATERIA_LECTURA)
+        ClasificacionContenido(
+            materia = materia,
+            estado = ClasificacionUiState(
+                cargando = false,
+                instituciones = listOf(
+                    CloudFunctionsApi.Institucion("ie-1", "IE Rural El Carmen", null, emptyList()),
+                    CloudFunctionsApi.Institucion("ie-2", "IE San José", null, emptyList())
+                ),
+                institucionId = "ie-1",
+                estudiantes = estudiantesClasificacionDemo()
+            ),
+            onBack = {},
+            onSeleccionarInstitucion = {},
+            onSeleccionarGrado = {},
+            onReintentar = {},
+            onActualizar = { _, _ -> },
+            onClasificar = { _, _ -> }
+        )
     }
 }
 
 @Preview(showBackground = true)
 @Composable
-private fun ClasificacionMatematicasPreview() {
-    EnadMovilTheme {
-        ClasificacionScreen(materia = MATERIA_MATEMATICAS)
-    }
-}
+private fun ClasificacionLecturaPreview() = ClasificacionPreview(MATERIA_LECTURA)
+
+@Preview(showBackground = true)
+@Composable
+private fun ClasificacionMatematicasPreview() = ClasificacionPreview(MATERIA_MATEMATICAS)
