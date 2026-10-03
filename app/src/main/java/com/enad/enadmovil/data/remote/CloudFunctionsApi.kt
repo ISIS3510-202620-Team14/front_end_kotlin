@@ -18,13 +18,14 @@ import com.enad.enadmovil.data.local.entity.ReporteHorasEntity
  */
 object CloudFunctionsApi {
 
-     // Con USAR_EMULADORES (solo debug) va al emulador de Functions del computador:
+    // Con USAR_EMULADORES (solo debug) va al emulador de Functions del computador:
     // 10.0.2.2 es el localhost del computador visto desde el emulador de Android.
     private val BASE_URL = if (BuildConfig.USAR_EMULADORES) {
         "http://10.0.2.2:5001/enad-movil/us-central1"
     } else {
         "https://us-central1-enad-movil.cloudfunctions.net"
     }
+
     private val STUDENTS_URL = "$BASE_URL/students"
     private val GROUPINGS_URL = "$BASE_URL/groupings"
     private val OPENS_URL = "$BASE_URL/appOpens"
@@ -32,13 +33,13 @@ object CloudFunctionsApi {
     private val CLASSIFICATIONS_URL = "$BASE_URL/classificationSessions"
     private val GROUPS_URL = "$BASE_URL/groups"
     private val HOURS_URL = "$BASE_URL/workedHours"
-
+    private val ANALYTICS_URL = "$BASE_URL/analytics"
 
     data class RespuestaAuth(
         val uid: String,
         val rol: String,
         val customToken: String,
-        val welcomeEmailSent: Boolean = false   // solo lo manda register
+        val welcomeEmailSent: Boolean = false
     )
 
     data class Sede(val id: String, val name: String)
@@ -59,10 +60,11 @@ object CloudFunctionsApi {
         val grade: Int,
         val age: Int?,
         val provisional: Boolean,
-        val attendance: String?,   // solo viene si se pidió ?date=
+        val attendance: String?,
         val gender: String? = null,
-        val niveles: Map<String, String> = emptyMap()   // materia -> etiqueta del nivel actual
+        val niveles: Map<String, String> = emptyMap()
     )
+
     suspend fun enviarAperturas(token: String, aperturas: List<AperturaEntity>) {
         val arreglo = JSONArray()
         aperturas.forEach { a ->
@@ -96,10 +98,17 @@ object CloudFunctionsApi {
             provisional = json.optBoolean("provisional", false)
         )
     }
+
     /** status = código HTTP (0 si no aplica). */
-    class ApiException(val code: String, message: String, val status: Int = 0) : Exception(message) {
+    class ApiException(
+        val code: String,
+        message: String,
+        val status: Int = 0
+    ) : Exception(message) {
+
         /** Errores que valen la pena reintentar más tarde. */
-        val esTransitorio: Boolean get() = status >= 500 || status == 429 || status == 408 || status == 401
+        val esTransitorio: Boolean
+            get() = status >= 500 || status == 429 || status == 408 || status == 401
     }
 
     // ---------- Auth ----------
@@ -115,9 +124,15 @@ object CloudFunctionsApi {
         sedesPorInstitucion: Map<String, List<String>> = emptyMap()
     ): RespuestaAuth {
         val schools = JSONArray()
+
         sedesPorInstitucion.forEach { (schoolId, campusIds) ->
-            schools.put(JSONObject().put("schoolId", schoolId).put("campusIds", JSONArray(campusIds)))
+            schools.put(
+                JSONObject()
+                    .put("schoolId", schoolId)
+                    .put("campusIds", JSONArray(campusIds))
+            )
         }
+
         return llamar(
             "register",
             JSONObject()
@@ -129,23 +144,45 @@ object CloudFunctionsApi {
     }
 
     suspend fun login(email: String, password: String): RespuestaAuth =
-        llamar("login", JSONObject().put("email", email).put("password", password))
+        llamar(
+            "login",
+            JSONObject()
+                .put("email", email)
+                .put("password", password)
+        )
 
     /** GET /schools: al docente solo le llegan sus instituciones; al admin, todas. */
     suspend fun misInstituciones(token: String): List<Institucion> {
-        val arreglo = solicitar("GET", "", token, null, SCHOOLS_URL).getJSONArray("schools")
-        return List(arreglo.length()) { aInstitucion(arreglo.getJSONObject(it)) }
+        val arreglo = solicitar(
+            "GET",
+            "",
+            token,
+            null,
+            SCHOOLS_URL
+        ).getJSONArray("schools")
+
+        return List(arreglo.length()) {
+            aInstitucion(arreglo.getJSONObject(it))
+        }
     }
 
     private fun aInstitucion(o: JSONObject): Institucion {
         val sedes = o.optJSONArray("campuses") ?: JSONArray()
+
         return Institucion(
             id = o.getString("id"),
             name = o.getString("name"),
-            municipality = if (o.isNull("municipality")) null else o.optString("municipality"),
+            municipality = if (o.isNull("municipality")) {
+                null
+            } else {
+                o.optString("municipality")
+            },
             campuses = List(sedes.length()) { j ->
                 val sede = sedes.getJSONObject(j)
-                Sede(sede.getString("id"), sede.getString("name"))
+                Sede(
+                    sede.getString("id"),
+                    sede.getString("name")
+                )
             }
         )
     }
@@ -153,49 +190,82 @@ object CloudFunctionsApi {
     /** GET /registerSchools (sin token): instituciones activas con sus sedes, para el registro. */
     suspend fun institucionesRegistro(): List<Institucion> =
         withContext(Dispatchers.IO) {
-            val conexion = (URL("$BASE_URL/registerSchools").openConnection() as HttpURLConnection).apply {
-                connectTimeout = 15_000
-                readTimeout = 20_000
-            }
+            val conexion = (
+                    URL("$BASE_URL/registerSchools")
+                        .openConnection() as HttpURLConnection
+                    ).apply {
+                    connectTimeout = 15_000
+                    readTimeout = 20_000
+                }
+
             try {
                 val codigo = conexion.responseCode
+
                 if (codigo !in 200..299) {
-                    throw ApiException("http-$codigo", "No pudimos cargar las instituciones. Intenta más tarde.", codigo)
+                    throw ApiException(
+                        "http-$codigo",
+                        "No pudimos cargar las instituciones. Intenta más tarde.",
+                        codigo
+                    )
                 }
-                val arreglo = JSONObject(conexion.inputStream.bufferedReader().use { it.readText() })
-                    .getJSONArray("schools")
-                List(arreglo.length()) { aInstitucion(arreglo.getJSONObject(it)) }
+
+                val arreglo = JSONObject(
+                    conexion.inputStream
+                        .bufferedReader()
+                        .use { it.readText() }
+                ).getJSONArray("schools")
+
+                List(arreglo.length()) {
+                    aInstitucion(arreglo.getJSONObject(it))
+                }
             } finally {
                 conexion.disconnect()
             }
         }
 
-    private suspend fun llamar(ruta: String, cuerpo: JSONObject): RespuestaAuth =
+    private suspend fun llamar(
+        ruta: String,
+        cuerpo: JSONObject
+    ): RespuestaAuth =
         withContext(Dispatchers.IO) {
             val url = URL("$BASE_URL/$ruta")
+
             val conexion = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")
                 doOutput = true
             }
 
-            conexion.outputStream.use { it.write(cuerpo.toString().toByteArray(Charsets.UTF_8)) }
+            conexion.outputStream.use {
+                it.write(cuerpo.toString().toByteArray(Charsets.UTF_8))
+            }
 
             val codigo = conexion.responseCode
-            val stream = if (codigo in 200..299) conexion.inputStream else conexion.errorStream
+            val stream =
+                if (codigo in 200..299) conexion.inputStream
+                else conexion.errorStream
+
             val texto = stream.bufferedReader().use { it.readText() }
             val respuesta = JSONObject(texto)
 
             if (codigo !in 200..299) {
                 val error = respuesta.getJSONObject("error")
-                throw ApiException(error.getString("code"), error.getString("message"), codigo)
+
+                throw ApiException(
+                    error.getString("code"),
+                    error.getString("message"),
+                    codigo
+                )
             }
 
             RespuestaAuth(
                 uid = respuesta.getString("uid"),
                 rol = respuesta.getString("rol"),
                 customToken = respuesta.getString("customToken"),
-                welcomeEmailSent = respuesta.optBoolean("welcomeEmailSent", false)
+                welcomeEmailSent = respuesta.optBoolean(
+                    "welcomeEmailSent",
+                    false
+                )
             )
         }
 
@@ -212,55 +282,127 @@ object CloudFunctionsApi {
         code: String?
     ): EstudianteRemoto {
         val cuerpo = JSONObject()
-            .put("schoolId", schoolId) // obligatorio si el docente tiene varias escuelas
+            .put("schoolId", schoolId)
             .put("clientId", clientId)
             .put("fullName", fullName)
             .put("grade", grade)
-        if (age != null) cuerpo.put("age", age)
-        if (code != null) cuerpo.put("code", code) else cuerpo.put("provisional", true)
-        return aEstudiante(solicitar("POST", "", token, cuerpo))
+
+        if (age != null) {
+            cuerpo.put("age", age)
+        }
+
+        if (code != null) {
+            cuerpo.put("code", code)
+        } else {
+            cuerpo.put("provisional", true)
+        }
+
+        return aEstudiante(
+            solicitar(
+                "POST",
+                "",
+                token,
+                cuerpo
+            )
+        )
     }
 
     /** PUT /students/{id}/attendance con estado vino | no_vino | sin_registro. */
-    suspend fun marcarAsistencia(token: String, id: String, fecha: String, estado: String) {
-        solicitar("PUT", "/$id/attendance", token, JSONObject().put("date", fecha).put("status", estado))
+    suspend fun marcarAsistencia(
+        token: String,
+        id: String,
+        fecha: String,
+        estado: String
+    ) {
+        solicitar(
+            "PUT",
+            "/$id/attendance",
+            token,
+            JSONObject()
+                .put("date", fecha)
+                .put("status", estado)
+        )
     }
 
     /** GET /students (del colegio del docente). Con fecha, cada estudiante trae su asistencia de ese día. */
-    suspend fun listarEstudiantes(token: String, schoolId: String?, fecha: String?): List<EstudianteRemoto> {
+    suspend fun listarEstudiantes(
+        token: String,
+        schoolId: String?,
+        fecha: String?
+    ): List<EstudianteRemoto> {
+
         val params = listOfNotNull(
-            schoolId?.let { "schoolId=${URLEncoder.encode(it, "UTF-8")}" },
-            fecha?.let { "date=$it" }
+            schoolId?.let {
+                "schoolId=${URLEncoder.encode(it, "UTF-8")}"
+            },
+            fecha?.let {
+                "date=$it"
+            }
         )
-        val ruta = if (params.isEmpty()) "" else "?" + params.joinToString("&")
-        val arreglo = solicitar("GET", ruta, token, null).getJSONArray("students")
-        return List(arreglo.length()) { aEstudiante(arreglo.getJSONObject(it)) }
+
+        val ruta =
+            if (params.isEmpty()) ""
+            else "?" + params.joinToString("&")
+
+        val arreglo = solicitar(
+            "GET",
+            ruta,
+            token,
+            null
+        ).getJSONArray("students")
+
+        return List(arreglo.length()) {
+            aEstudiante(arreglo.getJSONObject(it))
+        }
     }
 
-    private fun aEstudiante(o: JSONObject) = EstudianteRemoto(
-        id = o.getString("id"),
-        schoolId = o.getString("schoolId"),
-        code = o.getString("code"),
-        fullName = o.getString("fullName"),
-        grade = o.getInt("grade"),
-        age = if (o.isNull("age")) null else o.getInt("age"),
-        provisional = o.optBoolean("provisional", false),
-        attendance = if (o.has("attendance")) o.optString("attendance") else null,
-        gender = if (o.isNull("gender")) null else o.optString("gender"),
-        niveles = buildMap {
-            val levels = o.optJSONObject("levels") ?: return@buildMap
-            levels.keys().forEach { materia ->
-                levels.optJSONObject(materia)?.optString("etiqueta")?.ifBlank { null }?.let { put(materia, it) }
-            }
-        }
-    )
+    private fun aEstudiante(o: JSONObject) =
+        EstudianteRemoto(
+            id = o.getString("id"),
+            schoolId = o.getString("schoolId"),
+            code = o.getString("code"),
+            fullName = o.getString("fullName"),
+            grade = o.getInt("grade"),
+            age = if (o.isNull("age")) null else o.getInt("age"),
+            provisional = o.optBoolean("provisional", false),
+            attendance = if (o.has("attendance")) {
+                o.optString("attendance")
+            } else {
+                null
+            },
+            gender = if (o.isNull("gender")) {
+                null
+            } else {
+                o.optString("gender")
+            },
+            niveles = buildMap {
+                val levels = o.optJSONObject("levels")
+                    ?: return@buildMap
 
-    suspend fun enviarSesionAgrupacion(token: String, s: SesionAgrupacionEntity, intento: Int) {
-        val cuerpo = JSONObject().put("clientId", s.id)
+                levels.keys().forEach { materia ->
+                    levels
+                        .optJSONObject(materia)
+                        ?.optString("etiqueta")
+                        ?.ifBlank { null }
+                        ?.let { put(materia, it) }
+                }
+            }
+        )
+
+    suspend fun enviarSesionAgrupacion(
+        token: String,
+        s: SesionAgrupacionEntity,
+        intento: Int
+    ) {
+        val cuerpo = JSONObject()
+            .put("clientId", s.id)
             .put("platform", s.platform)
             .put("appVersion", s.appVersion)
             .put("connectivity", s.connectivity)
-            .put("createdAt", java.time.Instant.ofEpochMilli(s.creadaEn).toString())
+            .put(
+                "createdAt",
+                java.time.Instant.ofEpochMilli(s.creadaEn).toString()
+            )
             .put("sentAt", java.time.Instant.now().toString())
             .put("attempt", intento)
             .put("subject", s.subject)
@@ -268,8 +410,18 @@ object CloudFunctionsApi {
             .put("studentsCounted", s.studentsCounted)
             .put("teachersCounted", s.teachersCounted)
             .put("studentsAssigned", s.studentsAssigned)
-        if (s.schoolId != null) cuerpo.put("schoolId", s.schoolId)
-        solicitar("POST", "", token, cuerpo, GROUPINGS_URL)
+
+        if (s.schoolId != null) {
+            cuerpo.put("schoolId", s.schoolId)
+        }
+
+        solicitar(
+            "POST",
+            "",
+            token,
+            cuerpo,
+            GROUPINGS_URL
+        )
     }
 
     /** Una fila del reporte. En el total de la semana, plataforma, versión y conectividad vienen en null. */
@@ -286,62 +438,237 @@ object CloudFunctionsApi {
         val provisional: Boolean
     )
 
-    data class ReporteSincronizacion(val semanas: List<FilaReporte>, val filas: List<FilaReporte>)
-
-    /** GET /groupings/report (solo admin): % de sesiones que no llegaron en 24 h o terminaron en error. */
-    suspend fun reporteSesionesAgrupacion(token: String): ReporteSincronizacion {
-        val json = solicitar("GET", "/report", token, null, GROUPINGS_URL)
-        fun filas(nombre: String): List<FilaReporte> {
-            val arreglo = json.getJSONArray(nombre)
-            return List(arreglo.length()) { aFilaReporte(arreglo.getJSONObject(it)) }
-        }
-        return ReporteSincronizacion(semanas = filas("weeks"), filas = filas("rows"))
-    }
-
-    private fun aFilaReporte(o: JSONObject) = FilaReporte(
-        semana = o.getString("week"),
-        plataforma = o.optString("platform").ifBlank { null },
-        version = o.optString("appVersion").ifBlank { null },
-        conectividad = o.optString("connectivity").ifBlank { null },
-        total = o.getInt("total"),
-        aTiempo = o.getInt("syncedOnTime"),
-        tarde = o.getInt("syncedLate"),
-        errores = o.getInt("errors"),
-        porcentaje = if (o.isNull("percentage")) null else o.getDouble("percentage"),
-        provisional = o.optBoolean("provisional", false)
+    data class ReporteSincronizacion(
+        val semanas: List<FilaReporte>,
+        val filas: List<FilaReporte>
     )
 
+    /** GET /groupings/report (solo admin): % de sesiones que no llegaron en 24 h o terminaron en error. */
+    suspend fun reporteSesionesAgrupacion(
+        token: String
+    ): ReporteSincronizacion {
+        val json = solicitar(
+            "GET",
+            "/report",
+            token,
+            null,
+            GROUPINGS_URL
+        )
+
+        fun filas(nombre: String): List<FilaReporte> {
+            val arreglo = json.getJSONArray(nombre)
+            return List(arreglo.length()) {
+                aFilaReporte(arreglo.getJSONObject(it))
+            }
+        }
+
+        return ReporteSincronizacion(
+            semanas = filas("weeks"),
+            filas = filas("rows")
+        )
+    }
+
+    private fun aFilaReporte(o: JSONObject) =
+        FilaReporte(
+            semana = o.getString("week"),
+            plataforma = o.optString("platform").ifBlank { null },
+            version = o.optString("appVersion").ifBlank { null },
+            conectividad = o.optString("connectivity").ifBlank { null },
+            total = o.getInt("total"),
+            aTiempo = o.getInt("syncedOnTime"),
+            tarde = o.getInt("syncedLate"),
+            errores = o.getInt("errors"),
+            porcentaje = if (o.isNull("percentage")) {
+                null
+            } else {
+                o.getDouble("percentage")
+            },
+            provisional = o.optBoolean("provisional", false)
+        )
+
     /** PUT /workedHours/{fecha}: un reporte por docente y día. Repetirlo o corregirlo reemplaza el anterior. */
-    suspend fun enviarReporteHoras(token: String, r: ReporteHorasEntity, schoolId: String?, plataforma: String, version: String) {
+    suspend fun enviarReporteHoras(
+        token: String,
+        r: ReporteHorasEntity,
+        schoolId: String?,
+        plataforma: String,
+        version: String
+    ) {
         val cuerpo = JSONObject()
             .put("plannedHours", r.horasPlaneadas)
             .put("workedHours", r.horasRealizadas)
             .put("origin", r.origen)
             .put("presentAtCampus", r.presenteEnSede)
-            .put("savedAt", java.time.Instant.ofEpochMilli(r.guardadoEn).toString())
+            .put(
+                "savedAt",
+                java.time.Instant.ofEpochMilli(r.guardadoEn).toString()
+            )
             .put("platform", plataforma)
             .put("appVersion", version)
-        if (r.motivo != null) cuerpo.put("reason", r.motivo)
-        if (schoolId != null) cuerpo.put("schoolId", schoolId)
-        solicitar("PUT", "/${r.fecha}", token, cuerpo, HOURS_URL)
+
+        if (r.motivo != null) {
+            cuerpo.put("reason", r.motivo)
+        }
+
+        if (schoolId != null) {
+            cuerpo.put("schoolId", schoolId)
+        }
+
+        solicitar(
+            "PUT",
+            "/${r.fecha}",
+            token,
+            cuerpo,
+            HOURS_URL
+        )
     }
 
-    //Contexto de la sesión
-    data class SedeRemota(val id: String, val nombre: String, val lat: Double?, val lng: Double?)
-    data class EscuelaRemota(val id: String, val nombre: String, val sedes: List<SedeRemota>)
-    data class GrupoRemoto(val id: String, val nombre: String, val materia: String, val schoolId: String, val campusId: String?, val horario: List<Pair<Int, Double>>)
+    // ---------- Grupos en el backend ----------
+
+    /** POST /groups: crea el grupo en el backend y devuelve su id. Sin teacherId, el docente queda como profesor. */
+    suspend fun crearGrupoRemoto(
+        token: String,
+        nombre: String,
+        materia: String,
+        schoolId: String?
+    ): String {
+        val cuerpo = JSONObject()
+            .put("name", nombre)
+            .put("subject", materia)
+
+        if (schoolId != null) {
+            cuerpo.put("schoolId", schoolId)
+        }
+
+        return solicitar(
+            "POST",
+            "",
+            token,
+            cuerpo,
+            GROUPS_URL
+        ).getString("id")
+    }
+
+    /** DELETE /groups/{id}: baja lógica del grupo. */
+    suspend fun eliminarGrupoRemoto(
+        token: String,
+        id: String
+    ) {
+        solicitar(
+            "DELETE",
+            "/$id",
+            token,
+            null,
+            GROUPS_URL
+        )
+    }
+
+    // ---------- BQ 14: recomendación del método de agrupación ----------
+
+    data class EventoAgrupacionRemoto(
+        val materia: String,
+        val tamano: Int,
+        val metodo: String
+    )
+
+    /** POST /analytics/grouping-events: un evento por cada grupo creado, con el método que eligió el docente. */
+    suspend fun enviarEventoAgrupacion(
+        token: String,
+        materia: String,
+        tamano: Int,
+        metodo: String,
+        teacherId: String,
+        momento: Long
+    ) {
+        val cuerpo = JSONObject()
+            .put("subject", materia)
+            .put("classSize", tamano)
+            .put("method", metodo)
+            .put("teacherId", teacherId)
+            .put(
+                "timestamp",
+                java.time.Instant.ofEpochMilli(momento).toString()
+            )
+
+        solicitar(
+            "POST",
+            "/grouping-events",
+            token,
+            cuerpo,
+            ANALYTICS_URL
+        )
+    }
+
+    /** GET /analytics/grouping-events?subject=: los últimos eventos de esa materia (hasta 200). */
+    suspend fun eventosAgrupacion(
+        token: String,
+        materia: String
+    ): List<EventoAgrupacionRemoto> {
+        val arreglo = solicitar(
+            "GET",
+            "/grouping-events?subject=${URLEncoder.encode(materia, "UTF-8")}",
+            token,
+            null,
+            ANALYTICS_URL
+        ).optJSONArray("events") ?: JSONArray()
+
+        return List(arreglo.length()) { i ->
+            val e = arreglo.getJSONObject(i)
+
+            EventoAgrupacionRemoto(
+                materia = e.getString("subject"),
+                tamano = e.getInt("classSize"),
+                metodo = e.getString("method")
+            )
+        }
+    }
+
+    // ---------- Contexto de la sesión ----------
+
+    data class SedeRemota(
+        val id: String,
+        val nombre: String,
+        val lat: Double?,
+        val lng: Double?
+    )
+
+    data class EscuelaRemota(
+        val id: String,
+        val nombre: String,
+        val sedes: List<SedeRemota>
+    )
+
+    data class GrupoRemoto(
+        val id: String,
+        val nombre: String,
+        val materia: String,
+        val schoolId: String,
+        val campusId: String?,
+        val horario: List<Pair<Int, Double>>
+    )
 
     /** GET /schools: las escuelas del docente con sus sedes y coordenadas. */
-    suspend fun listarEscuelas(token: String): List<EscuelaRemota> {
-        val arreglo = solicitar("GET", "", token, null, SCHOOLS_URL).getJSONArray("schools")
+    suspend fun listarEscuelas(
+        token: String
+    ): List<EscuelaRemota> {
+        val arreglo = solicitar(
+            "GET",
+            "",
+            token,
+            null,
+            SCHOOLS_URL
+        ).getJSONArray("schools")
+
         return List(arreglo.length()) { i ->
             val escuela = arreglo.getJSONObject(i)
             val sedes = escuela.optJSONArray("campuses") ?: JSONArray()
+
             EscuelaRemota(
                 id = escuela.getString("id"),
                 nombre = escuela.optString("name"),
                 sedes = List(sedes.length()) { j ->
                     val sede = sedes.getJSONObject(j)
+
                     SedeRemota(
                         id = sede.getString("id"),
                         nombre = sede.optString("name"),
@@ -354,20 +681,37 @@ object CloudFunctionsApi {
     }
 
     /** GET /groups?teacherId=: los grupos del docente con su sede y su horario semanal. */
-    suspend fun listarGruposDelDocente(token: String, uid: String): List<GrupoRemoto> {
+    suspend fun listarGruposDelDocente(
+        token: String,
+        uid: String
+    ): List<GrupoRemoto> {
         val ruta = "?teacherId=${URLEncoder.encode(uid, "UTF-8")}"
-        val arreglo = solicitar("GET", ruta, token, null, GROUPS_URL).getJSONArray("groups")
+
+        val arreglo = solicitar(
+            "GET",
+            ruta,
+            token,
+            null,
+            GROUPS_URL
+        ).getJSONArray("groups")
+
         return List(arreglo.length()) { i ->
             val grupo = arreglo.getJSONObject(i)
             val horario = grupo.optJSONArray("schedule") ?: JSONArray()
+
             GrupoRemoto(
                 id = grupo.getString("id"),
                 nombre = grupo.getString("name"),
                 materia = grupo.getString("subject"),
                 schoolId = grupo.getString("schoolId"),
-                campusId = if (grupo.isNull("campusId")) null else grupo.getString("campusId"),
+                campusId = if (grupo.isNull("campusId")) {
+                    null
+                } else {
+                    grupo.getString("campusId")
+                },
                 horario = List(horario.length()) { j ->
                     val dia = horario.getJSONObject(j)
+
                     dia.getInt("day") to dia.getDouble("plannedHours")
                 }
             )
@@ -377,8 +721,17 @@ object CloudFunctionsApi {
     // ---------- BQ 9: tiempo de clasificación ----------
 
     /** POST /classificationSessions. El cuerpo lo arma ClasificacionViewModel; con el mismo clientId no se duplica. */
-    suspend fun enviarSesionClasificacion(token: String, sesion: JSONObject) {
-        solicitar("POST", "", token, sesion, CLASSIFICATIONS_URL)
+    suspend fun enviarSesionClasificacion(
+        token: String,
+        sesion: JSONObject
+    ) {
+        solicitar(
+            "POST",
+            "",
+            token,
+            sesion,
+            CLASSIFICATIONS_URL
+        )
     }
 
     data class DocenteClasificacion(
@@ -397,12 +750,26 @@ object CloudFunctionsApi {
     )
 
     /** GET /classificationSessions/report (solo admin): minutos por cada 25 estudiantes, por institución y docente. */
-    suspend fun reporteClasificacion(token: String, materia: String? = null): List<InstitucionClasificacion> {
-        val ruta = if (materia != null) "/report?subject=$materia" else "/report"
-        val escuelas = solicitar("GET", ruta, token, null, CLASSIFICATIONS_URL).getJSONArray("schools")
+    suspend fun reporteClasificacion(
+        token: String,
+        materia: String? = null
+    ): List<InstitucionClasificacion> {
+        val ruta =
+            if (materia != null) "/report?subject=$materia"
+            else "/report"
+
+        val escuelas = solicitar(
+            "GET",
+            ruta,
+            token,
+            null,
+            CLASSIFICATIONS_URL
+        ).getJSONArray("schools")
+
         return List(escuelas.length()) { i ->
             val e = escuelas.getJSONObject(i)
             val docentes = e.getJSONArray("teachers")
+
             InstitucionClasificacion(
                 nombre = e.getString("name"),
                 sesiones = e.getInt("sessions"),
@@ -410,8 +777,13 @@ object CloudFunctionsApi {
                 promedioMinutosPor25 = e.getDouble("avgMinutesPer25"),
                 docentes = List(docentes.length()) { j ->
                     val d = docentes.getJSONObject(j)
+
                     DocenteClasificacion(
-                        nombre = if (d.isNull("fullName")) null else d.getString("fullName"),
+                        nombre = if (d.isNull("fullName")) {
+                            null
+                        } else {
+                            d.getString("fullName")
+                        },
                         sesiones = d.getInt("sessions"),
                         estudiantes = d.getInt("studentsClassified"),
                         minutosPor25 = d.getDouble("minutesPer25")
@@ -421,31 +793,73 @@ object CloudFunctionsApi {
         }
     }
 
-
-    private suspend fun solicitar(metodo: String, ruta: String, token: String, cuerpo: JSONObject?, base: String = STUDENTS_URL): JSONObject =
+    private suspend fun solicitar(
+        metodo: String,
+        ruta: String,
+        token: String,
+        cuerpo: JSONObject?,
+        base: String = STUDENTS_URL
+    ): JSONObject =
         withContext(Dispatchers.IO) {
-            val conexion = (URL("$base$ruta").openConnection() as HttpURLConnection).apply {
-                requestMethod = metodo
-                connectTimeout = 15_000
-                readTimeout = 20_000
-                setRequestProperty("Authorization", "Bearer $token")
-                setRequestProperty("Content-Type", "application/json")
-                if (cuerpo != null) doOutput = true
-            }
+            val conexion = (
+                    URL("$base$ruta")
+                        .openConnection() as HttpURLConnection
+                    ).apply {
+                    requestMethod = metodo
+                    connectTimeout = 15_000
+                    readTimeout = 20_000
+                    setRequestProperty("Authorization", "Bearer $token")
+                    setRequestProperty("Content-Type", "application/json")
+
+                    if (cuerpo != null) {
+                        doOutput = true
+                    }
+                }
+
             try {
-                if (cuerpo != null) conexion.outputStream.use { it.write(cuerpo.toString().toByteArray(Charsets.UTF_8)) }
+                if (cuerpo != null) {
+                    conexion.outputStream.use {
+                        it.write(
+                            cuerpo.toString()
+                                .toByteArray(Charsets.UTF_8)
+                        )
+                    }
+                }
+
                 val codigo = conexion.responseCode
-                val stream = if (codigo in 200..299) conexion.inputStream else conexion.errorStream
-                val texto = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                val json = runCatching { JSONObject(texto) }.getOrDefault(JSONObject())
+
+                val stream =
+                    if (codigo in 200..299) {
+                        conexion.inputStream
+                    } else {
+                        conexion.errorStream
+                    }
+
+                val texto =
+                    stream?.bufferedReader()?.use { it.readText() }
+                        .orEmpty()
+
+                val json =
+                    runCatching {
+                        JSONObject(texto)
+                    }.getOrDefault(JSONObject())
+
                 if (codigo !in 200..299) {
                     val error = json.optJSONObject("error")
+
                     throw ApiException(
-                        code = error?.optString("code")?.ifBlank { null } ?: "http-$codigo",
-                        message = error?.optString("message")?.ifBlank { null } ?: "Error $codigo",
+                        code = error
+                            ?.optString("code")
+                            ?.ifBlank { null }
+                            ?: "http-$codigo",
+                        message = error
+                            ?.optString("message")
+                            ?.ifBlank { null }
+                            ?: "Error $codigo",
                         status = codigo
                     )
                 }
+
                 json
             } finally {
                 conexion.disconnect()
