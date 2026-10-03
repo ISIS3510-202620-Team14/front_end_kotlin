@@ -2,14 +2,12 @@ package com.enad.enadmovil.data.repository
 
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.data.remote.FirebaseModule
-import com.enad.enadmovil.domain.model.Usuario
 import kotlinx.coroutines.tasks.await
 
 /**
- * Facade: hides the two real steps of login/register (calling the Cloud
- * Function + signing in with the customToken in Firebase Auth) behind a
- * single function. Also loads the user's schoolId from users/{uid} and
- * exposes the ID token the students endpoints need.
+ * Repository de la sesión: abre y cierra la sesión de Firebase Auth, lee la escuela del
+ * perfil en users/{uid} y entrega el ID token que piden los endpoints. Login y registro
+ * completos (varios pasos) los orquesta AuthFacade.
  */
 class AuthRepository {
 

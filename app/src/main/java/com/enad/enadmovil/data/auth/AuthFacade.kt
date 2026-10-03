@@ -10,7 +10,9 @@ import com.enad.enadmovil.domain.model.Usuario
  *     devuelve un customToken.
  *  2. signInWithCustomToken (Firebase Auth en el cliente): abre la sesión con ese token.
  *  3. users/{uid} (Firestore): carga la escuela del usuario.
- * La pantalla solo ve iniciarSesion(email, password).
+ * La pantalla solo ve iniciarSesion(email, password); lo mismo con registrarse.
+ * Cada paso suelto vive en AuthRepository, que también usan los demás repositorios
+ * (token, uid, escuela del docente).
  */
 class AuthFacade(
     private val repo: AuthRepository = AuthRepository()
@@ -52,4 +54,7 @@ class AuthFacade(
         )
         return Registro(usuario, respuesta.welcomeEmailSent)
     }
+
+    /** Instituciones (con sedes) que se pueden elegir al registrarse. */
+    suspend fun institucionesRegistro(): List<CloudFunctionsApi.Institucion> = repo.institucionesRegistro()
 }

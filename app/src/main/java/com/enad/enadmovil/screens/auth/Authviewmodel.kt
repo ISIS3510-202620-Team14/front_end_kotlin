@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.enad.enadmovil.data.auth.AuthFacade
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
-import com.enad.enadmovil.data.repository.AuthRepository
 import com.enad.enadmovil.domain.model.Rol
 import com.enad.enadmovil.domain.model.Usuario
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,8 +17,7 @@ import kotlinx.coroutines.launch
 private val ROLES_CON_PANTALLA = setOf(Rol.DOCENTE, Rol.ADMINISTRADOR, Rol.VOLUNTARIO)
 
 class AuthViewModel(
-    private val authRepository: AuthRepository = AuthRepository(),
-    private val authFacade: AuthFacade = AuthFacade(authRepository)
+    private val authFacade: AuthFacade = AuthFacade()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AuthUiState())
@@ -54,7 +52,7 @@ class AuthViewModel(
         _uiState.update { it.copy(cargandoInstituciones = true) }
         viewModelScope.launch {
             try {
-                val lista = authRepository.institucionesRegistro()
+                val lista = authFacade.institucionesRegistro()
                 _uiState.update { it.copy(instituciones = lista, cargandoInstituciones = false) }
             } catch (e: Exception) {
                 _uiState.update {
@@ -97,7 +95,7 @@ class AuthViewModel(
     }
 
     /**
-     * Real login or register (depending on modoRegistro), through AuthRepository.
+     * Real login or register (depending on modoRegistro), through AuthFacade.
      * If the role the backend returns has no screen assigned yet (e.g. an old
      * account still marked "sin_privilegios"), [onExito] is
      * NOT called — the state is left with a message explaining why instead of
