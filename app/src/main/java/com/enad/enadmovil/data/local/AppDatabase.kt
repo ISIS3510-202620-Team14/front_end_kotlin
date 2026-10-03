@@ -10,11 +10,13 @@ import com.enad.enadmovil.data.local.dao.AperturaDao
 import com.enad.enadmovil.data.local.dao.AsistenciaDao
 import com.enad.enadmovil.data.local.dao.ContextoDao
 import com.enad.enadmovil.data.local.dao.EstudianteDao
+import com.enad.enadmovil.data.local.dao.EventoAgrupacionDao
 import com.enad.enadmovil.data.local.dao.SesionAgrupacionDao
 import com.enad.enadmovil.data.local.entity.AperturaEntity
 import com.enad.enadmovil.data.local.entity.AsistenciaEntity
 import com.enad.enadmovil.data.local.entity.ContextoDiaEntity
 import com.enad.enadmovil.data.local.entity.EstudianteEntity
+import com.enad.enadmovil.data.local.entity.EventoAgrupacionEntity
 import com.enad.enadmovil.data.local.entity.GrupoHorarioEntity
 import com.enad.enadmovil.data.local.entity.PresenciaSedeEntity
 import com.enad.enadmovil.data.local.entity.ReporteHorasEntity
@@ -31,9 +33,10 @@ import com.enad.enadmovil.data.local.entity.SesionAgrupacionEntity
         GrupoHorarioEntity::class,
         PresenciaSedeEntity::class,
         ContextoDiaEntity::class,
-        ReporteHorasEntity::class
+        ReporteHorasEntity::class,
+        EventoAgrupacionEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -42,6 +45,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun sesionAgrupacionDao(): SesionAgrupacionDao
     abstract fun aperturaDao(): AperturaDao
     abstract fun contextoDao(): ContextoDao
+    abstract fun eventoAgrupacionDao(): EventoAgrupacionDao
 
     companion object {
         @Volatile private var instancia: AppDatabase? = null
@@ -117,13 +121,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Adds the grouping events table used by the BQ 14 recommendation
+        private val MIGRACION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `eventos_agrupacion` (`id` TEXT NOT NULL, `docenteUid` TEXT NOT NULL, " +
+                            "`subject` TEXT NOT NULL, `classSize` INTEGER NOT NULL, `method` TEXT NOT NULL, " +
+                            "`creadoEn` INTEGER NOT NULL, `syncStatus` TEXT NOT NULL, `intentos` INTEGER NOT NULL, " +
+                            "`ultimoError` TEXT, PRIMARY KEY(`id`))"
+                )
+            }
+        }
+
         fun obtener(context: Context): AppDatabase =
             instancia ?: synchronized(this) {
                 instancia ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "enad.db"
-                ).addMigrations(MIGRACION_1_2, MIGRACION_2_3, MIGRACION_3_4, MIGRACION_4_5).build().also { instancia = it }
+                ).addMigrations(MIGRACION_1_2, MIGRACION_2_3, MIGRACION_3_4, MIGRACION_4_5, MIGRACION_5_6).build().also { instancia = it }
             }
     }
 }
