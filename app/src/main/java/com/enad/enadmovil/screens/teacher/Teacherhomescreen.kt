@@ -48,6 +48,7 @@ import com.enad.enadmovil.feature.grupos.EditarGrupoScreen
 import com.enad.enadmovil.feature.grupos.GruposScreen
 import com.enad.enadmovil.feature.grupos.GruposViewModel
 import com.enad.enadmovil.feature.grupos.VerGrupoScreen
+import com.enad.enadmovil.feature.actividades.ActividadesScreen
 import com.enad.enadmovil.feature.horas.HorasScreen
 import com.enad.enadmovil.feature.misdatos.MisDatosScreen
 import com.enad.enadmovil.ui.theme.EnadHeader
@@ -88,6 +89,7 @@ fun TeacherHomeScreen(
         ProgressItem("Matemáticas", 63, "5 de 8 estudiantes evaluados")
     ),
     acciones: List<ActionItem> = listOf(
+        ActionItem("Planear actividades", "Usa la biblioteca o crea las tuyas"),
         ActionItem("Planear horas", "Organiza tu reporte semanal"),
         ActionItem("Tomar asistencia", "0 de 8 registrados")
     ),
@@ -124,8 +126,26 @@ fun TeacherHomeScreen(
         ?.let { grupo -> listOfNotNull(grupo.sede, nombreMateria(grupo.materia)).joinToString(" · ") }
         ?: grupoSubtitulo
     var subPantallaGrupos by remember { mutableStateOf<SubPantallaGrupos>(SubPantallaGrupos.Lista) }
+    var mostrarActividades by remember {
+        mutableStateOf(false)
+    }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    if (mostrarActividades) {
+        BackHandler {
+            mostrarActividades = false
+        }
+
+        ActividadesScreen(
+            onBack = {
+                mostrarActividades = false
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        return
+    }
 
     when (val actual = subPantallaGrupos) {
         is SubPantallaGrupos.Crear -> {
@@ -268,12 +288,21 @@ fun TeacherHomeScreen(
 
                 acciones.forEach { accion ->
                     ActionRow(accion) {
-                        if (accion.title == "Planear horas") {
-                            onTabSeleccionadoChange(TeacherTabs.HORAS)
-                        } else {
-                            onAccionClick(accion)
+                        when (accion.title) {
+                            "Planear actividades" -> {
+                                mostrarActividades = true
+                            }
+
+                            "Planear horas" -> {
+                                onTabSeleccionadoChange(TeacherTabs.HORAS)
+                            }
+
+                            else -> {
+                                onAccionClick(accion)
+                            }
                         }
                     }
+
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
