@@ -8,6 +8,7 @@ import com.enad.enadmovil.data.local.entity.GrupoHorarioEntity
 import com.enad.enadmovil.data.local.entity.PresenciaSedeEntity
 import com.enad.enadmovil.data.local.entity.ReporteHorasEntity
 import com.enad.enadmovil.data.local.entity.SedeEntity
+import com.enad.enadmovil.data.local.entity.SyncStatus
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -53,6 +54,16 @@ interface ContextoDao {
 
     @Query("SELECT * FROM reportes_horas WHERE docenteUid = :uid AND fecha = :fecha")
     suspend fun reporte(uid: String, fecha: String): ReporteHorasEntity?
+
+    @Query("SELECT * FROM reportes_horas WHERE docenteUid = :uid AND syncStatus = 'PENDING' ORDER BY fecha")
+    suspend fun reportesPendientes(uid: String): List<ReporteHorasEntity>
+
+    @Query("UPDATE reportes_horas SET intentos = intentos + 1 WHERE docenteUid = :uid AND fecha = :fecha AND guardadoEn = :guardadoEn")
+    suspend fun sumarIntentoReporte(uid: String, fecha: String, guardadoEn: Long)
+
+    /** Solo marca si el reporte sigue siendo el mismo que se envió: si el docente lo corrigió mientras tanto, queda pendiente. */
+    @Query("UPDATE reportes_horas SET syncStatus = :estado, ultimoError = :error WHERE docenteUid = :uid AND fecha = :fecha AND guardadoEn = :guardadoEn")
+    suspend fun marcarReporte(uid: String, fecha: String, guardadoEn: Long, estado: SyncStatus, error: String?)
 
     /** Evidencia de clase: asistencia registrada por el docente ese día. */
     @Query("SELECT COUNT(*) FROM asistencias WHERE docenteUid = :uid AND fecha = :fecha AND estado != 'sin_registro'")

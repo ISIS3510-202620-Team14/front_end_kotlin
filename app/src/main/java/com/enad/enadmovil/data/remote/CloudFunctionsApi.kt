@@ -9,6 +9,7 @@ import java.net.URL
 import java.net.URLEncoder
 import org.json.JSONArray
 import com.enad.enadmovil.data.local.entity.AperturaEntity
+import com.enad.enadmovil.data.local.entity.ReporteHorasEntity
 
 /**
  * Llama directo a las Cloud Functions de firebase_backend:
@@ -22,6 +23,7 @@ object CloudFunctionsApi {
     private const val OPENS_URL = "$BASE_URL/appOpens"
     private const val SCHOOLS_URL = "$BASE_URL/schools"
     private const val GROUPS_URL = "$BASE_URL/groups"
+    private const val HOURS_URL = "$BASE_URL/workedHours"
 
     data class RespuestaAuth(
         val uid: String,
@@ -219,6 +221,21 @@ object CloudFunctionsApi {
         porcentaje = if (o.isNull("percentage")) null else o.getDouble("percentage"),
         provisional = o.optBoolean("provisional", false)
     )
+
+    /** PUT /workedHours/{fecha}: un reporte por docente y día. Repetirlo o corregirlo reemplaza el anterior. */
+    suspend fun enviarReporteHoras(token: String, r: ReporteHorasEntity, schoolId: String?, plataforma: String, version: String) {
+        val cuerpo = JSONObject()
+            .put("plannedHours", r.horasPlaneadas)
+            .put("workedHours", r.horasRealizadas)
+            .put("origin", r.origen)
+            .put("presentAtCampus", r.presenteEnSede)
+            .put("savedAt", java.time.Instant.ofEpochMilli(r.guardadoEn).toString())
+            .put("platform", plataforma)
+            .put("appVersion", version)
+        if (r.motivo != null) cuerpo.put("reason", r.motivo)
+        if (schoolId != null) cuerpo.put("schoolId", schoolId)
+        solicitar("PUT", "/${r.fecha}", token, cuerpo, HOURS_URL)
+    }
 
     //Contexto de la sesión
     data class SedeRemota(val id: String, val nombre: String, val lat: Double?, val lng: Double?)

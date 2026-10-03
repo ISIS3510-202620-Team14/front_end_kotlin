@@ -21,5 +21,5 @@ data class ContextoDiaEntity(val docenteUid: String, val fecha: String, val grup
 
 /** Horas realizadas de un día, con el origen del valor (sugerido o escrito por el docente). */
 @Entity(tableName = "reportes_horas", primaryKeys = ["docenteUid", "fecha"])
-data class ReporteHorasEntity(val docenteUid: String, val fecha: String, val horasPlaneadas: Double, val horasRealizadas: Double, val origen: String, val motivo: String?, val presenteEnSede: Boolean, val guardadoEn: Long)
+data class ReporteHorasEntity(val docenteUid: String, val fecha: String, val horasPlaneadas: Double, val horasRealizadas: Double, val origen: String, val motivo: String?, val presenteEnSede: Boolean, val guardadoEn: Long, val syncStatus: SyncStatus = SyncStatus.PENDING, val intentos: Int = 0, val ultimoError: String? = null)
 

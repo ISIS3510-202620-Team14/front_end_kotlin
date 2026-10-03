@@ -3,12 +3,17 @@ package com.enad.enadmovil.data.repository
 import android.content.Context
 import com.enad.enadmovil.data.local.AppDatabase
 import com.enad.enadmovil.data.local.entity.ReporteHorasEntity
+import com.enad.enadmovil.data.local.entity.SyncStatus
+import com.enad.enadmovil.data.remote.CloudFunctionsApi
+import com.enad.enadmovil.data.sync.SyncScheduler
+import com.enad.enadmovil.data.telemetria.InfoDispositivo
 import com.enad.enadmovil.domain.model.DiaSesion
 import com.enad.enadmovil.domain.model.Horario
 import com.enad.enadmovil.domain.model.SugerenciaHoras
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import java.io.IOException
 import java.time.DayOfWeek
 import java.time.LocalDate
 import kotlin.math.floor
@@ -16,7 +21,8 @@ import kotlin.math.min
 
 /** Horas planeadas (horario de los grupos) y realizadas (lo que el docente guarda), todo en Room. */
 class HorasRepository(context: Context) {
-    private val dao = AppDatabase.obtener(context.applicationContext).contextoDao()
+    private val appContext = context.applicationContext
+    private val dao = AppDatabase.obtener(appContext).contextoDao()
     private val auth = AuthRepository()
 
     /** Días hábiles de las últimas [semanas] semanas, de lunes a hoy, con lo ya reportado. */
@@ -73,6 +79,31 @@ class HorasRepository(context: Context) {
                 guardadoEn = System.currentTimeMillis()
             )
         )
+        SyncScheduler.programar(appContext)
+    }
+
+    /** Sube los reportes pendientes. Devuelve false si quedó alguno por reintentar. */
+    suspend fun sincronizarPendientes(): Boolean {
+        val uid = auth.uidActual() ?: return true
+        val pendientes = dao.reportesPendientes(uid)
+        if (pendientes.isEmpty()) return true
+        val token = runCatching { auth.obtenerToken() }.getOrNull() ?: return false
+        val schoolId = runCatching { auth.schoolIdActual() }.getOrNull()
+        val version = InfoDispositivo.versionApp(appContext)
+        var todoBien = true
+        for (r in pendientes) {
+            dao.sumarIntentoReporte(uid, r.fecha, r.guardadoEn)
+            try {
+                CloudFunctionsApi.enviarReporteHoras(token, r, schoolId, InfoDispositivo.PLATAFORMA, version)
+                dao.marcarReporte(uid, r.fecha, r.guardadoEn, SyncStatus.SYNCED, null)
+            } catch (e: CloudFunctionsApi.ApiException) {
+                if (e.esTransitorio) todoBien = false
+                else dao.marcarReporte(uid, r.fecha, r.guardadoEn, SyncStatus.FAILED, "${e.status} ${e.code}")
+            } catch (e: IOException) {
+                todoBien = false
+            }
+        }
+        return todoBien
     }
 
     private companion object {

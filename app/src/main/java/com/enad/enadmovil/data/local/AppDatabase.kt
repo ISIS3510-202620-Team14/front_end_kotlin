@@ -33,7 +33,7 @@ import com.enad.enadmovil.data.local.entity.SesionAgrupacionEntity
         ContextoDiaEntity::class,
         ReporteHorasEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -108,13 +108,22 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Adds the sync state of the worked-hours reports; existing reports are uploaded on the next sync
+        private val MIGRACION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `reportes_horas` ADD COLUMN `syncStatus` TEXT NOT NULL DEFAULT 'PENDING'")
+                db.execSQL("ALTER TABLE `reportes_horas` ADD COLUMN `intentos` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `reportes_horas` ADD COLUMN `ultimoError` TEXT")
+            }
+        }
+
         fun obtener(context: Context): AppDatabase =
             instancia ?: synchronized(this) {
                 instancia ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "enad.db"
-                ).addMigrations(MIGRACION_1_2, MIGRACION_2_3, MIGRACION_3_4).build().also { instancia = it }
+                ).addMigrations(MIGRACION_1_2, MIGRACION_2_3, MIGRACION_3_4, MIGRACION_4_5).build().also { instancia = it }
             }
     }
 }
