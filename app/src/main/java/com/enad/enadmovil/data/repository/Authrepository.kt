@@ -13,6 +13,9 @@ import kotlinx.coroutines.tasks.await
  */
 class AuthRepository {
 
+    /** Resultado del registro: el usuario y si el back le envió el correo de bienvenida. */
+    data class Registro(val usuario: Usuario, val correoBienvenidaEnviado: Boolean)
+
     suspend fun iniciarSesion(email: String, password: String): Usuario {
         val respuesta = CloudFunctionsApi.login(email, password)
         FirebaseModule.auth.signInWithCustomToken(respuesta.customToken).await()
@@ -24,16 +27,24 @@ class AuthRepository {
         )
     }
 
-    suspend fun registrarse(email: String, password: String, fullName: String): Usuario {
-        val respuesta = CloudFunctionsApi.register(email, password, fullName)
+    /** [sedesPorInstitucion]: id de institución -> ids de sedes elegidas en ella. */
+    suspend fun registrarse(
+        email: String,
+        password: String,
+        fullName: String,
+        sedesPorInstitucion: Map<String, List<String>>
+    ): Registro {
+        val respuesta = CloudFunctionsApi.register(email, password, fullName, sedesPorInstitucion)
         FirebaseModule.auth.signInWithCustomToken(respuesta.customToken).await()
-        return Usuario(
+        val usuario = Usuario(
             uid = respuesta.uid,
             email = email,
             fullName = fullName,
             rol = respuesta.rol,
-            schoolId = null // cuenta nueva: aún sin colegio
+            // Igual que al iniciar sesión: con varias escuelas se usa la primera.
+            schoolId = sedesPorInstitucion.keys.firstOrNull()
         )
+        return Registro(usuario, respuesta.welcomeEmailSent)
     }
 
     fun cerrarSesion() {
