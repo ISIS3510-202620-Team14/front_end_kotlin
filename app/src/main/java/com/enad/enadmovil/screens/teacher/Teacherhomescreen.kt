@@ -107,6 +107,7 @@ fun TeacherHomeScreen(
 ) {
     val gruposViewModel: GruposViewModel = viewModel()
     val gruposUiState by gruposViewModel.uiState.collectAsStateWithLifecycle()
+    val recomendacionAgrupacion by gruposViewModel.recomendacion.collectAsStateWithLifecycle()
     val aperturasViewModel: AperturasViewModel = viewModel()
     val aperturasState by aperturasViewModel.uiState.collectAsStateWithLifecycle()
     val contextoViewModel: ContextoHoyViewModel = viewModel()
@@ -131,9 +132,11 @@ fun TeacherHomeScreen(
             BackHandler { subPantallaGrupos = SubPantallaGrupos.Lista }
             CrearGrupoScreen(
                 materia = gruposUiState.subjectAreas[gruposUiState.selectedTabIndex],
+                recomendacion = recomendacionAgrupacion,
+                onPedirRecomendacion = gruposViewModel::pedirRecomendacion,
                 onBack = { subPantallaGrupos = SubPantallaGrupos.Lista },
-                onGuardar = { nombre, ninos, docente, cantidadNinos, cantidadDocentes ->
-                    gruposViewModel.agregarGrupo(nombre, ninos, docente, cantidadNinos, cantidadDocentes)
+                onGuardar = { nombre, ninos, docente, cantidadNinos, cantidadDocentes, metodo ->
+                    gruposViewModel.agregarGrupo(nombre, ninos, docente, cantidadNinos, cantidadDocentes, metodo)
                     subPantallaGrupos = SubPantallaGrupos.Lista
                 }
             )
