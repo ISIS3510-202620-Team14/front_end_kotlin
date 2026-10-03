@@ -2,6 +2,7 @@ package com.enad.enadmovil.ui.screens.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.enad.enadmovil.data.auth.AuthFacade
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.data.repository.AuthRepository
 import com.enad.enadmovil.domain.model.Rol
@@ -17,7 +18,8 @@ import kotlinx.coroutines.launch
 private val ROLES_CON_PANTALLA = setOf(Rol.DOCENTE, Rol.ADMINISTRADOR, Rol.VOLUNTARIO)
 
 class AuthViewModel(
-    private val authRepository: AuthRepository = AuthRepository()
+    private val authRepository: AuthRepository = AuthRepository(),
+    private val authFacade: AuthFacade = AuthFacade(authRepository)
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AuthUiState())
@@ -140,7 +142,7 @@ class AuthViewModel(
                     _uiState.update { it.copy(correoBienvenidaEnviado = registro.correoBienvenidaEnviado) }
                     registro.usuario
                 } else {
-                    authRepository.iniciarSesion(
+                    authFacade.iniciarSesion(
                         email = estado.usuario.trim(),
                         password = estado.contrasena
                     )
