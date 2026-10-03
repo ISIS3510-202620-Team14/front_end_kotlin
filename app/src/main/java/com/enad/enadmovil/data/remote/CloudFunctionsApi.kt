@@ -238,6 +238,35 @@ object CloudFunctionsApi {
         return List(arreglo.length()) { aEstudiante(arreglo.getJSONObject(it)) }
     }
 
+    /**
+     * POST /students/{id}/evaluations.
+     * Registra una evaluación y actualiza el nivel vigente del estudiante
+     * en el backend.
+     */
+    suspend fun registrarEvaluacion(
+        token: String,
+        id: String,
+        subject: String,
+        type: String,
+        level: String,
+        clientId: String
+    ) {
+        val cuerpo = JSONObject()
+            .put("subject", subject)
+            .put("type", type)
+            .put("level", level)
+            .put("date", java.time.Instant.now().toString())
+            .put("clientId", clientId)
+
+        solicitar(
+            "POST",
+            "/$id/evaluations",
+            token,
+            cuerpo,
+            STUDENTS_URL
+        )
+    }
+
     private fun aEstudiante(o: JSONObject) = EstudianteRemoto(
         id = o.getString("id"),
         schoolId = o.getString("schoolId"),
