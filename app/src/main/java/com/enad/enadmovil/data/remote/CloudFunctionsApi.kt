@@ -10,6 +10,7 @@ import java.net.URL
 import java.net.URLEncoder
 import org.json.JSONArray
 import com.enad.enadmovil.data.local.entity.AperturaEntity
+import com.enad.enadmovil.data.local.entity.ReporteHorasEntity
 
 /**
  * Llama directo a las Cloud Functions de firebase_backend:
@@ -17,7 +18,7 @@ import com.enad.enadmovil.data.local.entity.AperturaEntity
  */
 object CloudFunctionsApi {
 
-    // Con USAR_EMULADORES (solo debug) va al emulador de Functions del computador:
+     // Con USAR_EMULADORES (solo debug) va al emulador de Functions del computador:
     // 10.0.2.2 es el localhost del computador visto desde el emulador de Android.
     private val BASE_URL = if (BuildConfig.USAR_EMULADORES) {
         "http://10.0.2.2:5001/enad-movil/us-central1"
@@ -29,6 +30,9 @@ object CloudFunctionsApi {
     private val OPENS_URL = "$BASE_URL/appOpens"
     private val SCHOOLS_URL = "$BASE_URL/schools"
     private val CLASSIFICATIONS_URL = "$BASE_URL/classificationSessions"
+    private val GROUPS_URL = "$BASE_URL/groups"
+    private val HOURS_URL = "$BASE_URL/workedHours"
+
 
     data class RespuestaAuth(
         val uid: String,
@@ -307,6 +311,69 @@ object CloudFunctionsApi {
         provisional = o.optBoolean("provisional", false)
     )
 
+    /** PUT /workedHours/{fecha}: un reporte por docente y día. Repetirlo o corregirlo reemplaza el anterior. */
+    suspend fun enviarReporteHoras(token: String, r: ReporteHorasEntity, schoolId: String?, plataforma: String, version: String) {
+        val cuerpo = JSONObject()
+            .put("plannedHours", r.horasPlaneadas)
+            .put("workedHours", r.horasRealizadas)
+            .put("origin", r.origen)
+            .put("presentAtCampus", r.presenteEnSede)
+            .put("savedAt", java.time.Instant.ofEpochMilli(r.guardadoEn).toString())
+            .put("platform", plataforma)
+            .put("appVersion", version)
+        if (r.motivo != null) cuerpo.put("reason", r.motivo)
+        if (schoolId != null) cuerpo.put("schoolId", schoolId)
+        solicitar("PUT", "/${r.fecha}", token, cuerpo, HOURS_URL)
+    }
+
+    //Contexto de la sesión
+    data class SedeRemota(val id: String, val nombre: String, val lat: Double?, val lng: Double?)
+    data class EscuelaRemota(val id: String, val nombre: String, val sedes: List<SedeRemota>)
+    data class GrupoRemoto(val id: String, val nombre: String, val materia: String, val schoolId: String, val campusId: String?, val horario: List<Pair<Int, Double>>)
+
+    /** GET /schools: las escuelas del docente con sus sedes y coordenadas. */
+    suspend fun listarEscuelas(token: String): List<EscuelaRemota> {
+        val arreglo = solicitar("GET", "", token, null, SCHOOLS_URL).getJSONArray("schools")
+        return List(arreglo.length()) { i ->
+            val escuela = arreglo.getJSONObject(i)
+            val sedes = escuela.optJSONArray("campuses") ?: JSONArray()
+            EscuelaRemota(
+                id = escuela.getString("id"),
+                nombre = escuela.optString("name"),
+                sedes = List(sedes.length()) { j ->
+                    val sede = sedes.getJSONObject(j)
+                    SedeRemota(
+                        id = sede.getString("id"),
+                        nombre = sede.optString("name"),
+                        lat = if (sede.isNull("lat")) null else sede.getDouble("lat"),
+                        lng = if (sede.isNull("lng")) null else sede.getDouble("lng")
+                    )
+                }
+            )
+        }
+    }
+
+    /** GET /groups?teacherId=: los grupos del docente con su sede y su horario semanal. */
+    suspend fun listarGruposDelDocente(token: String, uid: String): List<GrupoRemoto> {
+        val ruta = "?teacherId=${URLEncoder.encode(uid, "UTF-8")}"
+        val arreglo = solicitar("GET", ruta, token, null, GROUPS_URL).getJSONArray("groups")
+        return List(arreglo.length()) { i ->
+            val grupo = arreglo.getJSONObject(i)
+            val horario = grupo.optJSONArray("schedule") ?: JSONArray()
+            GrupoRemoto(
+                id = grupo.getString("id"),
+                nombre = grupo.getString("name"),
+                materia = grupo.getString("subject"),
+                schoolId = grupo.getString("schoolId"),
+                campusId = if (grupo.isNull("campusId")) null else grupo.getString("campusId"),
+                horario = List(horario.length()) { j ->
+                    val dia = horario.getJSONObject(j)
+                    dia.getInt("day") to dia.getDouble("plannedHours")
+                }
+            )
+        }
+    }
+
     // ---------- BQ 9: tiempo de clasificación ----------
 
     /** POST /classificationSessions. El cuerpo lo arma ClasificacionViewModel; con el mismo clientId no se duplica. */
@@ -353,6 +420,7 @@ object CloudFunctionsApi {
             )
         }
     }
+
 
     private suspend fun solicitar(metodo: String, ruta: String, token: String, cuerpo: JSONObject?, base: String = STUDENTS_URL): JSONObject =
         withContext(Dispatchers.IO) {

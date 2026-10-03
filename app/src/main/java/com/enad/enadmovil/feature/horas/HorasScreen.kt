@@ -36,10 +36,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.enad.enadmovil.ui.theme.EnadAmberBg
 import com.enad.enadmovil.ui.theme.EnadChipPink
 import com.enad.enadmovil.ui.theme.EnadPending
-import com.enad.enadmovil.domain.model.DiaSesion
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlin.math.round
@@ -49,7 +50,13 @@ private val meses = listOf(
     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
 )
 @Composable
-fun HorasScreen(nombreGrupo: String,onEnviarReporte: () -> Unit, modifier: Modifier = Modifier) {
+fun HorasScreen(
+    nombreGrupo: String,
+    onEnviarReporte: () -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: HorasViewModel = viewModel()
+) {
+    val estado by viewModel.uiState.collectAsStateWithLifecycle()
     val hoy = remember { LocalDate.now() }
     var anio by remember { mutableIntStateOf(hoy.year) }
     var mesIndex by remember { mutableIntStateOf(hoy.monthValue - 1) }
@@ -72,8 +79,7 @@ fun HorasScreen(nombreGrupo: String,onEnviarReporte: () -> Unit, modifier: Modif
     val diferencia = ((horasProgramadas.toDoubleOrNull() ?: 0.0) - (horasRealizadas.toDoubleOrNull() ?: 0.0))
         .let { if (it > 0) it else 0.0 }
 
-    var dias by remember { mutableStateOf(diasEjemploUltimasSemanas()) }
-    var diaSeleccionado by remember { mutableStateOf<DiaSesion?>(null) }
+    val dias = estado.dias
     val maxHorasReales = remember(dias) { dias.maxOfOrNull { it.horasReales ?: 0.0 } ?: 0.0 }
     val totalReales = remember(dias) { dias.sumOf { it.horasReales ?: 0.0 } }
     val totalPlaneadas = remember(dias) { dias.sumOf { it.horasProgramadas } }
@@ -201,28 +207,27 @@ fun HorasScreen(nombreGrupo: String,onEnviarReporte: () -> Unit, modifier: Modif
                     Text(text = "Últimas 12 semanas", style = typography.titleMedium)
                     Text(
                         text = "${formatearHoras(totalReales)} h realizadas de ${formatearHoras(totalPlaneadas)} h " +
-                            "programadas. Toca un día para registrar horas de ejemplo.",
+                            "programadas. Toca un día para registrar sus horas.",
                         style = typography.bodyMedium,
                         color = colorScheme.onSurfaceVariant
                     )
                     HorasHeatmap(
                         dias = dias,
                         maxHorasReales = maxHorasReales,
-                        onDiaClick = { diaSeleccionado = it }
+                        onDiaClick = viewModel::abrirDia
                     )
                 }
             }
         }
     }
 
-    diaSeleccionado?.let { dia ->
+    estado.registro?.let { registro ->
         RegistrarHorasSheet(
-            dia = dia,
-            onRegistrar = { horas ->
-                dias = dias.map { if (it.fecha == dia.fecha) it.copy(horasReales = horas) else it }
-                diaSeleccionado = null
-            },
-            onDismiss = { diaSeleccionado = null }
+            registro = registro,
+            onHorasChange = viewModel::cambiarHoras,
+            onMotivoChange = viewModel::cambiarMotivo,
+            onGuardar = viewModel::guardar,
+            onDismiss = viewModel::cerrar
         )
     }
 }

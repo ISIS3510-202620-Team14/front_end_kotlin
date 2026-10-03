@@ -1,6 +1,9 @@
 package com.enad.enadmovil.ui.screens.teacher
 
+import android.Manifest
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -23,6 +26,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -105,6 +109,19 @@ fun TeacherHomeScreen(
     val gruposUiState by gruposViewModel.uiState.collectAsStateWithLifecycle()
     val aperturasViewModel: AperturasViewModel = viewModel()
     val aperturasState by aperturasViewModel.uiState.collectAsStateWithLifecycle()
+    val contextoViewModel: ContextoHoyViewModel = viewModel()
+    val contextoState by contextoViewModel.uiState.collectAsStateWithLifecycle()
+    val pedirUbicacion = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        contextoViewModel.iniciar() // con o sin permiso: sin él, se muestra la selección manual
+    }
+    LaunchedEffect(Unit) {
+        if (contextoViewModel.tienePermisoUbicacion()) contextoViewModel.iniciar()
+        else pedirUbicacion.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+    }
+    val tituloHoy = contextoState.confirmado?.nombre ?: grupoTitulo
+    val subtituloHoy = contextoState.confirmado
+        ?.let { grupo -> listOfNotNull(grupo.sede, nombreMateria(grupo.materia)).joinToString(" · ") }
+        ?: grupoSubtitulo
     var subPantallaGrupos by remember { mutableStateOf<SubPantallaGrupos>(SubPantallaGrupos.Lista) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -190,7 +207,7 @@ fun TeacherHomeScreen(
             )
         } else if (tabSeleccionado == TeacherTabs.HORAS) {
             HorasScreen(
-                nombreGrupo = grupoTitulo,
+                nombreGrupo = tituloHoy,
                 onEnviarReporte = {
                     scope.launch { snackbarHostState.showSnackbar("Reporte enviado.") }
                 },
@@ -219,13 +236,21 @@ fun TeacherHomeScreen(
                     .padding(top = 20.dp, bottom = 20.dp)
             ) {
                 Text(
-                    text = grupoTitulo,
+                    text = tituloHoy,
                     fontSize = 26.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(text = grupoSubtitulo, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(text = subtituloHoy, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                Spacer(modifier = Modifier.height(12.dp))
+                ContextoSesionCard(
+                    estado = contextoState,
+                    onAceptar = contextoViewModel::aceptarSugerencia,
+                    onCambiar = contextoViewModel::cambiar,
+                    onElegir = contextoViewModel::elegir
+                )
 
                 Spacer(modifier = Modifier.height(20.dp))
 
