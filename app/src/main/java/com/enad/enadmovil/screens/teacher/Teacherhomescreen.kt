@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.enad.enadmovil.feature.actividades.ActividadesScreen
 import com.enad.enadmovil.feature.grupos.CrearGrupoScreen
 import com.enad.enadmovil.feature.grupos.EditarGrupoScreen
 import com.enad.enadmovil.feature.grupos.GruposScreen
@@ -56,9 +57,22 @@ import com.enad.enadmovil.ui.theme.EnadMovilTheme
 import com.enad.enadmovil.ui.theme.EnadTrack
 import kotlinx.coroutines.launch
 
-data class ProgressItem(val title: String, val percent: Int, val evaluatedText: String)
-data class ActionItem(val title: String, val subtitle: String)
-data class BottomTab(val label: String, val icon: ImageVector, val selected: Boolean)
+data class ProgressItem(
+    val title: String,
+    val percent: Int,
+    val evaluatedText: String
+)
+
+data class ActionItem(
+    val title: String,
+    val subtitle: String
+)
+
+data class BottomTab(
+    val label: String,
+    val icon: ImageVector,
+    val selected: Boolean
+)
 
 // Índices del tab por defecto de TeacherHomeScreen. nav.kt los usa para poder
 // mandarte directo a una pestaña específica (ej. desde Asistencia a Horas), ya que
@@ -88,8 +102,18 @@ fun TeacherHomeScreen(
         ProgressItem("Matemáticas", 63, "5 de 8 estudiantes evaluados")
     ),
     acciones: List<ActionItem> = listOf(
-        ActionItem("Planear horas", "Organiza tu reporte semanal"),
-        ActionItem("Tomar asistencia", "0 de 8 registrados")
+        ActionItem(
+            "Planear actividades",
+            "Usa la biblioteca o crea las tuyas"
+        ),
+        ActionItem(
+            "Planear horas",
+            "Organiza tu reporte semanal"
+        ),
+        ActionItem(
+            "Tomar asistencia",
+            "0 de 8 registrados"
+        )
     ),
     tabs: List<BottomTab> = listOf(
         BottomTab("Hoy", Icons.Filled.CalendarToday, true),
@@ -108,181 +132,424 @@ fun TeacherHomeScreen(
     val gruposViewModel: GruposViewModel = viewModel()
     val gruposUiState by gruposViewModel.uiState.collectAsStateWithLifecycle()
     val recomendacionAgrupacion by gruposViewModel.recomendacion.collectAsStateWithLifecycle()
+
     val aperturasViewModel: AperturasViewModel = viewModel()
     val aperturasState by aperturasViewModel.uiState.collectAsStateWithLifecycle()
+
     val contextoViewModel: ContextoHoyViewModel = viewModel()
     val contextoState by contextoViewModel.uiState.collectAsStateWithLifecycle()
-    val pedirUbicacion = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        contextoViewModel.iniciar() // con o sin permiso: sin él, se muestra la selección manual
-    }
+
+    val pedirUbicacion =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) {
+            contextoViewModel.iniciar()
+        }
+
     LaunchedEffect(Unit) {
-        if (contextoViewModel.tienePermisoUbicacion()) contextoViewModel.iniciar()
-        else pedirUbicacion.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        if (contextoViewModel.tienePermisoUbicacion()) {
+            contextoViewModel.iniciar()
+        } else {
+            pedirUbicacion.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
     }
-    val tituloHoy = contextoState.confirmado?.nombre ?: grupoTitulo
-    val subtituloHoy = contextoState.confirmado
-        ?.let { grupo -> listOfNotNull(grupo.sede, nombreMateria(grupo.materia)).joinToString(" · ") }
-        ?: grupoSubtitulo
-    var subPantallaGrupos by remember { mutableStateOf<SubPantallaGrupos>(SubPantallaGrupos.Lista) }
-    val snackbarHostState = remember { SnackbarHostState() }
+
+    val tituloHoy =
+        contextoState.confirmado?.nombre ?: grupoTitulo
+
+    val subtituloHoy =
+        contextoState.confirmado
+            ?.let { grupo ->
+                listOfNotNull(
+                    grupo.sede,
+                    nombreMateria(grupo.materia)
+                ).joinToString(" · ")
+            }
+            ?: grupoSubtitulo
+
+    var subPantallaGrupos by remember {
+        mutableStateOf<SubPantallaGrupos>(
+            SubPantallaGrupos.Lista
+        )
+    }
+
+    var mostrarActividades by remember {
+        mutableStateOf(false)
+    }
+
+    val snackbarHostState =
+        remember { SnackbarHostState() }
+
     val scope = rememberCoroutineScope()
+
+    if (mostrarActividades) {
+        BackHandler {
+            mostrarActividades = false
+        }
+
+        ActividadesScreen(
+            onBack = {
+                mostrarActividades = false
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        return
+    }
 
     when (val actual = subPantallaGrupos) {
         is SubPantallaGrupos.Crear -> {
-            BackHandler { subPantallaGrupos = SubPantallaGrupos.Lista }
+            BackHandler {
+                subPantallaGrupos =
+                    SubPantallaGrupos.Lista
+            }
+
             CrearGrupoScreen(
-                materia = gruposUiState.subjectAreas[gruposUiState.selectedTabIndex],
+                materia = gruposUiState
+                    .subjectAreas[gruposUiState.selectedTabIndex],
                 recomendacion = recomendacionAgrupacion,
-                onPedirRecomendacion = gruposViewModel::pedirRecomendacion,
-                onBack = { subPantallaGrupos = SubPantallaGrupos.Lista },
-                onGuardar = { nombre, ninos, docente, cantidadNinos, cantidadDocentes, metodo ->
-                    gruposViewModel.agregarGrupo(nombre, ninos, docente, cantidadNinos, cantidadDocentes, metodo)
-                    subPantallaGrupos = SubPantallaGrupos.Lista
+                onPedirRecomendacion =
+                    gruposViewModel::pedirRecomendacion,
+                onBack = {
+                    subPantallaGrupos =
+                        SubPantallaGrupos.Lista
+                },
+                onGuardar = {
+                        nombre,
+                        ninos,
+                        docente,
+                        cantidadNinos,
+                        cantidadDocentes,
+                        metodo
+                    ->
+                    gruposViewModel.agregarGrupo(
+                        nombre,
+                        ninos,
+                        docente,
+                        cantidadNinos,
+                        cantidadDocentes,
+                        metodo
+                    )
+
+                    subPantallaGrupos =
+                        SubPantallaGrupos.Lista
                 }
             )
+
             return
         }
+
         is SubPantallaGrupos.Ver -> {
-            val grupo = gruposUiState.grupos.find { it.id == actual.grupoId }
+            val grupo =
+                gruposUiState.grupos.find {
+                    it.id == actual.grupoId
+                }
+
             if (grupo != null) {
-                BackHandler { subPantallaGrupos = SubPantallaGrupos.Lista }
+                BackHandler {
+                    subPantallaGrupos =
+                        SubPantallaGrupos.Lista
+                }
+
                 VerGrupoScreen(
                     grupo = grupo,
-                    materia = gruposUiState.subjectAreas[gruposUiState.selectedTabIndex],
-                    onBack = { subPantallaGrupos = SubPantallaGrupos.Lista }
-                )
-                return
-            } else {
-                subPantallaGrupos = SubPantallaGrupos.Lista
-            }
-        }
-        is SubPantallaGrupos.Editar -> {
-            val grupo = gruposUiState.grupos.find { it.id == actual.grupoId }
-            if (grupo != null) {
-                BackHandler { subPantallaGrupos = SubPantallaGrupos.Lista }
-                EditarGrupoScreen(
-                    grupo = grupo,
-                    materia = gruposUiState.subjectAreas[gruposUiState.selectedTabIndex],
-                    onBack = { subPantallaGrupos = SubPantallaGrupos.Lista },
-                    onNombreChange = { nuevoNombre -> gruposViewModel.actualizarNombre(grupo.id, nuevoNombre) },
-                    onDocenteChange = { nuevoDocente -> gruposViewModel.actualizarDocente(grupo.id, nuevoDocente) },
-                    onQuitarNino = { nino -> gruposViewModel.quitarNino(grupo.id, nino) },
-                    onAgregarNinos = { ninos -> gruposViewModel.agregarNinos(grupo.id, ninos) },
-                    onEliminarGrupo = {
-                        gruposViewModel.eliminarGrupo(grupo.id)
-                        subPantallaGrupos = SubPantallaGrupos.Lista
+                    materia = gruposUiState
+                        .subjectAreas[gruposUiState.selectedTabIndex],
+                    onBack = {
+                        subPantallaGrupos =
+                            SubPantallaGrupos.Lista
                     }
                 )
+
                 return
             } else {
-                subPantallaGrupos = SubPantallaGrupos.Lista
+                subPantallaGrupos =
+                    SubPantallaGrupos.Lista
             }
         }
-        SubPantallaGrupos.Lista -> { }
+
+        is SubPantallaGrupos.Editar -> {
+            val grupo =
+                gruposUiState.grupos.find {
+                    it.id == actual.grupoId
+                }
+
+            if (grupo != null) {
+                BackHandler {
+                    subPantallaGrupos =
+                        SubPantallaGrupos.Lista
+                }
+
+                EditarGrupoScreen(
+                    grupo = grupo,
+                    materia = gruposUiState
+                        .subjectAreas[gruposUiState.selectedTabIndex],
+                    onBack = {
+                        subPantallaGrupos =
+                            SubPantallaGrupos.Lista
+                    },
+                    onNombreChange = { nuevoNombre ->
+                        gruposViewModel.actualizarNombre(
+                            grupo.id,
+                            nuevoNombre
+                        )
+                    },
+                    onDocenteChange = { nuevoDocente ->
+                        gruposViewModel.actualizarDocente(
+                            grupo.id,
+                            nuevoDocente
+                        )
+                    },
+                    onQuitarNino = { nino ->
+                        gruposViewModel.quitarNino(
+                            grupo.id,
+                            nino
+                        )
+                    },
+                    onAgregarNinos = { ninos ->
+                        gruposViewModel.agregarNinos(
+                            grupo.id,
+                            ninos
+                        )
+                    },
+                    onEliminarGrupo = {
+                        gruposViewModel.eliminarGrupo(
+                            grupo.id
+                        )
+
+                        subPantallaGrupos =
+                            SubPantallaGrupos.Lista
+                    }
+                )
+
+                return
+            } else {
+                subPantallaGrupos =
+                    SubPantallaGrupos.Lista
+            }
+        }
+
+        SubPantallaGrupos.Lista -> Unit
     }
 
-    val tabsConSeleccion = tabs.mapIndexed { index, tab -> tab.copy(selected = index == tabSeleccionado) }
+    val tabsConSeleccion =
+        tabs.mapIndexed { index, tab ->
+            tab.copy(
+                selected = index == tabSeleccionado
+            )
+        }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = { TeacherTopBar(profesorNombre, onCambiarUsuario) },
+        containerColor =
+            MaterialTheme.colorScheme.background,
+
+        snackbarHost = {
+            SnackbarHost(snackbarHostState)
+        },
+
+        topBar = {
+            TeacherTopBar(
+                profesorNombre,
+                onCambiarUsuario
+            )
+        },
+
         bottomBar = {
             TeacherBottomBar(
                 tabs = tabsConSeleccion,
                 onTabClick = { tab ->
-                    val index = tabsConSeleccion.indexOf(tab)
-                    if (index >= 0) onTabSeleccionadoChange(index)
+                    val index =
+                        tabsConSeleccion.indexOf(tab)
+
+                    if (index >= 0) {
+                        onTabSeleccionadoChange(index)
+                    }
+
                     onTabClick(tab)
                 }
             )
         }
     ) { padding ->
+
         if (tabSeleccionado == TeacherTabs.GRUPOS) {
+
             GruposScreen(
                 viewModel = gruposViewModel,
-                onVerGrupo = { id -> subPantallaGrupos = SubPantallaGrupos.Ver(id) },
-                onEditarGrupo = { id -> subPantallaGrupos = SubPantallaGrupos.Editar(id) },
-                onCrearGrupo = { subPantallaGrupos = SubPantallaGrupos.Crear },
+
+                onVerGrupo = { id ->
+                    subPantallaGrupos =
+                        SubPantallaGrupos.Ver(id)
+                },
+
+                onEditarGrupo = { id ->
+                    subPantallaGrupos =
+                        SubPantallaGrupos.Editar(id)
+                },
+
+                onCrearGrupo = {
+                    subPantallaGrupos =
+                        SubPantallaGrupos.Crear
+                },
+
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
             )
+
         } else if (tabSeleccionado == TeacherTabs.HORAS) {
+
             HorasScreen(
                 nombreGrupo = tituloHoy,
+
                 onEnviarReporte = {
-                    scope.launch { snackbarHostState.showSnackbar("Reporte enviado.") }
+                    scope.launch {
+                        snackbarHostState.showSnackbar(
+                            "Reporte enviado."
+                        )
+                    }
                 },
+
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
             )
+
         } else if (tabSeleccionado == TeacherTabs.MIS_DATOS) {
+
             MisDatosScreen(
                 onEnviar = {
                     scope.launch {
-                        snackbarHostState.showSnackbar("Envío simulado. No se transmitieron datos al mentor.")
+                        snackbarHostState.showSnackbar(
+                            "Envío simulado. No se transmitieron datos al mentor."
+                        )
                     }
                 },
+
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
             )
+
         } else {
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(
+                        rememberScrollState()
+                    )
                     .padding(horizontal = 20.dp)
-                    .padding(top = 20.dp, bottom = 20.dp)
+                    .padding(
+                        top = 20.dp,
+                        bottom = 20.dp
+                    )
             ) {
+
                 Text(
                     text = tituloHoy,
                     fontSize = 26.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
+                    color =
+                        MaterialTheme.colorScheme.onBackground
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(text = subtituloHoy, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(
+                    modifier = Modifier.height(4.dp)
+                )
+
+                Text(
+                    text = subtituloHoy,
+                    fontSize = 14.sp,
+                    color =
+                        MaterialTheme.colorScheme
+                            .onSurfaceVariant
+                )
+
+                Spacer(
+                    modifier = Modifier.height(12.dp)
+                )
+
                 ContextoSesionCard(
                     estado = contextoState,
-                    onAceptar = contextoViewModel::aceptarSugerencia,
-                    onCambiar = contextoViewModel::cambiar,
-                    onElegir = contextoViewModel::elegir
+                    onAceptar =
+                        contextoViewModel::aceptarSugerencia,
+                    onCambiar =
+                        contextoViewModel::cambiar,
+                    onElegir =
+                        contextoViewModel::elegir
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(
+                    modifier = Modifier.height(20.dp)
+                )
 
-                AperturasSemanaCard(aperturasState)
-                Spacer(modifier = Modifier.height(14.dp))
+                AperturasSemanaCard(
+                    aperturasState
+                )
 
+                Spacer(
+                    modifier = Modifier.height(14.dp)
+                )
 
                 progreso.forEach { item ->
-                    ProgressCard(item, onClick = { onProgresoClick(item) })
-                    Spacer(modifier = Modifier.height(14.dp))
+                    ProgressCard(
+                        item,
+                        onClick = {
+                            onProgresoClick(item)
+                        }
+                    )
+
+                    Spacer(
+                        modifier = Modifier.height(14.dp)
+                    )
                 }
 
                 acciones.forEach { accion ->
+
                     ActionRow(accion) {
-                        if (accion.title == "Planear horas") {
-                            onTabSeleccionadoChange(TeacherTabs.HORAS)
-                        } else {
-                            onAccionClick(accion)
+
+                        when (accion.title) {
+
+                            "Planear actividades" -> {
+                                mostrarActividades = true
+                            }
+
+                            "Planear horas" -> {
+                                onTabSeleccionadoChange(
+                                    TeacherTabs.HORAS
+                                )
+                            }
+
+                            else -> {
+                                onAccionClick(accion)
+                            }
                         }
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Spacer(
+                        modifier = Modifier.height(12.dp)
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(
+                    modifier = Modifier.height(8.dp)
+                )
 
                 Text(
-                    text = "Sesión de demostración · Los cambios se reinician al cambiar de usuario o cerrar la app.",
+                    text =
+                        "Sesión de demostración · " +
+                                "Los cambios se reinician al cambiar " +
+                                "de usuario o cerrar la app.",
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color =
+                        MaterialTheme.colorScheme
+                            .onSurfaceVariant
                 )
             }
         }
@@ -299,20 +566,43 @@ fun TeacherTopBar(
         modifier = Modifier
             .fillMaxWidth()
             .background(EnadHeader)
-            .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .windowInsetsPadding(
+                WindowInsets.statusBars
+            )
+            .padding(
+                horizontal = 16.dp,
+                vertical = 14.dp
+            ),
+
+        horizontalArrangement =
+            Arrangement.spacedBy(12.dp),
+
+        verticalAlignment =
+            Alignment.CenterVertically
     ) {
+
         Column {
-            Text(text = "ENAd", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Text(text = "Móvil", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(
+                text = "ENAd",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+
+            Text(
+                text = "Móvil",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
         }
+
         Text(
             text = portalLabel,
             fontSize = 11.sp,
             color = Color(0xFFCFC7BB)
         )
+
         Text(
             text = profesorNombre,
             fontSize = 13.sp,
@@ -321,103 +611,230 @@ fun TeacherTopBar(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
+
         Box(
             modifier = Modifier
-                .background(EnadHeaderChip, RoundedCornerShape(8.dp))
-                .clickable(onClick = onCambiarUsuario)
-                .padding(horizontal = 10.dp, vertical = 8.dp)
+                .background(
+                    EnadHeaderChip,
+                    RoundedCornerShape(8.dp)
+                )
+                .clickable(
+                    onClick = onCambiarUsuario
+                )
+                .padding(
+                    horizontal = 10.dp,
+                    vertical = 8.dp
+                )
         ) {
-            Text(text = "Cambiar\nusuario", fontSize = 11.sp, color = Color.White)
+            Text(
+                text = "Cambiar\nusuario",
+                fontSize = 11.sp,
+                color = Color.White
+            )
         }
     }
 }
 
 @Composable
-private fun ProgressCard(item: ProgressItem, onClick: () -> Unit = {}) {
+private fun ProgressCard(
+    item: ProgressItem,
+    onClick: () -> Unit = {}
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
+            .background(
+                MaterialTheme.colorScheme.surface,
+                RoundedCornerShape(14.dp)
+            )
+            .clickable(
+                onClick = onClick
+            )
             .padding(18.dp)
     ) {
+
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+
+            horizontalArrangement =
+                Arrangement.SpaceBetween,
+
+            verticalAlignment =
+                Alignment.CenterVertically
         ) {
+
             Text(
                 text = item.title,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
+                color =
+                    MaterialTheme.colorScheme.onBackground
             )
+
             Text(
                 text = "${item.percent}%",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                color =
+                    MaterialTheme.colorScheme.primary
             )
         }
-        Spacer(modifier = Modifier.height(10.dp))
+
+        Spacer(
+            modifier = Modifier.height(10.dp)
+        )
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp)
-                .background(EnadTrack, RoundedCornerShape(3.dp))
+                .background(
+                    EnadTrack,
+                    RoundedCornerShape(3.dp)
+                )
         ) {
+
             Box(
                 modifier = Modifier
-                    .fillMaxWidth(fraction = (item.percent / 100f).coerceIn(0f, 1f))
+                    .fillMaxWidth(
+                        fraction =
+                            (item.percent / 100f)
+                                .coerceIn(0f, 1f)
+                    )
                     .height(6.dp)
-                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(3.dp))
+                    .background(
+                        MaterialTheme.colorScheme.primary,
+                        RoundedCornerShape(3.dp)
+                    )
             )
         }
-        Spacer(modifier = Modifier.height(10.dp))
-        Text(text = item.evaluatedText, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+        Spacer(
+            modifier = Modifier.height(10.dp)
+        )
+
+        Text(
+            text = item.evaluatedText,
+            fontSize = 13.sp,
+            color =
+                MaterialTheme.colorScheme
+                    .onSurfaceVariant
+        )
     }
 }
 
 @Composable
-private fun ActionRow(item: ActionItem, onClick: () -> Unit) {
+private fun ActionRow(
+    item: ActionItem,
+    onClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .background(
+                MaterialTheme.colorScheme.surface,
+                RoundedCornerShape(14.dp)
+            )
+            .clickable(
+                onClick = onClick
+            )
+            .padding(
+                horizontal = 18.dp,
+                vertical = 16.dp
+            ),
+
+        verticalAlignment =
+            Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+
             Text(
                 text = item.title,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
+                color =
+                    MaterialTheme.colorScheme.onBackground
             )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(text = item.subtitle, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+            Spacer(
+                modifier = Modifier.height(2.dp)
+            )
+
+            Text(
+                text = item.subtitle,
+                fontSize = 13.sp,
+                color =
+                    MaterialTheme.colorScheme
+                        .onSurfaceVariant
+            )
         }
-        Text(text = ">", fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+        Text(
+            text = ">",
+            fontSize = 18.sp,
+            color =
+                MaterialTheme.colorScheme
+                    .onSurfaceVariant
+        )
     }
 }
 
 @Composable
-private fun TeacherBottomBar(tabs: List<BottomTab>, onTabClick: (BottomTab) -> Unit) {
-    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+private fun TeacherBottomBar(
+    tabs: List<BottomTab>,
+    onTabClick: (BottomTab) -> Unit
+) {
+    NavigationBar(
+        containerColor =
+            MaterialTheme.colorScheme.surface
+    ) {
+
         tabs.forEach { tab ->
+
             NavigationBarItem(
                 selected = tab.selected,
-                onClick = { onTabClick(tab) },
-                icon = { Icon(imageVector = tab.icon, contentDescription = tab.label) },
-                label = { Text(text = tab.label, fontSize = 11.sp) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    indicatorColor = Color.Transparent
-                )
+
+                onClick = {
+                    onTabClick(tab)
+                },
+
+                icon = {
+                    Icon(
+                        imageVector = tab.icon,
+                        contentDescription =
+                            tab.label
+                    )
+                },
+
+                label = {
+                    Text(
+                        text = tab.label,
+                        fontSize = 11.sp
+                    )
+                },
+
+                colors =
+                    NavigationBarItemDefaults.colors(
+                        selectedIconColor =
+                            MaterialTheme.colorScheme.primary,
+
+                        selectedTextColor =
+                            MaterialTheme.colorScheme.primary,
+
+                        unselectedIconColor =
+                            MaterialTheme.colorScheme
+                                .onSurfaceVariant,
+
+                        unselectedTextColor =
+                            MaterialTheme.colorScheme
+                                .onSurfaceVariant,
+
+                        indicatorColor =
+                            Color.Transparent
+                    )
             )
         }
     }
@@ -427,7 +844,18 @@ private fun TeacherBottomBar(tabs: List<BottomTab>, onTabClick: (BottomTab) -> U
 @Composable
 private fun TeacherHomeScreenPreview() {
     EnadMovilTheme {
-        var tab by remember { mutableStateOf(TeacherTabs.HOY) }
-        TeacherHomeScreen(tabSeleccionado = tab, onTabSeleccionadoChange = { tab = it })
+
+        var tab by remember {
+            mutableStateOf(
+                TeacherTabs.HOY
+            )
+        }
+
+        TeacherHomeScreen(
+            tabSeleccionado = tab,
+            onTabSeleccionadoChange = {
+                tab = it
+            }
+        )
     }
 }
