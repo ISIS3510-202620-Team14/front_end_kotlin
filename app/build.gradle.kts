@@ -1,9 +1,15 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.google.services)
 }
+
+val usarEmuladores = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}.getProperty("enad.emuladores") == "true"
 
 android {
     namespace = "com.enad.enadmovil"
@@ -22,7 +28,13 @@ android {
     }
 
     buildTypes {
+        // enad.emuladores=true en local.properties (no se sube a git) apunta el debug a los
+        // emuladores de Firebase del computador; sin esa línea el debug usa producción como siempre.
+        debug {
+            buildConfigField("boolean", "USAR_EMULADORES", usarEmuladores.toString())
+        }
         release {
+            buildConfigField("boolean", "USAR_EMULADORES", "false")
             optimization {
                 enable = false
             }
@@ -35,6 +47,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
