@@ -87,8 +87,69 @@ class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun clasificar(id: String, nivel: String) {
-        actualizar(id) { it.copy(nivelActual = nivel) }
-        if (nivel != NIVEL_RETIRADO) sesion?.registrarClasificacion(id)
+        if (nivel == NIVEL_RETIRADO) {
+            actualizar(id) {
+                it.copy(nivelActual = nivel)
+            }
+            return
+        }
+
+        val nivelBackend = nivelBackend(nivel)
+
+        if (nivelBackend == null) {
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                repo.registrarEvaluacion(
+                    estudianteId = id,
+                    materia = materiaClave,
+                    nivel = nivelBackend,
+                    clientId = UUID.randomUUID().toString()
+                )
+
+                actualizar(id) {
+                    it.copy(nivelActual = nivel)
+                }
+
+                sesion?.registrarClasificacion(id)
+
+            } catch (e: Exception) {
+                // No actualizamos la UI si el backend no confirmó la evaluación.
+                // Así la pantalla sigue representando el estado persistido.
+                android.util.Log.e(
+                    "ClasificacionViewModel",
+                    "No se pudo guardar la evaluación",
+                    e
+                )
+            }
+        }
+    }
+    private fun nivelBackend(nivel: String): String? {
+        return when (materiaClave) {
+            "matematicas" -> when (nivel) {
+                "Principiante" -> "principiante"
+                "1 dígito" -> "un_digito"
+                "2 dígitos" -> "dos_digitos"
+                "Resta" -> "resta"
+                "División" -> "division"
+                "Problema escrito" -> "problema_escrito"
+                else -> null
+            }
+
+            "lectura" -> when (nivel) {
+                "Principiante" -> "principiante"
+                "Letra" -> "letra"
+                "Palabra" -> "palabra"
+                "Párrafo" -> "parrafo"
+                "Cuento" -> "cuento"
+                "Comprensión" -> "comprension"
+                else -> null
+            }
+
+            else -> null
+        }
     }
 
     // La pantalla avisa cuando queda visible u oculta: el tiempo en segundo plano no se cuenta.
