@@ -33,6 +33,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -46,7 +47,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.enad.enadmovil.ui.theme.EnadHeader
+import com.enad.enadmovil.domain.model.MetodoAgrupacion
 import com.enad.enadmovil.domain.model.Nino
+import com.enad.enadmovil.domain.model.Recomendacion
+import com.enad.enadmovil.domain.model.armarGrupoAutomatico
+import kotlinx.coroutines.delay
 import kotlin.math.ceil
 
 val docentesDisponibles = listOf("Yo", "Prof. Nelson", "Prof. Marina", "Sin asignar")
@@ -55,8 +60,10 @@ val docentesDisponibles = listOf("Yo", "Prof. Nelson", "Prof. Marina", "Sin asig
 @Composable
 fun CrearGrupoScreen(
     materia: String,
+    recomendacion: Recomendacion?,
+    onPedirRecomendacion: (tamano: Int) -> Unit,
     onBack: () -> Unit,
-    onGuardar: (nombre: String, ninos: List<Nino>, docente: String, cantidadNinos: Int, cantidadDocentes: Int) -> Unit,
+    onGuardar: (nombre: String, ninos: List<Nino>, docente: String, cantidadNinos: Int, cantidadDocentes: Int, metodo: MetodoAgrupacion) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var cantidadNinos by rememberSaveable { mutableIntStateOf(8) }
@@ -66,6 +73,16 @@ fun CrearGrupoScreen(
     var menuDocenteAbierto by remember { mutableStateOf(false) }
     var mostrarMeterNinos by remember { mutableStateOf(false) }
     var ninosSeleccionados by remember { mutableStateOf(setOf<Nino>()) }
+    // null = el docente todavía no eligió: se muestra el recomendado si hay datos suficientes, o el automático
+    var metodoElegido by rememberSaveable { mutableStateOf<String?>(null) }
+    val metodo = metodoElegido?.let { MetodoAgrupacion.deClave(it) }
+        ?: recomendacion?.takeIf { it.tieneDatosSuficientes }?.metodo
+        ?: MetodoAgrupacion.AUTOMATICO
+
+    LaunchedEffect(cantidadNinos) {
+        delay(400) // espera a que el docente termine de subir o bajar el contador
+        onPedirRecomendacion(cantidadNinos)
+    }
 
     val porGrupo = if (cantidadDocentes > 0) {
         ceil(cantidadNinos.toDouble() / cantidadDocentes).toInt()
@@ -209,28 +226,47 @@ fun CrearGrupoScreen(
             }
         }
 
-        Text(
-            text = "NIÑOS · ${ninosSeleccionados.size}",
-            style = typography.labelSmall,
-            color = colorScheme.onSurfaceVariant
+        MetodoAgrupacionSelector(
+            seleccionado = metodo,
+            recomendacion = recomendacion,
+            onCambiar = { metodoElegido = it.clave }
         )
-        OutlinedCard(
-            onClick = { mostrarMeterNinos = true },
-            modifier = Modifier.fillMaxWidth()
-        ) {
+
+        if (metodo == MetodoAgrupacion.MANUAL) {
             Text(
-                text = "Meter niños",
-                style = typography.titleMedium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 14.dp)
+                text = "NIÑOS · ${ninosSeleccionados.size}",
+                style = typography.labelSmall,
+                color = colorScheme.onSurfaceVariant
+            )
+            OutlinedCard(
+                onClick = { mostrarMeterNinos = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Meter niños",
+                    style = typography.titleMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 14.dp)
+                )
+            }
+        } else {
+            Text(
+                text = "La app armará el grupo con $porGrupo niños del mismo nivel.",
+                style = typography.bodyMedium,
+                color = colorScheme.onSurfaceVariant
             )
         }
 
         Button(
             onClick = {
-                onGuardar(nombreGrupo, ninosSeleccionados.toList(), docenteSeleccionado, cantidadNinos, cantidadDocentes)
+                val ninos = if (metodo == MetodoAgrupacion.AUTOMATICO) {
+                    armarGrupoAutomatico(ninosDeEjemplo, porGrupo)
+                } else {
+                    ninosSeleccionados.toList()
+                }
+                onGuardar(nombreGrupo, ninos, docenteSeleccionado, cantidadNinos, cantidadDocentes, metodo)
                 onBack()
             },
             enabled = nombreGrupo.isNotBlank() && cantidadNinos > 0,

@@ -6,14 +6,21 @@ import androidx.lifecycle.viewModelScope
 import com.enad.enadmovil.data.local.EnadDatabase
 import com.enad.enadmovil.data.local.GrupoEntity
 import com.enad.enadmovil.data.local.GrupoNinoCrossRef
+import com.enad.enadmovil.data.local.entity.SyncStatus
+import com.enad.enadmovil.data.sync.SyncScheduler
 import com.enad.enadmovil.data.local.NinoEntity
 import com.enad.enadmovil.data.mapper.aGrupo
+import com.enad.enadmovil.data.repository.AgrupacionInteligenteRepository
+import com.enad.enadmovil.data.repository.GruposRemotosRepository
 import com.enad.enadmovil.data.repository.SesionAgrupacionRepository
 import com.enad.enadmovil.domain.model.AreaMateria
+import com.enad.enadmovil.domain.model.MetodoAgrupacion
 import com.enad.enadmovil.domain.model.Nino
+import com.enad.enadmovil.domain.model.Recomendacion
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -22,6 +29,10 @@ class GruposViewModel(application: Application) : AndroidViewModel(application) 
     private val dao = EnadDatabase.obtener(application).gruposDao()
     private val selectedTabIndex = MutableStateFlow(0)
     private val sesionesAgrupacion = SesionAgrupacionRepository(application)
+    private val agrupacion = AgrupacionInteligenteRepository(application)
+    private val gruposRemotos = GruposRemotosRepository(application)
+    private val _recomendacion = MutableStateFlow<Recomendacion?>(null)
+    val recomendacion: StateFlow<Recomendacion?> = _recomendacion.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -29,6 +40,7 @@ class GruposViewModel(application: Application) : AndroidViewModel(application) 
                 sembrarDatosDeEjemplo()
             }
         }
+        SyncScheduler.programar(application) // trae los grupos del backend y sube los que estén pendientes
     }
 
     private suspend fun sembrarDatosDeEjemplo() {
@@ -94,14 +106,24 @@ class GruposViewModel(application: Application) : AndroidViewModel(application) 
         selectedTabIndex.value = index
     }
 
-    fun agregarGrupo(nombre: String, ninos: List<Nino>, docente: String, cantidadNinos: Int, cantidadDocentes: Int) {
+    private fun areaActual() = if (selectedTabIndex.value == 0) AreaMateria.MATEMATICAS else AreaMateria.LECTURA
+
+    /** BQ 14: el método más usado en salones del mismo tamaño y materia, para dejarlo preseleccionado. */
+    fun pedirRecomendacion(tamano: Int) {
+        viewModelScope.launch { _recomendacion.value = agrupacion.recomendar(areaActual(), tamano) }
+    }
+
+    fun agregarGrupo(nombre: String, ninos: List<Nino>, docente: String, cantidadNinos: Int, cantidadDocentes: Int, metodo: MetodoAgrupacion) {
         viewModelScope.launch {
             val area = if (selectedTabIndex.value == 0) AreaMateria.MATEMATICAS else AreaMateria.LECTURA
             val nuevoId = dao.insertarGrupo(
-                GrupoEntity(nombre = nombre, docente = docente, area = area)
+                GrupoEntity(nombre = nombre, docente = docente, area = area, syncStatus = SyncStatus.PENDING)
             ).toInt()
             dao.insertarCrossRefs(ninos.map { GrupoNinoCrossRef(nuevoId, it.id) })
+            SyncScheduler.programar(getApplication())
             sesionesAgrupacion.registrar(area, nombre, cantidadNinos, cantidadDocentes, ninos.size)
+            agrupacion.registrar(area, cantidadNinos, metodo)
+            _recomendacion.value = null
         }
     }
 
@@ -122,6 +144,6 @@ class GruposViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun eliminarGrupo(id: Int) {
-        viewModelScope.launch { dao.eliminarGrupo(id) }
+        viewModelScope.launch { gruposRemotos.eliminar(id) }
     }
 }
