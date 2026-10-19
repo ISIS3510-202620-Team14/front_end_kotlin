@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.enad.enadmovil.feature.actividades.ActividadesScreen
@@ -139,6 +140,9 @@ fun TeacherHomeScreen(
     val contextoViewModel: ContextoHoyViewModel = viewModel()
     val contextoState by contextoViewModel.uiState.collectAsStateWithLifecycle()
 
+    val progresoViewModel: TeacherProgressViewModel = viewModel()
+    val progresoState by progresoViewModel.uiState.collectAsStateWithLifecycle()
+
     val pedirUbicacion =
         rememberLauncherForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
@@ -156,6 +160,13 @@ fun TeacherHomeScreen(
                     Manifest.permission.ACCESS_COARSE_LOCATION
                 )
             )
+        }
+    }
+
+    LifecycleResumeEffect(progresoViewModel) {
+        progresoViewModel.refrescar()
+
+        onPauseOrDispose {
         }
     }
 
@@ -497,7 +508,20 @@ fun TeacherHomeScreen(
                     modifier = Modifier.height(14.dp)
                 )
 
-                progreso.forEach { item ->
+                val progresoActual = if (progresoState.cargado) {
+                    progresoState.materias.map {
+                        ProgressItem(
+                            title = it.titulo,
+                            percent = it.porcentaje,
+                            evaluatedText =
+                                "${it.evaluados} de ${it.total} estudiantes evaluados"
+                        )
+                    }
+                } else {
+                    progreso
+                }
+
+                progresoActual.forEach { item ->
                     ProgressCard(
                         item,
                         onClick = {
