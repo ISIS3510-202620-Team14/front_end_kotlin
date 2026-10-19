@@ -1,195 +1,291 @@
 package com.enad.enadmovil.feature.misdatos
 
-import androidx.compose.foundation.background
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CloudDone
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.PersonAddAlt
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.SwitchAccount
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme.colorScheme
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme.typography
-import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.enad.enadmovil.domain.model.AreaMateria
+import com.enad.enadmovil.domain.model.Grupo
+import com.enad.enadmovil.feature.horas.formatearHoras
+import com.enad.enadmovil.ui.components.EnadHeading
+import com.enad.enadmovil.ui.components.EnadPanel
+import com.enad.enadmovil.ui.components.EnadProgress
+import com.enad.enadmovil.ui.components.EnadSecondaryButton
+import com.enad.enadmovil.ui.components.EnadTextField
+import com.enad.enadmovil.ui.screens.teacher.MATERIA_LECTURA
+import com.enad.enadmovil.ui.screens.teacher.MATERIA_MATEMATICAS
+import com.enad.enadmovil.ui.theme.EnadAmberBg
+import com.enad.enadmovil.ui.theme.EnadInk
+import com.enad.enadmovil.ui.theme.EnadLine
+import com.enad.enadmovil.ui.theme.EnadNeutral
 import com.enad.enadmovil.ui.theme.EnadPending
+import com.enad.enadmovil.ui.theme.EnadPrimary
+import com.enad.enadmovil.ui.theme.EnadSoftInk
 import com.enad.enadmovil.ui.theme.EnadSuccessBg
 import com.enad.enadmovil.ui.theme.EnadSuccessText
-import com.enad.enadmovil.domain.model.EnvioPendiente
-
-private val enviosEjemplo = listOf(
-    EnvioPendiente("Niveles de matemáticas", "Hoy, 9:40 a. m.", 12),
-    EnvioPendiente("Niveles de lectura", "Hoy, 10:15 a. m.", 9),
-    EnvioPendiente("Asistencia Grupo Abejitas", "Ayer, 2:30 p. m.", 3),
-)
+import kotlin.math.roundToInt
 
 @Composable
-fun MisDatosScreen(onEnviar: () -> Unit, modifier: Modifier = Modifier) {
-    var pendientes by remember { mutableStateOf(enviosEjemplo) }
-    var ultimoEnvio by remember { mutableStateOf("Ayer, 4:12 p. m. · 31 registros") }
+fun MisDatosScreen(
+    onEnviar: () -> Unit = {},
+    modifier: Modifier = Modifier,
+    onCambiarUsuario: () -> Unit = {},
+    onAbrirGrupo: (Grupo) -> Unit = {},
+    onAbrirAsistencia: (() -> Unit)? = null,
+    onGestionarEstudiantes: (() -> Unit)? = null,
+    viewModel: MisDatosViewModel = viewModel()
+) {
+    val estado by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LazyColumn(
+    Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 18.dp),
+            .verticalScroll(rememberScrollState())
+            .padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item {
-            Text(text = "Mis datos", style = typography.displaySmall)
+        EnadHeading("Mis datos", modifier = Modifier.padding(bottom = 8.dp))
+
+        EnadPanel {
+            EnadTextField(
+                value = estado.nombre,
+                onValueChange = viewModel::cambiarNombre,
+                label = "Nombre",
+                enabled = !estado.guardandoNombre
+            )
+            Spacer(Modifier.height(16.dp))
+            Etiqueta("Correo")
+            Spacer(Modifier.height(4.dp))
+            Text(estado.correo, style = typography.bodyLarge, color = EnadInk)
+            Spacer(Modifier.height(16.dp))
+            Etiqueta("Instituciones")
+            Spacer(Modifier.height(8.dp))
+            estado.instituciones.forEach { i ->
+                Column(Modifier.padding(bottom = 12.dp)) {
+                    Text(i.nombre, style = typography.bodyLarge, color = EnadInk)
+                    Text("Municipio: ${i.municipio ?: "No informado"}", style = typography.bodyMedium)
+                    i.sedes.forEach { Text("Sede: $it", style = typography.bodyMedium) }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            EnadSecondaryButton(text = "Guardar nombre", onClick = viewModel::guardarNombre, enabled = !estado.guardandoNombre)
+            estado.mensajeNombre?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(it, style = typography.bodyMedium)
+            }
         }
-        item {
-            OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+
+        PanelDesplegable("Mis grupos (${estado.grupos.size})") {
+            if (estado.grupos.isEmpty()) {
+                Text("Todavía no tienes grupos.", style = typography.bodyMedium)
+            }
+            estado.grupos.forEach { g ->
                 Row(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onAbrirGrupo(g) }
+                        .padding(vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(EnadSuccessBg),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Check,
-                            contentDescription = null,
-                            tint = EnadSuccessText
-                        )
+                    Column(Modifier.weight(1f)) {
+                        Text(g.nombre, style = typography.bodyLarge, color = EnadInk)
+                        val materia = if (g.area == AreaMateria.MATEMATICAS) "Matemáticas" else "Lectura"
+                        Text("$materia · ${g.ninos.size} estudiantes", style = typography.bodyMedium)
                     }
-                    Column {
-                        Text(text = "Guardado en esta sesión demo", style = typography.titleMedium)
-                        Text(
-                            text = "Los datos de prueba se reinician al cerrar la app.",
-                            style = typography.bodyMedium,
-                            color = colorScheme.onSurfaceVariant
-                        )
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = EnadSoftInk)
+                }
+            }
+        }
+
+        if (onGestionarEstudiantes != null) {
+            EnadSecondaryButton(text = "Gestionar estudiantes", onClick = onGestionarEstudiantes, icon = Icons.Outlined.PersonAddAlt)
+        }
+
+        PanelDesplegable("Reportes de horas") {
+            Text("Últimos 30 días", style = typography.bodyMedium)
+            Spacer(Modifier.height(16.dp))
+            if (estado.reportes.isEmpty()) {
+                Text("Sin reportes de horas en este periodo.", style = typography.bodyMedium)
+            }
+            estado.reportes.forEachIndexed { i, r ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(r.fecha, style = typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold), color = EnadInk, modifier = Modifier.weight(1f))
+                    EstadoRegistro(if (MisDatosViewModel.enviado(r)) "Enviado" else "Pendiente")
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "${formatearHoras(r.horasRealizadas)} h realizadas de ${formatearHoras(r.horasPlaneadas)} h programadas",
+                    style = typography.bodyMedium
+                )
+                if (i != estado.reportes.lastIndex) HorizontalDivider(Modifier.padding(vertical = 12.dp), color = EnadLine)
+            }
+        }
+
+        PanelDesplegable("Mis indicadores", onAbrir = { if (!estado.indicadores.cargados) viewModel.cargarIndicadores() }) {
+            val ind = estado.indicadores
+            if (ind.cargando) LinearProgressIndicator(Modifier.fillMaxWidth(), color = EnadPrimary, trackColor = EnadLine)
+            if (ind.error != null) {
+                Text(ind.error, style = typography.bodyMedium)
+                TextButton(onClick = viewModel::cargarIndicadores) { Text("Reintentar", color = EnadInk) }
+            } else if (ind.cargados) {
+                Indicador(
+                    "Asistencia histórica registrada",
+                    if (ind.asistenciaRegistrada == 0) "Sin sesiones registradas"
+                    else "${(100.0 * ind.asistenciaPresente / ind.asistenciaRegistrada).roundToInt()}% · " +
+                        "${ind.asistenciaPresente} de ${ind.asistenciaRegistrada} registros"
+                )
+            }
+            val programadas = estado.reportes.sumOf { it.horasPlaneadas }
+            val realizadas = estado.reportes.sumOf { it.horasRealizadas }
+            Indicador(
+                "Cumplimiento de horas · 30 días",
+                if (programadas == 0.0) "Sin horas programadas registradas"
+                else "${(100 * realizadas / programadas).roundToInt()}% · ${formatearHoras(realizadas)} de ${formatearHoras(programadas)} h reportadas"
+            )
+            if (ind.cargados) {
+                Spacer(Modifier.height(16.dp))
+                Text("Niveles actuales", style = typography.titleMedium)
+                listOf(MATERIA_LECTURA, MATERIA_MATEMATICAS).forEach { materia ->
+                    Spacer(Modifier.height(16.dp))
+                    Text(materia.titulo, style = typography.labelLarge, color = EnadInk)
+                    val conteo = ind.niveles[materia.clave].orEmpty()
+                    if (ind.activos == 0) Text("Sin estudiantes activos", style = typography.bodyMedium)
+                    else materia.niveles.forEach { nivel ->
+                        val n = conteo[nivel.nombre] ?: 0
+                        Column(Modifier.padding(vertical = 8.dp)) {
+                            Text("${nivel.nombre} · $n", style = typography.bodyMedium)
+                            Spacer(Modifier.height(6.dp))
+                            EnadProgress(fraccion = n.toFloat() / ind.activos, color = nivel.color)
+                        }
                     }
                 }
             }
         }
-        item {
-            OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "Pendiente de envío simulado",
-                            style = typography.titleMedium,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(
-                            text = pendientes.sumOf { it.cantidad }.toString(),
-                            style = typography.displaySmall,
-                            color = EnadPending
-                        )
-                    }
-                    if (pendientes.isEmpty()) {
-                        EstadoVacioPendientes()
-                    } else {
-                        pendientes.forEachIndexed { index, envio ->
-                            FilaEnvioPendiente(envio)
-                            if (index != pendientes.lastIndex) {
-                                HorizontalDivider()
-                            }
-                        }
-                        Button(
-                            onClick = {
-                                val total = pendientes.sumOf { it.cantidad }
-                                ultimoEnvio = "Ahora · $total registros"
-                                pendientes = emptyList()
-                                onEnviar()
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 12.dp)
-                        ) {
-                            Text("Enviar cuando haya señal")
-                        }
-                    }
+
+        EnadPanel {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Asistencia por enviar", style = typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold), color = EnadInk, modifier = Modifier.weight(1f))
+                IconButton(onClick = viewModel::recargarPendientes) {
+                    Icon(Icons.Outlined.Refresh, contentDescription = "Actualizar pendientes", tint = EnadInk)
                 }
             }
+            val pendientes = estado.pendientesAsistencia
+            when {
+                pendientes == null -> LinearProgressIndicator(Modifier.fillMaxWidth(), color = EnadPrimary, trackColor = EnadLine)
+                pendientes.isEmpty() -> Text("Todo al día.", style = typography.bodyMedium)
+                else -> pendientes.forEach { (fecha, n) -> Text("$fecha: $n pendientes", style = typography.bodyMedium) }
+            }
+            if (onAbrirAsistencia != null) {
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = onAbrirAsistencia) { Text("Abrir Asistencia", color = EnadPrimary) }
+            }
         }
-        item {
-            OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = "ÚLTIMO ENVÍO SIMULADO",
-                        style = typography.labelSmall,
-                        color = colorScheme.onSurfaceVariant
-                    )
-                    Text(text = ultimoEnvio, style = typography.bodyLarge)
-                }
+
+        EnadPanel {
+            AccionSesion(Icons.Outlined.SwitchAccount, "Cambiar usuario", onCambiarUsuario)
+            AccionSesion(Icons.AutoMirrored.Outlined.Logout, "Cerrar sesión") {
+                viewModel.cerrarSesion()
+                onCambiarUsuario()
             }
         }
     }
 }
 
 @Composable
-private fun EstadoVacioPendientes() {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(
-            imageVector = Icons.Filled.CloudDone,
-            contentDescription = null,
-            tint = colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(48.dp)
-        )
+private fun Etiqueta(texto: String) {
+    Text(texto, style = typography.labelMedium, color = EnadSoftInk)
+}
+
+@Composable
+private fun Indicador(titulo: String, valor: String) {
+    Column(Modifier.padding(vertical = 8.dp)) {
+        Text(titulo, style = typography.bodyLarge, color = EnadInk)
+        Text(valor, style = typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun EstadoRegistro(etiqueta: String) {
+    val enviado = etiqueta == "Enviado"
+    Surface(color = if (enviado) EnadSuccessBg else EnadAmberBg, shape = RoundedCornerShape(24.dp)) {
         Text(
-            text = "No hay nada pendiente",
-            style = typography.titleMedium,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 12.dp)
-        )
-        Text(
-            text = "La simulación está al día. No se enviaron datos a un servidor.",
-            style = typography.bodyMedium,
-            color = colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 4.dp)
+            etiqueta,
+            style = typography.labelMedium,
+            color = if (enviado) EnadSuccessText else EnadPending,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
         )
     }
 }
 
 @Composable
-private fun FilaEnvioPendiente(envio: EnvioPendiente) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = envio.etiqueta, style = typography.bodyLarge)
-            Text(text = envio.horaTexto, style = typography.bodyMedium, color = colorScheme.onSurfaceVariant)
+private fun AccionSesion(icon: ImageVector, texto: String, onClick: () -> Unit) {
+    TextButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Icon(icon, contentDescription = null, tint = EnadPrimary, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(texto, color = EnadInk)
+    }
+}
+
+/** Panel que se abre y cierra, como los ExpansionTile de profile_view. */
+@Composable
+private fun PanelDesplegable(titulo: String, onAbrir: () -> Unit = {}, contenido: @Composable ColumnScope.() -> Unit) {
+    var abierto by rememberSaveable(titulo.substringBefore(" (")) { mutableStateOf(false) }
+    EnadPanel {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    abierto = !abierto
+                    if (abierto) onAbrir()
+                },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(titulo, style = typography.titleMedium, modifier = Modifier.weight(1f))
+            Icon(if (abierto) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, contentDescription = null, tint = EnadInk)
         }
-        Text(text = envio.cantidad.toString(), style = typography.titleLarge)
+        AnimatedVisibility(visible = abierto) {
+            Column(Modifier.padding(top = 12.dp), content = contenido)
+        }
     }
 }
