@@ -45,17 +45,41 @@ class ClasificacionRepository(
         estudianteId: String,
         materia: String,
         nivel: String,
-        clientId: String
+        clientId: String,
+        // Momento de evaluación del back: inicial (Línea Base), media, final o especifica.
+        tipo: String = "especifica"
     ) {
         CloudFunctionsApi.registrarEvaluacion(
             token = token(),
             id = estudianteId,
             subject = materia,
-            type = "especifica",
+            type = tipo,
             level = nivel,
             clientId = clientId
         )
     }
+
+    /** PATCH /students/{id}: guarda sexo, edad y muestra de la ficha antes de evaluar. */
+    suspend fun actualizarFicha(estudianteId: String, sexo: String, edad: Int, muestra: Int) {
+        CloudFunctionsApi.actualizarEstudiante(
+            token(),
+            estudianteId,
+            JSONObject().put("gender", sexo).put("age", edad).put("sample", muestra)
+        )
+    }
+
+    /** PATCH /students/{id} con retired=true: sale de las listas activas, conserva su historial. */
+    suspend fun retirar(estudianteId: String) {
+        CloudFunctionsApi.actualizarEstudiante(token(), estudianteId, JSONObject().put("retired", true))
+    }
+
+    /** GET /students/{id}/progress: lo que muestran el perfil y el historial del estudiante. */
+    suspend fun progreso(estudianteId: String): CloudFunctionsApi.ProgresoEstudiante =
+        CloudFunctionsApi.progresoEstudiante(token(), estudianteId)
+
+    /** Grupos (nombre, materia) en los que está el estudiante. */
+    suspend fun gruposDe(schoolId: String, estudianteId: String): List<Pair<String, String>> =
+        CloudFunctionsApi.gruposDeEstudiante(token(), schoolId, estudianteId)
 
     /** Deja la sesión en cola: WorkManager la manda cuando haya internet, sin duplicarla. */
     fun enviarSesion(sesion: JSONObject) {
