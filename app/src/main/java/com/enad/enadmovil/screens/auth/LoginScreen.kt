@@ -1,59 +1,67 @@
 package com.enad.enadmovil.ui.screens.auth
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.enad.enadmovil.R
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.domain.model.Usuario
+import com.enad.enadmovil.ui.components.EnadHeading
+import com.enad.enadmovil.ui.components.EnadPrimaryButton
+import com.enad.enadmovil.ui.components.EnadTextField
+import com.enad.enadmovil.ui.theme.EnadBackground
+import com.enad.enadmovil.ui.theme.EnadInk
+import com.enad.enadmovil.ui.theme.EnadPrimary
+import com.enad.enadmovil.ui.theme.EnadSoftInk
+import com.enad.enadmovil.ui.theme.EnadSurface
 
-// Same palette as the high-fidelity mockup. Kept local to this file on purpose.
-private val BgCream = Color(0xFFF7F1E8)
-private val TextDark = Color(0xFF2B2320)
-private val TextMuted = Color(0xFF7A7168)
-private val PrimaryRed = Color(0xFFA6241F)
-private val FieldBorder = Color(0xFFDCD2C0)
-private val ChipSelected = Color(0xFFF6DAD6)
-
-// Generic serif family (maps to the system serif font, no extra font files
-// needed) — gives the title the same display-serif look as the mockup without
-// touching the rest of the app's typography.
-private val TitleFont = FontFamily.Serif
-
+// Acceso y registro con el diseño de Flutter (login_view y register_view).
+// La lógica sigue en AuthViewModel; aquí solo cambia la presentación.
 @Composable
 fun LoginScreen(
     viewModel: AuthViewModel = viewModel(),
@@ -62,92 +70,87 @@ fun LoginScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    Surface(color = BgCream, modifier = Modifier.fillMaxSize()) {
+    // En registro, "atrás" vuelve al login en vez de cerrar la app.
+    BackHandler(enabled = uiState.modoRegistro && !uiState.cargando) {
+        viewModel.onToggleModoRegistro()
+    }
+
+    val enviar = {
+        viewModel.onSubmitClick { usuario ->
+            // El Toast sobrevive a la navegación, así que se ve ya dentro de la app.
+            if (viewModel.uiState.value.correoBienvenidaEnviado) {
+                Toast.makeText(
+                    context,
+                    "Te enviamos un correo de bienvenida a ${usuario.email}.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            onLoginExitoso(usuario)
+        }
+    }
+
+    val ojo: @Composable () -> Unit = {
+        IconButton(onClick = viewModel::onMostrarContrasenaToggle) {
+            Icon(
+                imageVector = if (uiState.mostrarContrasena) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                contentDescription = if (uiState.mostrarContrasena) "Ocultar contraseña" else "Mostrar contraseña",
+                tint = EnadSoftInk
+            )
+        }
+    }
+    val transformacion =
+        if (uiState.mostrarContrasena) VisualTransformation.None else PasswordVisualTransformation()
+
+    Surface(color = EnadBackground, modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
                 // Con varias instituciones y sedes el registro ya no cabe en una pantalla.
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
-                .padding(top = 56.dp, bottom = 24.dp)
+                .padding(horizontal = if (uiState.modoRegistro) 20.dp else 24.dp)
+                .padding(bottom = 24.dp)
         ) {
-            Text(
-                text = "ENAd Móvil",
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = TitleFont,
-                color = TextDark
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = if (uiState.modoRegistro) {
-                    "Crea tu cuenta para comenzar."
-                } else {
-                    "Ingresa con tu usuario y contraseña."
-                },
-                fontSize = 15.sp,
-                color = TextMuted
-            )
-
-            Spacer(modifier = Modifier.height(28.dp))
-
             if (uiState.modoRegistro) {
-                OutlinedTextField(
+                IconButton(
+                    onClick = viewModel::onToggleModoRegistro,
+                    enabled = !uiState.cargando,
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = EnadInk)
+                }
+                Spacer(Modifier.height(8.dp))
+                EnadHeading("Crear cuenta")
+                Spacer(Modifier.height(32.dp))
+
+                EnadTextField(
                     value = uiState.nombreCompleto,
                     onValueChange = viewModel::onNombreCompletoChange,
-                    placeholder = { Text("Nombre completo", color = TextMuted) },
-                    singleLine = true,
+                    label = "Nombre completo",
                     enabled = !uiState.cargando,
                     isError = uiState.error != null,
-                    shape = RoundedCornerShape(10.dp),
-                    colors = campoColors(),
-                    modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(modifier = Modifier.height(14.dp))
-            }
-
-            OutlinedTextField(
-                value = uiState.usuario,
-                onValueChange = viewModel::onUsuarioChange,
-                placeholder = { Text("Usuario", color = TextMuted) },
-                singleLine = true,
-                enabled = !uiState.cargando,
-                isError = uiState.error != null,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                shape = RoundedCornerShape(10.dp),
-                colors = campoColors(),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            OutlinedTextField(
-                value = uiState.contrasena,
-                onValueChange = viewModel::onContrasenaChange,
-                placeholder = { Text("Contraseña", color = TextMuted) },
-                singleLine = true,
-                enabled = !uiState.cargando,
-                isError = uiState.error != null,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                visualTransformation = if (uiState.mostrarContrasena) VisualTransformation.None else PasswordVisualTransformation(),
-                trailingIcon = {
-                    IconButton(onClick = viewModel::onMostrarContrasenaToggle) {
-                        Icon(
-                            imageVector = if (uiState.mostrarContrasena) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                            contentDescription = if (uiState.mostrarContrasena) "Ocultar contraseña" else "Mostrar contraseña",
-                            tint = TextMuted
-                        )
-                    }
-                },
-                shape = RoundedCornerShape(10.dp),
-                colors = campoColors(),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            if (uiState.modoRegistro) {
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(Modifier.height(16.dp))
+                EnadTextField(
+                    value = uiState.usuario,
+                    onValueChange = viewModel::onUsuarioChange,
+                    label = "Correo",
+                    enabled = !uiState.cargando,
+                    isError = uiState.error != null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                )
+                Spacer(Modifier.height(16.dp))
+                EnadTextField(
+                    value = uiState.contrasena,
+                    onValueChange = viewModel::onContrasenaChange,
+                    label = "Contraseña",
+                    enabled = !uiState.cargando,
+                    isError = uiState.error != null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    visualTransformation = transformacion,
+                    trailingIcon = ojo,
+                )
+                Spacer(Modifier.height(32.dp))
                 SelectorInstituciones(
                     instituciones = uiState.instituciones,
                     cargando = uiState.cargandoInstituciones,
@@ -156,81 +159,81 @@ fun LoginScreen(
                     onInstitucionToggle = viewModel::onInstitucionToggle,
                     onSedeToggle = viewModel::onSedeToggle
                 )
+                Spacer(Modifier.height(16.dp))
+            } else {
+                Spacer(Modifier.height(60.dp))
+                Image(
+                    painter = painterResource(R.drawable.enad_logo),
+                    contentDescription = "ENAd, Enseñar al nivel adecuado",
+                    contentScale = ContentScale.Fit,
+                    alignment = Alignment.CenterStart,
+                    modifier = Modifier.fillMaxWidth().height(90.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text("Ingresa con tu correo y contraseña.", style = MaterialTheme.typography.bodyLarge)
+                Spacer(Modifier.height(40.dp))
+
+                EnadTextField(
+                    value = uiState.usuario,
+                    onValueChange = viewModel::onUsuarioChange,
+                    label = "Usuario (correo)",
+                    floatingLabel = false,
+                    enabled = !uiState.cargando,
+                    isError = uiState.error != null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                )
+                Spacer(Modifier.height(16.dp))
+                EnadTextField(
+                    value = uiState.contrasena,
+                    onValueChange = viewModel::onContrasenaChange,
+                    label = "Contraseña",
+                    floatingLabel = false,
+                    enabled = !uiState.cargando,
+                    isError = uiState.error != null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    visualTransformation = transformacion,
+                    trailingIcon = ojo,
+                )
+                Spacer(Modifier.height(32.dp))
             }
 
             if (uiState.error != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = uiState.error!!,
-                    fontSize = 13.sp,
-                    color = PrimaryRed,
-                    fontWeight = FontWeight.Medium
+                Text(uiState.error!!, style = MaterialTheme.typography.bodyMedium, color = EnadPrimary)
+                Spacer(Modifier.height(16.dp))
+            }
+
+            if (uiState.cargando) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = EnadPrimary, strokeWidth = 2.dp)
+                }
+            } else {
+                EnadPrimaryButton(
+                    text = if (uiState.modoRegistro) "Crear cuenta" else "Entrar",
+                    onClick = enviar
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Button(
-                onClick = {
-                    viewModel.onSubmitClick { usuario ->
-                        // El Toast sobrevive a la navegación, así que se ve ya dentro de la app.
-                        if (viewModel.uiState.value.correoBienvenidaEnviado) {
-                            Toast.makeText(
-                                context,
-                                "Te enviamos un correo de bienvenida a ${usuario.email}.",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                        onLoginExitoso(usuario)
-                    }
-                },
-                enabled = !uiState.cargando,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = PrimaryRed,
-                    contentColor = Color.White
-                )
-            ) {
-                if (uiState.cargando) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text(
-                        text = if (uiState.modoRegistro) "Registrarme" else "Entrar",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+            if (!uiState.modoRegistro) {
+                Spacer(Modifier.height(16.dp))
+                TextButton(
+                    onClick = viewModel::onToggleModoRegistro,
+                    enabled = !uiState.cargando,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                ) {
+                    Text("¿No tienes cuenta? Regístrate", style = MaterialTheme.typography.labelMedium, color = EnadPrimary)
                 }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = if (uiState.modoRegistro) {
-                    "¿Ya tienes cuenta? Inicia sesión"
-                } else {
-                    "¿No tienes cuenta? Regístrate"
-                },
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                color = PrimaryRed,
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .clickable(enabled = !uiState.cargando) { viewModel.onToggleModoRegistro() }
-            )
         }
     }
 }
 
 /**
- * Instituciones donde trabaja el docente (puede marcar varias) y, debajo de cada
- * institución marcada que tenga sedes, sus sedes para marcar.
+ * "Instituciones y sedes": una casilla por institución (puede marcar varias) y, debajo de
+ * cada institución marcada, una casilla por sede.
  */
 @Composable
 private fun SelectorInstituciones(
@@ -241,74 +244,57 @@ private fun SelectorInstituciones(
     onInstitucionToggle: (String) -> Unit,
     onSedeToggle: (String, String) -> Unit
 ) {
-    Text(
-        text = if (cargando) "Cargando instituciones..." else "Instituciones donde trabajas (puedes elegir varias)",
-        fontSize = 14.sp,
-        color = TextMuted
-    )
-    Spacer(modifier = Modifier.height(8.dp))
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        instituciones.forEach { inst ->
-            ChipSeleccion(
-                texto = inst.municipality?.let { "${inst.name} · $it" } ?: inst.name,
-                seleccionado = inst.id in sedesElegidas,
-                habilitado = habilitado,
-                onClick = { onInstitucionToggle(inst.id) }
-            )
-        }
+    Text("Instituciones y sedes", style = MaterialTheme.typography.bodyMedium)
+    if (cargando) {
+        Spacer(Modifier.height(8.dp))
+        LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = EnadInk)
     }
-
-    instituciones
-        .filter { it.id in sedesElegidas && it.campuses.isNotEmpty() }
-        .forEach { inst ->
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(text = "Sedes de ${inst.name}", fontSize = 14.sp, color = TextMuted)
-            Spacer(modifier = Modifier.height(8.dp))
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                inst.campuses.forEach { sede ->
-                    ChipSeleccion(
-                        texto = sede.name,
-                        seleccionado = sedesElegidas[inst.id]?.contains(sede.id) == true,
-                        habilitado = habilitado,
-                        onClick = { onSedeToggle(inst.id, sede.id) }
-                    )
-                }
+    instituciones.forEach { inst ->
+        FilaCasilla(
+            texto = inst.municipality?.let { "${inst.name} · $it" } ?: inst.name,
+            marcada = inst.id in sedesElegidas,
+            habilitado = habilitado,
+            sangria = 0,
+            onClick = { onInstitucionToggle(inst.id) }
+        )
+        if (inst.id in sedesElegidas) {
+            inst.campuses.forEach { sede ->
+                FilaCasilla(
+                    texto = sede.name,
+                    marcada = sedesElegidas[inst.id]?.contains(sede.id) == true,
+                    habilitado = habilitado,
+                    sangria = 16,
+                    onClick = { onSedeToggle(inst.id, sede.id) }
+                )
             }
         }
+    }
 }
 
+// Equivale a CheckboxListTile: texto a la izquierda y casilla a la derecha.
 @Composable
-private fun ChipSeleccion(texto: String, seleccionado: Boolean, habilitado: Boolean, onClick: () -> Unit) {
-    FilterChip(
-        selected = seleccionado,
-        onClick = onClick,
-        enabled = habilitado,
-        label = { Text(texto) },
-        leadingIcon = if (seleccionado) {
-            { Icon(Icons.Filled.Check, contentDescription = null) }
-        } else null,
-        colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = ChipSelected,
-            selectedLabelColor = PrimaryRed,
-            selectedLeadingIconColor = PrimaryRed
+private fun FilaCasilla(texto: String, marcada: Boolean, habilitado: Boolean, sangria: Int, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clickable(enabled = habilitado, onClick = onClick)
+            .padding(start = (16 + sangria).dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(texto, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Checkbox(
+            checked = marcada,
+            onCheckedChange = { onClick() },
+            enabled = habilitado,
+            colors = CheckboxDefaults.colors(
+                checkedColor = EnadInk,
+                uncheckedColor = EnadSoftInk,
+                checkmarkColor = EnadSurface
+            )
         )
-    )
+    }
 }
-
-@Composable
-private fun campoColors() = OutlinedTextFieldDefaults.colors(
-    unfocusedBorderColor = FieldBorder,
-    focusedBorderColor = PrimaryRed,
-    unfocusedTextColor = TextDark,
-    focusedTextColor = TextDark,
-    cursorColor = PrimaryRed
-)
 
 @Preview(showBackground = true)
 @Composable
