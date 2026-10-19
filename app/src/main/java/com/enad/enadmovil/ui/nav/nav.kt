@@ -1,5 +1,11 @@
 package com.enad.enadmovil.ui.nav
 
+import com.enad.enadmovil.ui.screens.teacher.ACCION_ASISTENCIA
+import com.enad.enadmovil.ui.screens.teacher.ACCION_EVALUACION
+import com.enad.enadmovil.ui.screens.teacher.EvaluacionMenuScreen
+import com.enad.enadmovil.ui.screens.teacher.GestionarEstudiantesScreen
+import com.enad.enadmovil.ui.screens.teacher.HistorialEstudianteScreen
+import com.enad.enadmovil.ui.screens.teacher.PerfilEstudianteScreen
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,6 +36,15 @@ private object Routes {
     const val ASISTENCIA = "asistencia"
     const val CLASIFICACION_LECTURA = "clasificacion_lectura"
     const val CLASIFICACION_MATEMATICAS = "clasificacion_matematicas"
+    const val EVALUACION = "evaluacion"
+    const val PERFIL_ESTUDIANTE = "estudiante/{id}"
+    const val HISTORIAL_ESTUDIANTE = "estudiante/{id}/historial"
+    const val ESTUDIANTES = "estudiantes"
+    // Desde Asistencia: el código puede quedar vacío (provisional), como "unexpected" en Flutter.
+    const val ESTUDIANTES_INESPERADO = "estudiantes/inesperado"
+
+    fun perfil(id: String) = "estudiante/${android.net.Uri.encode(id)}"
+    fun historial(id: String) = "estudiante/${android.net.Uri.encode(id)}/historial"
 }
 
 // "Cambiar usuario" limpia todo el back stack y regresa a Login, sin importar
@@ -77,8 +92,9 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                 tabSeleccionado = teacherTabSeleccionado,
                 onTabSeleccionadoChange = { teacherTabSeleccionado = it },
                 onCambiarUsuario = { volverALogin(navController) },
+                onGestionarEstudiantes = { navController.navigate(Routes.ESTUDIANTES) },
                 onTabClick = { tab ->
-                    if (tab.label == "Mi lista") {
+                    if (tab.label == "Asistencia") {
                         navController.navigate(Routes.ASISTENCIA)
                     }
                 },
@@ -89,8 +105,21 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                     }
                 },
                 onAccionClick = { item ->
-                    if (item.title == "Tomar asistencia") {
-                        navController.navigate(Routes.ASISTENCIA)
+                    when (item.title) {
+                        ACCION_ASISTENCIA -> navController.navigate(Routes.ASISTENCIA)
+                        ACCION_EVALUACION -> navController.navigate(Routes.EVALUACION)
+                    }
+                }
+            )
+        }
+
+        composable(Routes.EVALUACION) {
+            EvaluacionMenuScreen(
+                onBack = { navController.popBackStack() },
+                onMateria = { titulo ->
+                    when (titulo) {
+                        "Lectura" -> navController.navigate(Routes.CLASIFICACION_LECTURA)
+                        "Matemáticas" -> navController.navigate(Routes.CLASIFICACION_MATEMATICAS)
                     }
                 }
             )
@@ -99,14 +128,16 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
         composable(Routes.CLASIFICACION_LECTURA) {
             ClasificacionScreen(
                 materia = MATERIA_LECTURA,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onVerPerfil = { navController.navigate(Routes.perfil(it)) }
             )
         }
 
         composable(Routes.CLASIFICACION_MATEMATICAS) {
             ClasificacionScreen(
                 materia = MATERIA_MATEMATICAS,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onVerPerfil = { navController.navigate(Routes.perfil(it)) }
             )
         }
 
@@ -114,12 +145,14 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
             AsistenciaScreen(
                 profesorNombre = nombreUsuario,
                 onCambiarUsuario = { volverALogin(navController) },
+                onAbrirEstudiante = { navController.navigate(Routes.perfil(it)) },
+                onGestionarEstudiantes = { navController.navigate(Routes.ESTUDIANTES_INESPERADO) },
                 onTabClick = { label ->
-                    // "Mi lista" es esta misma pantalla, no hace nada. Grupos y Horas
+                    // "Asistencia" es esta misma pantalla, no hace nada. Grupos y Horas
                     // viven como tabs dentro de TeacherHomeScreen, así que antes de
                     // regresar le decimos a cuál pestaña saltar.
                     when (label) {
-                        "Mi lista" -> {}
+                        "Asistencia" -> {}
                         "Grupos" -> {
                             teacherTabSeleccionado = TeacherTabs.GRUPOS
                             navController.popBackStack()
@@ -138,6 +171,30 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                         }
                     }
                 }
+            )
+        }
+
+        composable(Routes.ESTUDIANTES) {
+            GestionarEstudiantesScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.ESTUDIANTES_INESPERADO) {
+            GestionarEstudiantesScreen(onBack = { navController.popBackStack() }, inesperado = true)
+        }
+
+        composable(Routes.PERFIL_ESTUDIANTE) { entry ->
+            val id = entry.arguments?.getString("id").orEmpty()
+            PerfilEstudianteScreen(
+                estudianteId = id,
+                onBack = { navController.popBackStack() },
+                onVerHistorial = { navController.navigate(Routes.historial(id)) }
+            )
+        }
+
+        composable(Routes.HISTORIAL_ESTUDIANTE) { entry ->
+            HistorialEstudianteScreen(
+                estudianteId = entry.arguments?.getString("id").orEmpty(),
+                onBack = { navController.popBackStack() }
             )
         }
 

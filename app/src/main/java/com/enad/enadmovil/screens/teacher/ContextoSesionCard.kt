@@ -1,5 +1,14 @@
 package com.enad.enadmovil.ui.screens.teacher
 
+import androidx.compose.foundation.border
+import com.enad.enadmovil.ui.components.EnadPrimaryButton
+import com.enad.enadmovil.ui.components.EnadSecondaryButton
+import com.enad.enadmovil.ui.theme.ControlShape
+import com.enad.enadmovil.ui.theme.EnadBackground
+import com.enad.enadmovil.ui.theme.EnadLine
+import com.enad.enadmovil.ui.theme.EnadPrimary
+import com.enad.enadmovil.ui.theme.EnadSurface
+import com.enad.enadmovil.ui.theme.PanelShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -40,7 +49,7 @@ fun ContextoSesionCard(
         )
         estado.eligiendo -> TarjetaElegir(estado.grupos, onElegir, modifier)
         sugerencia != null -> TarjetaSugerencia(sugerencia, onAceptar, onCambiar, modifier)
-        estado.confirmado != null -> TextButton(onClick = onCambiar, modifier = modifier) { Text("Cambiar grupo") }
+        estado.confirmado != null -> TextButton(onClick = onCambiar, modifier = modifier) { Text("Cambiar grupo", color = EnadPrimary) }
     }
 }
 
@@ -49,9 +58,7 @@ private fun TarjetaSugerencia(grupo: GrupoDelDia, onAceptar: () -> Unit, onCambi
     Tarjeta(modifier) {
         Text(
             text = "¿Iniciar sesión con ${grupo.nombre}?",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
+            style = MaterialTheme.typography.titleMedium
         )
         Text(
             text = listOfNotNull(
@@ -62,8 +69,8 @@ private fun TarjetaSugerencia(grupo: GrupoDelDia, onAceptar: () -> Unit, onCambi
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(onClick = onAceptar) { Text("Sí, iniciar") }
-            OutlinedButton(onClick = onCambiar) { Text("Cambiar") }
+            EnadPrimaryButton("Sí, iniciar", onClick = onAceptar, modifier = Modifier.weight(1f))
+            EnadSecondaryButton("Cambiar", onClick = onCambiar, modifier = Modifier.weight(1f))
         }
     }
 }
@@ -73,15 +80,13 @@ private fun TarjetaElegir(grupos: List<GrupoDelDia>, onElegir: (GrupoDelDia) -> 
     Tarjeta(modifier) {
         Text(
             text = "¿Con qué grupo trabajas hoy?",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
+            style = MaterialTheme.typography.titleMedium
         )
         grupos.forEach { grupo ->
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.background, RoundedCornerShape(10.dp))
+                    .background(EnadBackground, ControlShape)
                     .clickable { onElegir(grupo) }
                     .padding(horizontal = 12.dp, vertical = 10.dp)
             ) {
@@ -102,11 +107,13 @@ private fun TarjetaElegir(grupos: List<GrupoDelDia>, onElegir: (GrupoDelDia) -> 
 
 @Composable
 private fun Tarjeta(modifier: Modifier, contenido: @Composable () -> Unit) {
+    // Mismo panel de Flutter: blanco, borde suave y radio de 20 dp.
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
-            .padding(18.dp),
+            .background(EnadSurface, PanelShape)
+            .border(1.dp, EnadLine, PanelShape)
+            .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         contenido()

@@ -11,48 +11,33 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.enad.enadmovil.ui.theme.EnadTrack
+import com.enad.enadmovil.ui.components.EnadPanel
+import com.enad.enadmovil.ui.components.EnadProgress
+import com.enad.enadmovil.ui.theme.EnadPrimary
 
 @Composable
 fun AperturasSemanaCard(state: AperturasUiState, modifier: Modifier = Modifier) {
     val fraccion = (state.aperturas.toFloat() / state.meta).coerceIn(0f, 1f)
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
-            .padding(18.dp)
-    ) {
+    EnadPanel(modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                "Uso de la app esta semana",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
+            Text("Uso de la app esta semana", style = MaterialTheme.typography.titleMedium)
             Text(
                 "${state.aperturas}/${state.meta}",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                style = MaterialTheme.typography.titleLarge,
+                color = EnadPrimary
             )
         }
         Spacer(Modifier.height(10.dp))
-        Box(Modifier.fillMaxWidth().height(6.dp).background(EnadTrack, RoundedCornerShape(3.dp))) {
-            Box(
-                Modifier.fillMaxWidth(fraccion).height(6.dp)
-                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(3.dp))
-            )
-        }
+        EnadProgress(fraccion = fraccion, color = EnadPrimary)
         if (state.mostrarRecordatorio) {
             Spacer(Modifier.height(8.dp))
             Text(
                 "Vuelve a abrir la app esta semana para mantener al día el progreso de tus estudiantes.",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                style = MaterialTheme.typography.bodyMedium
             )
         }
     }
