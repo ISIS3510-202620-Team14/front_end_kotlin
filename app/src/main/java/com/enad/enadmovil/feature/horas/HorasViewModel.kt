@@ -16,82 +16,156 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
+/** Motivos de horas no realizadas, los mismos de Flutter. Se guardan como "Categoría: detalle". */
+val MOTIVOS_HORAS = listOf("Familiar", "Personal", "Salud", "Transporte", "Institucional", "Otro")
+
+private fun leerHoras(texto: String): Double? =
+    texto.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it in 0.0..24.0 }
+
 /** Lo que el docente está registrando para un día. */
 data class RegistroDiaUi(
     val fecha: LocalDate,
-    val planeadas: Double,
+    val textoPlaneadas: String,
     val texto: String,
     val origen: String,          // suggested | manual
     val sugerido: Boolean,       // muestra el rótulo "Sugerido, ajústalo"
-    val motivo: String = ""
+    val categoria: String? = null,
+    val detalle: String = "",
+    /** Ya había un reporte guardado ese día: Guardar pide confirmar que lo reemplaza. */
+    val existe: Boolean = false
 ) {
-    val horas: Double? get() = texto.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it in 0.0..24.0 }
-    val pideMotivo: Boolean get() = horas?.let { it < planeadas } ?: false
-    val puedeGuardar: Boolean get() = horas != null && (!pideMotivo || motivo.isNotBlank())
+    val planeadas: Double? get() = leerHoras(textoPlaneadas)
+    val horas: Double? get() = leerHoras(texto)
+    val pideMotivo: Boolean
+        get() {
+            val p = planeadas ?: return false
+            val h = horas ?: return false
+            return h < p
+        }
+    val motivo: String
+        get() {
+            val c = categoria ?: return ""
+            return if (detalle.isBlank()) c else "$c: ${detalle.trim()}"
+        }
+    val errorMotivo: String?
+        get() = when {
+            categoria == null || categoria !in MOTIVOS_HORAS -> "Selecciona un motivo."
+            categoria == "Otro" && detalle.isBlank() -> "Escribe el motivo."
+            motivo.length > 500 -> "Acorta el detalle a 480 caracteres."
+            else -> null
+        }
+    val puedeGuardar: Boolean
+        get() {
+            val p = planeadas ?: return false
+            val h = horas ?: return false
+            if (p == 0.0 && h == 0.0) return false
+            return !pideMotivo || errorMotivo == null
+        }
+
+    companion object {
+        /** Separa "Salud: cita médica" en categoría y detalle; un texto viejo sin categoría queda como "Otro". */
+        fun partirMotivo(guardado: String?): Pair<String?, String> {
+            val texto = guardado.orEmpty()
+            for (c in MOTIVOS_HORAS) {
+                if (texto == c) return c to ""
+                if (texto.startsWith("$c: ")) return c to texto.removePrefix("$c: ")
+            }
+            return if (texto.isBlank()) null to "" else "Otro" to texto
+        }
+    }
 }
 
 data class HorasUiState(
     val dias: List<DiaSesion> = emptyList(),
-    val registro: RegistroDiaUi? = null
+    val fecha: LocalDate = LocalDate.now(),
+    val registro: RegistroDiaUi? = null,
+    val guardando: Boolean = false,
+    val mensaje: String? = null
 )
 
 class HorasViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = HorasRepository(app)
     private val contexto = ContextoRepository(app)
-    private val registro = MutableStateFlow<RegistroDiaUi?>(null)
+    private val local = MutableStateFlow(HorasUiState())
 
-    val uiState: StateFlow<HorasUiState> = combine(repo.observarDias(), registro) { dias, actual ->
-        HorasUiState(dias, actual)
+    val uiState: StateFlow<HorasUiState> = combine(repo.observarDias(), local) { dias, actual ->
+        actual.copy(dias = dias)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HorasUiState())
 
     init {
         // Una lectura al abrir Horas: actualiza la última hora en la sede, que es el tope de la sugerencia.
         viewModelScope.launch { contexto.registrarPresencia() }
+        seleccionarDia(LocalDate.now())
     }
 
-    fun abrirDia(dia: DiaSesion) {
+    /** Carga lo guardado ese día; si no hay nada, propone las horas del horario y la sugerencia por presencia. */
+    fun seleccionarDia(fecha: LocalDate) {
+        local.update { it.copy(fecha = fecha, mensaje = null) }
         viewModelScope.launch {
-            val guardado = repo.reporteDelDia(dia.fecha)
-            registro.value = if (guardado != null) {
+            val guardado = repo.reporteDelDia(fecha)
+            val registro = if (guardado != null) {
+                val (categoria, detalle) = RegistroDiaUi.partirMotivo(guardado.motivo)
                 RegistroDiaUi(
-                    fecha = dia.fecha,
-                    planeadas = dia.horasProgramadas,
+                    fecha = fecha,
+                    textoPlaneadas = formatearHoras(guardado.horasPlaneadas),
                     texto = formatearHoras(guardado.horasRealizadas),
                     origen = guardado.origen,
                     sugerido = guardado.origen == OrigenValor.SUGERIDO,
-                    motivo = guardado.motivo.orEmpty()
+                    categoria = categoria,
+                    detalle = detalle,
+                    existe = true
                 )
             } else {
-                val sugerencia = repo.sugerencia(dia.fecha, dia.horasProgramadas)
+                val programadas = repo.horasProgramadas(fecha)
+                val sugerencia = repo.sugerencia(fecha, programadas)
                 RegistroDiaUi(
-                    fecha = dia.fecha,
-                    planeadas = dia.horasProgramadas,
+                    fecha = fecha,
+                    textoPlaneadas = if (programadas > 0) formatearHoras(programadas) else "",
                     texto = sugerencia?.let { formatearHoras(it.horas) }.orEmpty(),
                     origen = if (sugerencia != null) OrigenValor.SUGERIDO else OrigenValor.MANUAL,
                     sugerido = sugerencia != null
                 )
             }
+            // Si el docente ya tocó otro día mientras cargaba, no se pisa.
+            local.update { if (it.fecha == fecha) it.copy(registro = registro) else it }
         }
     }
 
+    fun abrirDia(dia: DiaSesion) = seleccionarDia(dia.fecha)
+
+    fun cambiarPlaneadas(texto: String) = local.update { it.copy(registro = it.registro?.copy(textoPlaneadas = texto), mensaje = null) }
+
     /** Si el docente toca el valor, deja de ser una sugerencia. */
     fun cambiarHoras(texto: String) =
-        registro.update { it?.copy(texto = texto, origen = OrigenValor.MANUAL, sugerido = false) }
+        local.update { it.copy(registro = it.registro?.copy(texto = texto, origen = OrigenValor.MANUAL, sugerido = false), mensaje = null) }
 
-    fun cambiarMotivo(motivo: String) = registro.update { it?.copy(motivo = motivo) }
+    fun cambiarCategoria(categoria: String) = local.update { it.copy(registro = it.registro?.copy(categoria = categoria)) }
 
-    fun cerrar() {
-        registro.value = null
-    }
+    fun cambiarDetalle(detalle: String) = local.update { it.copy(registro = it.registro?.copy(detalle = detalle.take(480))) }
+
+    /** Compatibilidad con la hoja anterior: el motivo libre entra como detalle. */
+    fun cambiarMotivo(motivo: String) = cambiarDetalle(motivo)
+
+    fun cerrar() = local.update { it.copy(registro = null) }
 
     fun guardar() {
-        val actual = registro.value ?: return
+        val actual = local.value.registro ?: return
+        val planeadas = actual.planeadas ?: return
         val horas = actual.horas ?: return
-        if (!actual.puedeGuardar) return
+        if (!actual.puedeGuardar || local.value.guardando) return
+        local.update { it.copy(guardando = true, mensaje = null) }
         viewModelScope.launch {
-            repo.guardar(actual.fecha, actual.planeadas, horas, actual.origen, actual.motivo.takeIf { actual.pideMotivo })
-            registro.value = null
+            val ok = runCatching {
+                repo.guardar(actual.fecha, planeadas, horas, actual.origen, actual.motivo.takeIf { actual.pideMotivo })
+            }.isSuccess
+            local.update {
+                it.copy(
+                    guardando = false,
+                    registro = if (ok) actual.copy(existe = true) else it.registro,
+                    mensaje = if (ok) "Horas guardadas. Se envían en cuanto haya conexión." else "No pudimos guardar las horas. Intenta de nuevo."
+                )
+            }
         }
     }
 }
