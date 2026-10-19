@@ -1,59 +1,72 @@
 package com.enad.enadmovil.ui.theme
 
-import android.app.Activity
-import android.os.Build
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 
-private val DarkColorScheme = darkColorScheme(
-    primary = EnadPrimary,
-    secondary = PurpleGrey80,
-    tertiary = Pink80,
-    background = Color(0xFF1C1B19),
-    surface = Color(0xFF2B2320),
-    onBackground = Color(0xFFF7F1E8),
-    onSurface = Color(0xFFF7F1E8)
-)
+// Radios compartidos con Flutter: 20 dp para paneles y 16 dp para controles.
+val PanelRadius = 20.dp
+val ControlRadius = 16.dp
+val PageInset = 20.dp
+val PanelShape = RoundedCornerShape(PanelRadius)
+val ControlShape = RoundedCornerShape(ControlRadius)
 
+// Rojo para acciones (primary: Button y FilledButton) y negro para selección y confirmación
+// (secondary: chips, toggles y snackbars).
 private val LightColorScheme = lightColorScheme(
     primary = EnadPrimary,
-    secondary = PurpleGrey40,
-    tertiary = Pink40,
-    background = EnadBackground,
-    surface = EnadSurface,
-    surfaceVariant = EnadCardAlt,
     onPrimary = Color.White,
-    onBackground = EnadOnBackground,
-    onSurface = EnadOnBackground,
-    onSurfaceVariant = EnadMuted,
-    outline = EnadBorder
+    secondary = EnadInk,
+    onSecondary = EnadSurface,
+    secondaryContainer = EnadNeutral,
+    onSecondaryContainer = EnadInk,
+    tertiary = EnadAmber,
+    onTertiary = EnadSurface,
+    tertiaryContainer = EnadAmberBg,
+    onTertiaryContainer = EnadPending,
+    background = EnadBackground,
+    onBackground = EnadInk,
+    surface = EnadSurface,
+    onSurface = EnadInk,
+    surfaceVariant = EnadNeutral,
+    onSurfaceVariant = EnadSoftInk,
+    surfaceContainerLowest = EnadSurface,
+    surfaceContainerLow = EnadBackground,
+    surfaceContainer = EnadNeutral,
+    surfaceContainerHigh = EnadNeutralHigh,
+    surfaceTint = Color.Transparent,
+    outline = EnadSoftInk,
+    outlineVariant = EnadLine,
+    error = EnadPrimary,
+    onError = EnadSurface,
+    inverseSurface = EnadInk,
+    inverseOnSurface = EnadSurface,
 )
 
+private val EnadShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = ControlShape,
+    medium = ControlShape,
+    large = PanelShape,
+    extraLarge = PanelShape,
+)
+
+// La app solo tiene tema claro, igual que Flutter. Los parámetros se conservan
+// para no romper las llamadas existentes.
 @Composable
 fun EnadMovilTheme(
-    darkTheme: Boolean = false,
-    dynamicColor: Boolean = false,
+    @Suppress("UNUSED_PARAMETER") darkTheme: Boolean = false,
+    @Suppress("UNUSED_PARAMETER") dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = LightColorScheme,
         typography = Typography,
+        shapes = EnadShapes,
         content = content
     )
 }

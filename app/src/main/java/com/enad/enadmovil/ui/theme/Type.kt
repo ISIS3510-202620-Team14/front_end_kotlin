@@ -4,56 +4,55 @@ package com.enad.enadmovil.ui.theme
 
 import com.enad.enadmovil.R
 import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
+// Lexend en títulos y Work Sans en textos, igual que Flutter. Ambas son fuentes variables.
+private fun variable(res: Int, weight: Int) =
+    Font(res, FontWeight(weight), variationSettings = FontVariation.Settings(FontVariation.weight(weight)))
+
 val bodyFontFamily = FontFamily(
-    Font(R.font.inter, FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
-    Font(R.font.inter, FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
-    Font(R.font.inter, FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
-    Font(R.font.inter, FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
+    variable(R.font.work_sans, 400),
+    variable(R.font.work_sans, 500),
+    variable(R.font.work_sans, 600),
+    variable(R.font.work_sans, 700),
 )
 
 val displayFontFamily = FontFamily(
-    Font(
-        R.font.fraunces,
-        FontWeight.SemiBold,
-        variationSettings = FontVariation.Settings(FontVariation.weight(600), FontVariation.opticalSizing(72.sp)),
-    ),
-    Font(
-        R.font.fraunces,
-        FontWeight.Bold,
-        variationSettings = FontVariation.Settings(FontVariation.weight(700), FontVariation.opticalSizing(72.sp)),
-    ),
+    variable(R.font.lexend, 500),
+    variable(R.font.lexend, 700),
 )
 
-private val baseline = Typography()
+private fun heading(size: TextUnit, weight: FontWeight = FontWeight.Bold) = TextStyle(
+    fontFamily = displayFontFamily, fontSize = size, fontWeight = weight,
+    lineHeight = 1.2.em, color = EnadInk,
+)
 
-// Set of Material typography styles to start with
+private fun body(size: TextUnit, weight: FontWeight = FontWeight.Normal) = TextStyle(
+    fontFamily = bodyFontFamily, fontSize = size, fontWeight = weight, lineHeight = 1.5.em,
+)
+
+// Tamaños tomados de AppTheme.theme en Flutter.
 val Typography = Typography(
-    displayLarge = baseline.displayLarge.copy(fontFamily = displayFontFamily),
-    displayMedium = baseline.displayMedium.copy(fontFamily = displayFontFamily),
-    displaySmall = baseline.displaySmall.copy(fontFamily = displayFontFamily),
-    headlineLarge = baseline.headlineLarge.copy(fontFamily = displayFontFamily),
-    headlineMedium = baseline.headlineMedium.copy(fontFamily = displayFontFamily),
-    headlineSmall = baseline.headlineSmall.copy(fontFamily = displayFontFamily),
-    titleLarge = baseline.titleLarge.copy(fontFamily = displayFontFamily),
-    titleMedium = baseline.titleMedium.copy(
-        fontFamily = bodyFontFamily,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 16.sp
-    ),
-    titleSmall = baseline.titleSmall.copy(fontFamily = displayFontFamily),
-    bodyLarge = baseline.bodyLarge.copy(fontFamily = bodyFontFamily),
-    bodyMedium = baseline.bodyMedium.copy(fontFamily = bodyFontFamily),
-    bodySmall = baseline.bodySmall.copy(fontFamily = bodyFontFamily),
-    labelLarge = baseline.labelLarge.copy(
-        fontFamily = bodyFontFamily,
-        fontWeight = FontWeight.SemiBold
-    ),
-    labelMedium = baseline.labelMedium.copy(fontFamily = bodyFontFamily),
-    labelSmall = baseline.labelSmall.copy(fontFamily = bodyFontFamily),
+    displayLarge = heading(28.8.sp),
+    displayMedium = heading(28.8.sp),
+    displaySmall = heading(28.8.sp),
+    headlineLarge = heading(25.6.sp),
+    headlineMedium = heading(25.6.sp),
+    headlineSmall = heading(22.sp),
+    titleLarge = heading(19.2.sp, FontWeight.Medium),
+    titleMedium = heading(16.sp, FontWeight.Medium),
+    titleSmall = heading(14.sp, FontWeight.Medium),
+    bodyLarge = body(16.sp).copy(color = EnadInk),
+    bodyMedium = body(14.sp).copy(color = EnadSoftInk),
+    bodySmall = body(14.sp).copy(color = EnadSoftInk),
+    labelLarge = body(16.sp, FontWeight.Bold),
+    labelMedium = body(14.sp, FontWeight.SemiBold),
+    labelSmall = body(12.sp, FontWeight.Medium),
 )
