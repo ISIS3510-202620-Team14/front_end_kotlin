@@ -35,12 +35,15 @@ class GruposViewModel(application: Application) : AndroidViewModel(application) 
     val uiState: StateFlow<GruposUiState> = selectedTabIndex
         .flatMapLatest { tabIndex ->
             repo.observarGrupos(areaDe(tabIndex)).map { grupos ->
+                val asignados = grupos.flatMap { g -> g.ninos.map { it.id } }.toSet()
+                val sinGrupo = ninosDeEjemplo.filter { it.id !in asignados }
                 GruposUiState(
                     subjectAreas = listOf("Matemáticas", "Lectura"),
                     selectedTabIndex = tabIndex,
                     grupos = grupos,
-                    ninosSinGrupo = 3,
-                    isLoading = false
+                    ninosSinGrupo = sinGrupo.size,
+                    isLoading = false,
+                    sinGrupo = sinGrupo
                 )
             }
         }
@@ -55,6 +58,9 @@ class GruposViewModel(application: Application) : AndroidViewModel(application) 
                 isLoading = true
             )
         )
+
+    /** Botón de recargar: vuelve a traer los grupos del backend. */
+    fun recargar() = repo.sincronizar()
 
     fun onTabSelected(index: Int) {
         selectedTabIndex.value = index

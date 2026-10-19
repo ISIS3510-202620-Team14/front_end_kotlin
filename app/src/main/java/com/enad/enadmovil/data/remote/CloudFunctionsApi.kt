@@ -62,7 +62,21 @@ object CloudFunctionsApi {
         val provisional: Boolean,
         val attendance: String?,   // solo viene si se pidió ?date=
         val gender: String? = null,
-        val niveles: Map<String, String> = emptyMap()   // materia -> etiqueta del nivel actual
+        val niveles: Map<String, String> = emptyMap(),   // materia -> etiqueta del nivel actual
+        val sample: Int? = null,
+        val retired: Boolean = false,
+        val campus: String? = null
+    )
+
+    /** Un registro del historial de evaluación: momento (type del back), fecha y nivel. */
+    data class RegistroEvaluacion(val tipo: String, val fecha: String, val nivel: String)
+
+    /** GET /students/{id}/progress: ficha, asistencia acumulada e historial por materia. */
+    data class ProgresoEstudiante(
+        val estudiante: EstudianteRemoto,
+        val asistenciaRegistrada: Int,
+        val asistenciaPresente: Int,
+        val historial: Map<String, List<RegistroEvaluacion>>   // materia -> registros en orden de fecha
     )
     suspend fun enviarAperturas(token: String, aperturas: List<AperturaEntity>) {
         val arreglo = JSONArray()
@@ -267,6 +281,50 @@ object CloudFunctionsApi {
         )
     }
 
+    /**
+     * PATCH /students/{id}: actualiza la ficha (gender, age, sample, retired...). Solo se
+     * envían los campos presentes en [cambios].
+     */
+    suspend fun actualizarEstudiante(token: String, id: String, cambios: JSONObject): EstudianteRemoto =
+        aEstudiante(solicitar("PATCH", "/$id", token, cambios, STUDENTS_URL))
+
+    suspend fun progresoEstudiante(token: String, id: String): ProgresoEstudiante {
+        val json = solicitar("GET", "/$id/progress", token, null, STUDENTS_URL)
+        val asistencia = json.optJSONObject("attendance") ?: JSONObject()
+        val materias = json.optJSONObject("subjects") ?: JSONObject()
+        val historial = buildMap {
+            materias.keys().forEach { materia ->
+                val registros = materias.optJSONObject(materia)?.optJSONArray("history") ?: JSONArray()
+                put(materia, List(registros.length()) { i ->
+                    val r = registros.getJSONObject(i)
+                    RegistroEvaluacion(
+                        tipo = r.optString("type"),
+                        fecha = r.optString("date").substringBefore('T'),
+                        nivel = r.optString("etiqueta").ifBlank { r.optString("clave") }
+                    )
+                })
+            }
+        }
+        return ProgresoEstudiante(
+            estudiante = aEstudiante(json.getJSONObject("student")),
+            asistenciaRegistrada = asistencia.optInt("recorded", 0),
+            asistenciaPresente = asistencia.optInt("present", 0),
+            historial = historial
+        )
+    }
+
+    /** GET /groups?schoolId=: nombre y materia de los grupos donde está el estudiante. */
+    suspend fun gruposDeEstudiante(token: String, schoolId: String, studentId: String): List<Pair<String, String>> {
+        val arreglo = solicitar("GET", "?schoolId=${URLEncoder.encode(schoolId, "UTF-8")}", token, null, GROUPS_URL)
+            .optJSONArray("groups") ?: JSONArray()
+        return (0 until arreglo.length()).map { arreglo.getJSONObject(it) }
+            .filter { g ->
+                val ids = g.optJSONArray("studentIds") ?: JSONArray()
+                (0 until ids.length()).any { ids.optString(it) == studentId }
+            }
+            .map { it.optString("name") to it.optString("subject") }
+    }
+
     private fun aEstudiante(o: JSONObject) = EstudianteRemoto(
         id = o.getString("id"),
         schoolId = o.getString("schoolId"),
@@ -277,6 +335,9 @@ object CloudFunctionsApi {
         provisional = o.optBoolean("provisional", false),
         attendance = if (o.has("attendance")) o.optString("attendance") else null,
         gender = if (o.isNull("gender")) null else o.optString("gender"),
+        sample = if (!o.has("sample") || o.isNull("sample")) null else o.optInt("sample"),
+        retired = o.optBoolean("retired", false),
+        campus = if (!o.has("campus") || o.isNull("campus")) null else o.optString("campus"),
         niveles = buildMap {
             val levels = o.optJSONObject("levels") ?: return@buildMap
             levels.keys().forEach { materia ->

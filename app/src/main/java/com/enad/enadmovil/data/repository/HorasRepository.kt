@@ -44,6 +44,19 @@ class HorasRepository(context: Context) {
         }
     }
 
+    /** Horas que el horario de los grupos del docente pone para ese día de la semana. */
+    suspend fun horasProgramadas(fecha: LocalDate): Double {
+        val uid = auth.uidActual() ?: return 0.0
+        return dao.grupos(uid).sumOf { Horario.horasDelDia(it.horario, fecha.dayOfWeek) ?: 0.0 }
+    }
+
+    /** Reportes de los últimos [dias] días, del más reciente al más viejo (Mis datos). */
+    fun observarReportesRecientes(dias: Int = 30, hoy: LocalDate = LocalDate.now()): Flow<List<ReporteHorasEntity>> {
+        val uid = auth.uidActual() ?: return flowOf(emptyList())
+        return dao.observarReportes(uid, hoy.minusDays((dias - 1).toLong()).toString(), hoy.toString())
+            .map { lista -> lista.sortedByDescending { it.fecha } }
+    }
+
     suspend fun reporteDelDia(fecha: LocalDate): ReporteHorasEntity? {
         val uid = auth.uidActual() ?: return null
         return dao.reporte(uid, fecha.toString())

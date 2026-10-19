@@ -25,6 +25,8 @@ data class ClasificacionUiState(
     val instituciones: List<Institucion> = emptyList(),
     val institucionId: String? = null,
     val grado: Int? = null,   // null = "Todos"
+    // Momento de evaluación (clave del back). Sin momento no se puede registrar.
+    val momento: String? = null,
     val estudiantes: List<EstudianteClasificacion> = emptyList()   // todos los de la institución elegida
 ) {
     val visibles: List<EstudianteClasificacion>
@@ -33,6 +35,14 @@ data class ClasificacionUiState(
 
 /** Nivel especial que saca al estudiante del programa: no cuenta como clasificación para la BQ 9. */
 internal const val NIVEL_RETIRADO = "Retirado"
+
+/** Momentos de evaluación del back con su nombre en pantalla (igual que en Flutter). */
+internal val MOMENTOS_EVALUACION = linkedMapOf(
+    "inicial" to "Línea Base",
+    "media" to "Línea Media",
+    "final" to "Línea Final",
+    "especifica" to "Evaluación específica",
+)
 
 /**
  * Carga las instituciones del docente con sesión abierta (GET /schools) y los estudiantes
@@ -78,6 +88,10 @@ class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
         _uiState.update { it.copy(grado = grado) }
     }
 
+    fun seleccionarMomento(momento: String) {
+        _uiState.update { it.copy(momento = momento) }
+    }
+
     fun actualizar(id: String, cambio: (EstudianteClasificacion) -> EstudianteClasificacion) {
         _uiState.update { estado ->
             estado.copy(estudiantes = estado.estudiantes.map { e ->
@@ -87,42 +101,51 @@ class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun clasificar(id: String, nivel: String) {
-        if (nivel == NIVEL_RETIRADO) {
-            actualizar(id) {
-                it.copy(nivelActual = nivel)
-            }
-            return
-        }
+        val estudiante = _uiState.value.estudiantes.find { it.id == id } ?: return
+        val edad = estudiante.edad.toIntOrNull() ?: return
+        evaluar(id, nivel, estudiante.sexo ?: return, edad, estudiante.muestra ?: return) {}
+    }
 
-        val nivelBackend = nivelBackend(nivel)
-
-        if (nivelBackend == null) {
-            return
-        }
+    /**
+     * Guarda la ficha (sexo, edad, muestra) y registra el nivel en el momento elegido.
+     * [alTerminar] recibe el mensaje para el snackbar.
+     */
+    fun evaluar(id: String, nivel: String, sexo: String, edad: Int, muestra: Int, alTerminar: (String) -> Unit) {
+        val momento = _uiState.value.momento ?: return alTerminar("Selecciona el momento de evaluación.")
+        val nivelBackend = nivelBackend(nivel) ?: return
 
         viewModelScope.launch {
             try {
+                repo.actualizarFicha(id, sexo, edad, muestra)
                 repo.registrarEvaluacion(
                     estudianteId = id,
                     materia = materiaClave,
                     nivel = nivelBackend,
-                    clientId = UUID.randomUUID().toString()
+                    clientId = UUID.randomUUID().toString(),
+                    tipo = momento
                 )
-
                 actualizar(id) {
-                    it.copy(nivelActual = nivel)
+                    it.copy(sexo = sexo, edad = edad.toString(), muestra = muestra, nivelActual = nivel)
                 }
-
                 sesion?.registrarClasificacion(id)
-
+                alTerminar("Evaluación guardada.")
             } catch (e: Exception) {
                 // No actualizamos la UI si el backend no confirmó la evaluación.
                 // Así la pantalla sigue representando el estado persistido.
-                android.util.Log.e(
-                    "ClasificacionViewModel",
-                    "No se pudo guardar la evaluación",
-                    e
-                )
+                android.util.Log.e("ClasificacionViewModel", "No se pudo guardar la evaluación", e)
+                alTerminar(mensajeGuardado(e))
+            }
+        }
+    }
+
+    /** Retira al estudiante de las listas activas de todas las áreas; su historial se conserva. */
+    fun retirar(id: String, alTerminar: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                repo.retirar(id)
+                actualizar(id) { it.copy(nivelActual = NIVEL_RETIRADO) }
+            } catch (e: Exception) {
+                alTerminar(mensajeGuardado(e))
             }
         }
     }
@@ -215,9 +238,10 @@ class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
                         numero = i + 1,
                         nombre = r.fullName,
                         grado = r.grade,
-                        sexo = r.gender ?: "F",
+                        sexo = r.gender,
                         edad = r.age?.toString().orEmpty(),
-                        nivelActual = r.niveles[materiaClave]
+                        muestra = r.sample,
+                        nivelActual = if (r.retired) NIVEL_RETIRADO else r.niveles[materiaClave]
                     )
                 }
                 _uiState.update { it.copy(cargando = false, estudiantes = estudiantes) }
@@ -229,6 +253,14 @@ class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
                 _uiState.update { it.copy(cargando = false, mensaje = mensajeDe(e)) }
             }
         }
+    }
+
+    private fun mensajeGuardado(e: Exception): String = when ((e as? CloudFunctionsApi.ApiException)?.code) {
+        "unauthenticated" -> "Tu sesión expiró. Vuelve a iniciar sesión."
+        "permission-denied" -> "No tienes acceso a este estudiante."
+        "invalid-argument" -> "Revisa la edad, el sexo y la muestra antes de guardar."
+        null -> "No pudimos guardar. Revisa tu conexión."
+        else -> e.message ?: "No pudimos guardar."
     }
 
     private fun mensajeDe(e: Exception): String = when ((e as? CloudFunctionsApi.ApiException)?.code) {

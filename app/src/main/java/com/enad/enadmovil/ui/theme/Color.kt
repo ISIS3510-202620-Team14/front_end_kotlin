@@ -2,45 +2,49 @@ package com.enad.enadmovil.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+// Paleta ENAd del Sprint 3, igual a AppTheme de la app Flutter
+// (rama feature/enad-feedback-review, lib/theme/app_theme/app_theme.dart).
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
-
-// Paleta de marca ENAd Móvil predefinida en el MS6, tomada del prototipo de Figma de alta fidelidad mujeje.
-
-val EnadBackground = Color(0xFFF7F1E8)   // fondo crema de todas las pantallas
+val EnadBackground = Color(0xFFFAF6F3)   // fondo cálido de todas las pantallas
 val EnadSurface = Color(0xFFFFFFFF)      // tarjetas / inputs
-val EnadHeader = Color(0xFF1C1B19)       // barra superior negra
-val EnadHeaderChip = Color(0xFF3A3835)   // botón "Cambiar usuario" sobre el header
-val EnadPrimary = Color(0xFFB4231F)      // rojo principal (botón Entrar, porcentajes, links)
-val EnadOnBackground = Color(0xFF2B2320) // texto principal
-val EnadMuted = Color(0xFF7A7168)        // texto secundario / subtítulos
-val EnadBorder = Color(0xFFE7DFD3)       // bordes de inputs y tarjetas suaves
-val EnadTrack = Color(0xFFE7DFD3)        // fondo de las barras de progreso
-val EnadCardAlt = Color(0xFFEFE7D8)      // tarjeta "Credenciales de prueba"
-val EnadPillBg = Color(0xFFD7ECDD)       // pill "Disponible · demo" / "Asistió"
-val EnadPillText = Color(0xFF2E6B45)
-val EnadPendienteBg = Color(0xFFF4E3C8)  // pill "Pendiente" en Asistencia
-val EnadPendienteText = Color(0xFF8A5A22)
-val EnadNoAsistioBg = Color(0xFFF6D9D6)  // pill "No asistió" en Asistencia
+val EnadInk = Color(0xFF1D1D1B)          // texto principal, selección y confirmación
+val EnadSoftInk = Color(0xFF50504D)      // texto secundario y bordes de inputs
+val EnadLine = Color(0xFFE2E2E2)         // bordes suaves y botones deshabilitados
+val EnadPrimary = Color(0xFFE52228)      // rojo de acciones (botón principal, iconos)
+val EnadNeutral = Color(0xFFE9E9E6)      // chip seleccionado, nivel "Sin evaluar"
+val EnadNeutralHigh = Color(0xFFDEDEDA)
 
-// Agregados para la pantalla de Grupos: banner ámbar de "niños sin grupo".
-// No reutilizo colorScheme.tertiary porque ya está tomado por Pink40/Pink80.
+val EnadHeader = EnadInk                 // barra superior negra
+val EnadHeaderChip = Color(0xFF3A3835)   // botón sobre el header
+val EnadHeaderMuted = Color(0xFFAAA6A3)  // texto secundario y borde sobre el header ("Portal docente")
+val EnadOnBackground = EnadInk
+val EnadMuted = EnadSoftInk
+val EnadBorder = EnadLine
+val EnadTrack = EnadLine                 // fondo de las barras de progreso
+val EnadCardAlt = EnadNeutral
+
+// Estados (mismos valores que Flutter).
+val EnadPillBg = Color(0xFFD7ECDD)       // "Asistió" / evaluado
+val EnadPillText = Color(0xFF2E6B45)
+val EnadPendienteBg = Color(0xFFF4E3C8)  // "Pendiente"
+val EnadPendienteText = Color(0xFF8A5A22)
+val EnadNoAsistioBg = Color(0xFFF6D9D6)
 val EnadAmber = Color(0xFFB4700F)
 val EnadAmberBg = Color(0xFFFBF0DE)
+val EnadPending = Color(0xFF955D0C)
+val EnadSuccessBg = Color(0xFFEAF3EC)
+val EnadSuccessText = Color(0xFF3E7C59)
+val EnadChipPink = Color(0xFFF6DAD6)
 
-// Agregados para la pantalla de Horas.
-val EnadHeaderMuted = Color(0xFF8B8686)  // texto secundario sobre el header negro ("Portal docente")
-val EnadChipPink = Color(0xFFF6DAD6)     // fondo del chip Sí/No seleccionado, y nivel 1 del heatmap
-val EnadPending = Color(0xFF955D0C)      // texto de la alerta de horas no realizadas
-val EnadHeatmapEmpty = Color(0xFFF1EAE0) // celda del heatmap sin registrar
-val EnadHeatmapStep2 = Color(0xFFECAAA5)
-val EnadHeatmapStep3 = Color(0xFFD6635D)
+// Escala de seis niveles (LevelPalette en Flutter). Lectura y Matemáticas comparten colores.
+val EnadLevel1 = Color(0xFFB72619)       // Principiante
+val EnadLevel2 = Color(0xFFCC6B68)       // Letra · 1 dígito
+val EnadLevel3 = Color(0xFFF0BC40)       // Palabra · 2 dígitos
+val EnadLevel4 = Color(0xFFF9D876)       // Párrafo · Resta
+val EnadLevel5 = Color(0xFF9BC184)       // Cuento · División
+val EnadLevel6 = Color(0xFF56A359)       // Comprensión · Problema escrito
 
-// Agregados para la pantalla de Mis datos.
-val EnadSuccessBg = Color(0xFFEAF3EC)    // círculo detrás del check de "Guardado en esta sesión demo"
-val EnadSuccessText = Color(0xFF3E7C59)  // no reutilizo EnadPillBg/EnadPillText: son un verde distinto
+// Heatmap de horas: se elimina en la Fase 7; mientras tanto usa la escala neutra/roja.
+val EnadHeatmapEmpty = EnadNeutral
+val EnadHeatmapStep2 = EnadLevel2
+val EnadHeatmapStep3 = EnadLevel1

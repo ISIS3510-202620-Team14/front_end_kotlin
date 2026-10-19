@@ -1,52 +1,48 @@
 package com.enad.enadmovil.feature.grupos
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme.colorScheme
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.MaterialTheme.typography
-import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.enad.enadmovil.domain.model.Grupo
 import com.enad.enadmovil.domain.model.Nino
+import com.enad.enadmovil.ui.screens.teacher.BarraConVolver
+import com.enad.enadmovil.ui.components.EnadPanel
+import com.enad.enadmovil.ui.components.EnadPrimaryButton
+import com.enad.enadmovil.ui.components.EnadTextField
+import com.enad.enadmovil.ui.theme.EnadBackground
+import com.enad.enadmovil.ui.theme.EnadInk
+import com.enad.enadmovil.ui.theme.EnadNeutral
+import com.enad.enadmovil.ui.theme.EnadPrimary
+import com.enad.enadmovil.ui.theme.EnadSurface
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** "Detalle del grupo" de Flutter: cambiar el nombre, marcar integrantes y eliminar el grupo. */
 @Composable
 fun EditarGrupoScreen(
     grupo: Grupo,
@@ -59,132 +55,80 @@ fun EditarGrupoScreen(
     onEliminarGrupo: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var menuDocenteAbierto by remember { mutableStateOf(false) }
-    var mostrarMeterNinos by remember { mutableStateOf(false) }
-    var ninosSeleccionados by remember { mutableStateOf(setOf<Nino>()) }
+    var nombre by rememberSaveable(grupo.id) { mutableStateOf(grupo.nombre) }
+    var confirmarEliminar by remember { mutableStateOf(false) }
+    val integrantes = grupo.ninos.map { it.id }.toSet()
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(colorScheme.background)
-            .statusBarsPadding()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Volver")
-            }
-            Column {
-                Text(text = "Editar grupo", style = typography.titleLarge)
-                Text(text = materia, style = typography.bodyLarge, color = colorScheme.onSurfaceVariant)
-            }
-        }
-
-        Text(text = "DATOS DEL GRUPO", style = typography.labelSmall, color = colorScheme.onSurfaceVariant)
-        OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                OutlinedTextField(
-                    value = grupo.nombre,
-                    onValueChange = onNombreChange,
-                    label = { Text("Nombre del grupo") },
-                    modifier = Modifier.fillMaxWidth()
+    Column(modifier = modifier.fillMaxSize().background(EnadBackground)) {
+        BarraConVolver(titulo = "Detalle del grupo", onBack = onBack, subtitulo = materia)
+        Column(
+            modifier = Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            EnadPanel {
+                EnadTextField(value = nombre, onValueChange = { nombre = it }, label = "Nombre del grupo")
+                Spacer(Modifier.height(20.dp))
+                EnadPrimaryButton(
+                    text = "Guardar nombre",
+                    onClick = { onNombreChange(nombre.trim()) },
+                    enabled = nombre.isNotBlank() && nombre.trim() != grupo.nombre
                 )
-                Box {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable { menuDocenteAbierto = true },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(text = "Docente", style = typography.bodyLarge)
-                        Text(
-                            text = grupo.docente,
-                            style = typography.titleMedium,
-                            modifier = Modifier.weight(1f).padding(start = 8.dp)
-                        )
-                        Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
-                    }
-                    DropdownMenu(
-                        expanded = menuDocenteAbierto,
-                        onDismissRequest = { menuDocenteAbierto = false },
-                        containerColor = colorScheme.surface,
-                        offset = DpOffset(x = 140.dp, y = 0.dp),
-                        modifier = Modifier.width(240.dp)
-                    ) {
-                        docentesDisponibles.forEach { docente ->
-                            val seleccionado = docente == grupo.docente
-                            DropdownMenuItem(
-                                text = { Text(docente, style = typography.titleMedium) },
-                                onClick = {
-                                    onDocenteChange(docente)
-                                    menuDocenteAbierto = false
-                                },
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-                                modifier = Modifier.background(
-                                    if (seleccionado) colorScheme.surfaceVariant else Color.Transparent
-                                )
-                            )
+            }
+            Spacer(Modifier.height(12.dp))
+            Text("Integrantes", style = typography.titleLarge)
+            ninosDeEjemplo.forEach { nino ->
+                val marcado = nino.id in integrantes
+                EnadPanel(onClick = { if (marcado) onQuitarNino(nino) else onAgregarNinos(listOf(nino)) }) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(nino.nombre, style = typography.titleMedium)
+                            Spacer(Modifier.height(4.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Grado ${nino.grado}", style = typography.bodyMedium)
+                                Spacer(Modifier.width(8.dp))
+                                Surface(color = EnadNeutral, shape = RoundedCornerShape(50)) {
+                                    Text(
+                                        nino.nivel,
+                                        style = typography.labelSmall,
+                                        color = EnadInk,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
                         }
-                    }
-                }
-            }
-        }
-
-        Text(text = "NIÑOS · ${grupo.ninos.size}", style = typography.labelSmall, color = colorScheme.onSurfaceVariant)
-        grupo.ninos.forEach { nino ->
-            OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = nino.nombre, style = typography.titleMedium)
-                        Text(
-                            text = "${nino.nivel} · Grado ${nino.grado}",
-                            style = typography.bodyMedium,
-                            color = colorScheme.onSurfaceVariant
+                        Checkbox(
+                            checked = marcado,
+                            onCheckedChange = { if (it) onAgregarNinos(listOf(nino)) else onQuitarNino(nino) },
+                            colors = CheckboxDefaults.colors(checkedColor = EnadInk, checkmarkColor = EnadSurface)
                         )
                     }
-                    IconButton(onClick = { onQuitarNino(nino) }) {
-                        Icon(Icons.Default.Close, contentDescription = "Quitar a ${nino.nombre}")
-                    }
                 }
             }
-        }
-
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(
-                onClick = { mostrarMeterNinos = true },
-                colors = ButtonDefaults.buttonColors(containerColor = colorScheme.primary),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.weight(1f).height(52.dp)
-            ) {
-                Text("Meter niños")
-            }
-            IconButton(onClick = onEliminarGrupo) {
-                Icon(Icons.Default.DeleteOutline, contentDescription = "Eliminar grupo", tint = colorScheme.primary)
+            TextButton(onClick = { confirmarEliminar = true }) {
+                Text("Eliminar grupo", color = EnadPrimary)
             }
         }
     }
 
-    if (mostrarMeterNinos) {
-        val disponibles = ninosDeEjemplo.filter { it !in grupo.ninos }
-        MeterNinosDialog(
-            titulo = "Meter niños a ${grupo.nombre}",
-            ninos = disponibles,
-            seleccionados = ninosSeleccionados,
-            onSeleccionadosChange = { ninosSeleccionados = it },
-            onAgregar = {
-                onAgregarNinos(ninosSeleccionados.toList())
-                ninosSeleccionados = emptySet()
-                mostrarMeterNinos = false
+    if (confirmarEliminar) {
+        AlertDialog(
+            onDismissRequest = { confirmarEliminar = false },
+            containerColor = EnadSurface,
+            title = { Text("Eliminar grupo") },
+            text = { Text("Se eliminará este grupo; los estudiantes se conservarán.") },
+            dismissButton = {
+                TextButton(onClick = { confirmarEliminar = false }) { Text("Cancelar", color = EnadInk) }
             },
-            onDismiss = {
-                ninosSeleccionados = emptySet()
-                mostrarMeterNinos = false
+            confirmButton = {
+                Button(
+                    onClick = {
+                        confirmarEliminar = false
+                        onEliminarGrupo()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = EnadPrimary)
+                ) { Text("Eliminar") }
             }
         )
     }

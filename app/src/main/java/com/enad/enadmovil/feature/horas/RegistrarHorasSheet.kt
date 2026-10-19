@@ -35,7 +35,7 @@ fun RegistrarHorasSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(text = "Horas del ${registro.fecha.dayOfMonth}/${registro.fecha.monthValue}", style = typography.titleLarge)
-            Text(text = "Programadas: ${formatearHoras(registro.planeadas)} h", style = typography.bodyMedium)
+            Text(text = "Programadas: ${formatearHoras(registro.planeadas ?: 0.0)} h", style = typography.bodyMedium)
             OutlinedTextField(
                 value = registro.texto,
                 onValueChange = onHorasChange,

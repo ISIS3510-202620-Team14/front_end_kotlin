@@ -1,5 +1,14 @@
 package com.enad.enadmovil.ui.screens.teacher
 
+import com.enad.enadmovil.ui.components.EnadActionCard
+import com.enad.enadmovil.ui.components.EnadHeading
+import androidx.compose.material.icons.outlined.AccessTime
+import androidx.compose.material.icons.outlined.FactCheck
+import androidx.compose.material.icons.outlined.Assessment
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import com.enad.enadmovil.ui.components.EnadBottomBar
+import com.enad.enadmovil.ui.components.EnadTopBar
+import com.enad.enadmovil.ui.components.TeacherNavItems
 import android.Manifest
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -45,6 +54,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.enad.enadmovil.feature.actividades.ActividadesScreen
+import com.enad.enadmovil.domain.model.AreaMateria
 import com.enad.enadmovil.feature.grupos.CrearGrupoScreen
 import com.enad.enadmovil.feature.grupos.EditarGrupoScreen
 import com.enad.enadmovil.feature.grupos.GruposScreen
@@ -63,6 +73,10 @@ data class ProgressItem(
     val percent: Int,
     val evaluatedText: String
 )
+
+// Títulos de los accesos de Hoy que resuelve AppNavigation.
+const val ACCION_ASISTENCIA = "Reportar asistencia"
+const val ACCION_EVALUACION = "Evaluación formativa"
 
 data class ActionItem(
     val title: String,
@@ -90,7 +104,8 @@ private sealed class SubPantallaGrupos {
     data object Lista : SubPantallaGrupos()
     data object Crear : SubPantallaGrupos()
     data class Ver(val grupoId: Int) : SubPantallaGrupos()
-    data class Editar(val grupoId: Int) : SubPantallaGrupos()
+    // area: pestaña de materia que debe estar cargada (cuando se abre desde Mis datos).
+    data class Editar(val grupoId: Int, val area: Int? = null) : SubPantallaGrupos()
 }
 
 @Composable
@@ -118,7 +133,7 @@ fun TeacherHomeScreen(
     ),
     tabs: List<BottomTab> = listOf(
         BottomTab("Hoy", Icons.Filled.CalendarToday, true),
-        BottomTab("Mi lista", Icons.Filled.ListAlt, false),
+        BottomTab("Asistencia", Icons.Filled.ListAlt, false),
         BottomTab("Grupos", Icons.Filled.Groups, false),
         BottomTab("Horas", Icons.Filled.Schedule, false),
         BottomTab("Mis datos", Icons.Filled.Person, false)
@@ -126,6 +141,7 @@ fun TeacherHomeScreen(
     tabSeleccionado: Int = tabs.indexOfFirst { it.selected }.coerceAtLeast(0),
     onTabSeleccionadoChange: (Int) -> Unit = {},
     onCambiarUsuario: () -> Unit = {},
+    onGestionarEstudiantes: () -> Unit = {},
     onAccionClick: (ActionItem) -> Unit = {},
     onTabClick: (BottomTab) -> Unit = {},
     onProgresoClick: (ProgressItem) -> Unit = {}
@@ -224,6 +240,7 @@ fun TeacherHomeScreen(
                 materia = gruposUiState
                     .subjectAreas[gruposUiState.selectedTabIndex],
                 recomendacion = recomendacionAgrupacion,
+                sinGrupo = gruposUiState.sinGrupo,
                 onPedirRecomendacion =
                     gruposViewModel::pedirRecomendacion,
                 onBack = {
@@ -339,7 +356,8 @@ fun TeacherHomeScreen(
                 )
 
                 return
-            } else {
+            } else if (actual.area == null || gruposUiState.selectedTabIndex == actual.area) {
+                // Si se pidió otra materia, se espera a que lleguen sus grupos antes de rendirse.
                 subPantallaGrupos =
                     SubPantallaGrupos.Lista
             }
@@ -433,13 +451,14 @@ fun TeacherHomeScreen(
         } else if (tabSeleccionado == TeacherTabs.MIS_DATOS) {
 
             MisDatosScreen(
-                onEnviar = {
-                    scope.launch {
-                        snackbarHostState.showSnackbar(
-                            "Envío simulado. No se transmitieron datos al mentor."
-                        )
-                    }
+                onCambiarUsuario = onCambiarUsuario,
+                onAbrirGrupo = { grupo ->
+                    val area = if (grupo.area == AreaMateria.MATEMATICAS) 0 else 1
+                    gruposViewModel.onTabSelected(area)
+                    subPantallaGrupos = SubPantallaGrupos.Editar(grupo.id, area)
                 },
+                onAbrirAsistencia = { onAccionClick(ActionItem(ACCION_ASISTENCIA, "")) },
+                onGestionarEstudiantes = onGestionarEstudiantes,
 
                 modifier = Modifier
                     .fillMaxSize()
@@ -447,134 +466,38 @@ fun TeacherHomeScreen(
             )
 
         } else {
-
+            // Hoy reúne los accesos del docente, igual que hoy_view en Flutter. El avance de
+            // Lectura y Matemáticas vive ahora en la pantalla de Evaluación formativa.
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .verticalScroll(
-                        rememberScrollState()
-                    )
-                    .padding(horizontal = 20.dp)
-                    .padding(
-                        top = 20.dp,
-                        bottom = 20.dp
-                    )
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 20.dp, top = 24.dp, end = 20.dp, bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-
-                Text(
-                    text = tituloHoy,
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Bold,
-                    color =
-                        MaterialTheme.colorScheme.onBackground
-                )
-
-                Spacer(
-                    modifier = Modifier.height(4.dp)
-                )
-
-                Text(
-                    text = subtituloHoy,
-                    fontSize = 14.sp,
-                    color =
-                        MaterialTheme.colorScheme
-                            .onSurfaceVariant
-                )
-
-                Spacer(
-                    modifier = Modifier.height(12.dp)
-                )
-
+                EnadHeading("Hoy", modifier = Modifier.padding(bottom = 8.dp))
+                // SF #1: sugerencia de sede y grupo según ubicación y horario.
                 ContextoSesionCard(
                     estado = contextoState,
-                    onAceptar =
-                        contextoViewModel::aceptarSugerencia,
-                    onCambiar =
-                        contextoViewModel::cambiar,
-                    onElegir =
-                        contextoViewModel::elegir
+                    onAceptar = contextoViewModel::aceptarSugerencia,
+                    onCambiar = contextoViewModel::cambiar,
+                    onElegir = contextoViewModel::elegir
                 )
-
-                Spacer(
-                    modifier = Modifier.height(20.dp)
-                )
-
-                AperturasSemanaCard(
-                    aperturasState
-                )
-
-                Spacer(
-                    modifier = Modifier.height(14.dp)
-                )
-
-                val progresoActual = if (progresoState.cargado) {
-                    progresoState.materias.map {
-                        ProgressItem(
-                            title = it.titulo,
-                            percent = it.porcentaje,
-                            evaluatedText =
-                                "${it.evaluados} de ${it.total} estudiantes evaluados"
-                        )
-                    }
-                } else {
-                    progreso
-                }
-
-                progresoActual.forEach { item ->
-                    ProgressCard(
-                        item,
-                        onClick = {
-                            onProgresoClick(item)
-                        }
-                    )
-
-                    Spacer(
-                        modifier = Modifier.height(14.dp)
-                    )
-                }
-
-                acciones.forEach { accion ->
-
-                    ActionRow(accion) {
-
-                        when (accion.title) {
-
-                            "Planear actividades" -> {
-                                mostrarActividades = true
-                            }
-
-                            "Planear horas" -> {
-                                onTabSeleccionadoChange(
-                                    TeacherTabs.HORAS
-                                )
-                            }
-
-                            else -> {
-                                onAccionClick(accion)
-                            }
-                        }
-                    }
-
-                    Spacer(
-                        modifier = Modifier.height(12.dp)
-                    )
-                }
-
-                Spacer(
-                    modifier = Modifier.height(8.dp)
-                )
-
-                Text(
-                    text =
-                        "Sesión de demostración · " +
-                                "Los cambios se reinician al cambiar " +
-                                "de usuario o cerrar la app.",
-                    fontSize = 12.sp,
-                    color =
-                        MaterialTheme.colorScheme
-                            .onSurfaceVariant
-                )
+                // BQ #6: aperturas de la app en la semana.
+                AperturasSemanaCard(aperturasState)
+                EnadActionCard("Reportar horas", Icons.Outlined.AccessTime, onClick = {
+                    onTabSeleccionadoChange(TeacherTabs.HORAS)
+                })
+                EnadActionCard("Reportar asistencia", Icons.Outlined.FactCheck, onClick = {
+                    onAccionClick(ActionItem(ACCION_ASISTENCIA, ""))
+                })
+                EnadActionCard("Evaluación formativa", Icons.Outlined.Assessment, onClick = {
+                    onAccionClick(ActionItem(ACCION_EVALUACION, ""))
+                })
+                EnadActionCard("Planear actividades", Icons.AutoMirrored.Outlined.MenuBook, onClick = {
+                    mostrarActividades = true
+                })
             }
         }
     }
@@ -586,77 +509,7 @@ fun TeacherTopBar(
     onCambiarUsuario: () -> Unit,
     portalLabel: String = "Portal\ndocente"
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(EnadHeader)
-            .windowInsetsPadding(
-                WindowInsets.statusBars
-            )
-            .padding(
-                horizontal = 16.dp,
-                vertical = 14.dp
-            ),
-
-        horizontalArrangement =
-            Arrangement.spacedBy(12.dp),
-
-        verticalAlignment =
-            Alignment.CenterVertically
-    ) {
-
-        Column {
-            Text(
-                text = "ENAd",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-
-            Text(
-                text = "Móvil",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-        }
-
-        Text(
-            text = portalLabel,
-            fontSize = 11.sp,
-            color = Color(0xFFCFC7BB)
-        )
-
-        Text(
-            text = profesorNombre,
-            fontSize = 13.sp,
-            color = Color.White,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
-
-        Box(
-            modifier = Modifier
-                .background(
-                    EnadHeaderChip,
-                    RoundedCornerShape(8.dp)
-                )
-                .clickable(
-                    onClick = onCambiarUsuario
-                )
-                .padding(
-                    horizontal = 10.dp,
-                    vertical = 8.dp
-                )
-        ) {
-            Text(
-                text = "Cambiar\nusuario",
-                fontSize = 11.sp,
-                color = Color.White
-            )
-        }
-    }
+    EnadTopBar(nombre = profesorNombre, onCambiarUsuario = onCambiarUsuario, portalLabel = portalLabel)
 }
 
 @Composable
@@ -811,57 +664,11 @@ private fun TeacherBottomBar(
     tabs: List<BottomTab>,
     onTabClick: (BottomTab) -> Unit
 ) {
-    NavigationBar(
-        containerColor =
-            MaterialTheme.colorScheme.surface
-    ) {
-
-        tabs.forEach { tab ->
-
-            NavigationBarItem(
-                selected = tab.selected,
-
-                onClick = {
-                    onTabClick(tab)
-                },
-
-                icon = {
-                    Icon(
-                        imageVector = tab.icon,
-                        contentDescription =
-                            tab.label
-                    )
-                },
-
-                label = {
-                    Text(
-                        text = tab.label,
-                        fontSize = 11.sp
-                    )
-                },
-
-                colors =
-                    NavigationBarItemDefaults.colors(
-                        selectedIconColor =
-                            MaterialTheme.colorScheme.primary,
-
-                        selectedTextColor =
-                            MaterialTheme.colorScheme.primary,
-
-                        unselectedIconColor =
-                            MaterialTheme.colorScheme
-                                .onSurfaceVariant,
-
-                        unselectedTextColor =
-                            MaterialTheme.colorScheme
-                                .onSurfaceVariant,
-
-                        indicatorColor =
-                            Color.Transparent
-                    )
-            )
-        }
-    }
+    EnadBottomBar(
+        items = TeacherNavItems,
+        seleccionado = tabs.indexOfFirst { it.selected },
+        onSeleccionar = { i -> tabs.getOrNull(i)?.let(onTabClick) }
+    )
 }
 
 @Preview(showBackground = true)
