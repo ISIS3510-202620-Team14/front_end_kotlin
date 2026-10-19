@@ -32,6 +32,10 @@ class AsistenciaRepository(context: Context) {
     fun observarSemana(desde: String, hasta: String): Flow<List<AsistenciaEntity>> = asistencias.observarRango(desde, hasta)
     fun observarPendientes(uid: String): Flow<Int> = asistencias.contarPendientes(uid)
 
+    /** Marcas que siguen sin subir, contadas por fecha (Mis datos · Asistencia por enviar). */
+    suspend fun pendientesPorFecha(uid: String): Map<String, Int> =
+        asistencias.pendientes(uid).groupingBy { it.fecha }.eachCount().toSortedMap()
+
     // ---------- Escritura local (siempre funciona, con o sin internet) ----------
 
     suspend fun marcar(estudianteId: String, fecha: String, estado: String, uid: String) {
