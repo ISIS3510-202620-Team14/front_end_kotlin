@@ -1,184 +1,111 @@
 package com.enad.enadmovil.ui.screens.admin
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.School
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.School
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.enad.enadmovil.ui.screens.teacher.TeacherTopBar
-import com.enad.enadmovil.ui.theme.EnadMovilTheme
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.enad.enadmovil.ui.components.EnadBottomBar
+import com.enad.enadmovil.ui.components.EnadHeading
+import com.enad.enadmovil.ui.components.EnadNavItem
+import com.enad.enadmovil.ui.components.EnadTopBar
+import com.enad.enadmovil.ui.theme.EnadBackground
+import com.enad.enadmovil.ui.theme.EnadPrimary
 
-// Pantalla puramente visual (sin datos reales todavía). Reutiliza la misma
-// pestaña "Resumen / Instituciones / Reportes" tanto para Admin como para
-// Voluntario mientras esos dos roles compartan el mismo layout.
-data class AdminTab(val label: String, val icon: ImageVector)
-
-private val ADMIN_TABS = listOf(
-    AdminTab("Resumen", Icons.Filled.GridView),
-    AdminTab("Instituciones", Icons.Filled.School),
-    AdminTab("Reportes", Icons.Filled.Description)
+// Portal admin, igual al de Flutter: Resumen, Instituciones y Reportes.
+private val AdminNavItems = listOf(
+    EnadNavItem("Resumen", Icons.Outlined.GridView),
+    EnadNavItem("Instituciones", Icons.Outlined.School),
+    EnadNavItem("Reportes", Icons.Outlined.Description),
 )
+private const val TAB_RESUMEN = 0
+private const val TAB_INSTITUCIONES = 1
+private const val TAB_REPORTES = 2
 
-// Reportes de la pestaña "Reportes": BQ tipo 1 (sincronización) y BQ #9 (tiempo de clasificación).
-private const val REPORTE_CLASIFICACION = "Clasificación"
-private val REPORTES = listOf("Sincronización", REPORTE_CLASIFICACION)
+// Reportes de la pestaña "Reportes", en el mismo orden que en Flutter.
+internal const val REPORTE_APERTURAS = 0
+internal const val REPORTE_SINCRONIZACION = 1
+internal const val REPORTE_CLASIFICACION = 2
+internal const val REPORTE_HORAS = 3
+internal const val REPORTE_ACTIVIDADES = 4
+private val REPORTES = listOf("Uso semanal", "Sincronización", "Clasificación", "Horas", "Actividades")
 
 @Composable
 fun AdminHomeScreen(
-    nombreUsuario: String = "Sofía",
+    nombreUsuario: String = "",
     portalLabel: String = "Portal\nadmin",
     onCambiarUsuario: () -> Unit = {},
-    onVerCatalogoAlianzas: () -> Unit = {}
+    onVerCatalogoAlianzas: (() -> Unit)? = null,
+    viewModel: AdminViewModel = viewModel()
 ) {
-    var tabSeleccionada by remember { mutableStateOf(ADMIN_TABS.first().label) }
-    var reporteSeleccionado by remember { mutableStateOf(REPORTES.first()) }
+    val estado by viewModel.uiState.collectAsStateWithLifecycle()
+    var tab by rememberSaveable { mutableIntStateOf(TAB_RESUMEN) }
+    var reporte by rememberSaveable { mutableIntStateOf(REPORTE_APERTURAS) }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = { TeacherTopBar(nombreUsuario, onCambiarUsuario, portalLabel = portalLabel) },
-        bottomBar = {
-            AdminBottomBar(
-                tabs = ADMIN_TABS,
-                selected = tabSeleccionada,
-                onTabClick = { tabSeleccionada = it.label }
-            )
-        }
+        containerColor = EnadBackground,
+        topBar = { EnadTopBar(nombreUsuario.ifBlank { "Administrador" }, onCambiarUsuario, portalLabel = portalLabel) },
+        bottomBar = { EnadBottomBar(AdminNavItems, tab) { tab = it } }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 20.dp)
-                .padding(top = 20.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = "Panel de administración",
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Fundación ENAd",
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = "Ver catálogo de alianzas",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable(onClick = onVerCatalogoAlianzas)
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            if (tabSeleccionada == "Reportes") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    REPORTES.forEach { reporte ->
-                        FilterChip(
-                            selected = reporteSeleccionado == reporte,
-                            onClick = { reporteSeleccionado = reporte },
-                            label = { Text(reporte) }
-                        )
+            Column {
+                EnadHeading(AdminNavItems[tab].label)
+                Text("Fundación ENAd", style = MaterialTheme.typography.bodyMedium)
+            }
+            when (tab) {
+                TAB_RESUMEN -> {
+                    AdminResumenSection(
+                        estado = estado,
+                        onAbrirReporte = { reporte = it; tab = TAB_REPORTES },
+                        onAbrirInstituciones = { tab = TAB_INSTITUCIONES }
+                    )
+                    if (onVerCatalogoAlianzas != null) {
+                        TextButton(onClick = onVerCatalogoAlianzas) {
+                            Text("Ver catálogo de alianzas", style = MaterialTheme.typography.labelMedium, color = EnadPrimary)
+                        }
                     }
                 }
-                Spacer(modifier = Modifier.height(12.dp))
-                if (reporteSeleccionado == REPORTE_CLASIFICACION) {
-                    ReporteClasificacionSection(modifier = Modifier.weight(1f))
-                } else {
-                    ReporteSincronizacionSection(modifier = Modifier.weight(1f))
-                }
-            } else {
-                AdminSectionPlaceholder(tabSeleccionada)
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "Sesión de demostración · Contenido de ejemplo, sin datos reales todavía.",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                TAB_INSTITUCIONES -> AdminInstitucionesSection(
+                    estado = estado,
+                    onBuscar = viewModel::buscar,
+                    onAlternarDocentes = viewModel::alternarDocentes
                 )
+                else -> {
+                    AdminChips(REPORTES, reporte, onSeleccionar = { reporte = it })
+                    when (reporte) {
+                        REPORTE_APERTURAS -> ReporteAperturasSection(estado, viewModel::cambiarSemanaAperturas, viewModel::cargarAperturas)
+                        REPORTE_SINCRONIZACION -> ReporteSincronizacionSection()
+                        REPORTE_CLASIFICACION -> ReporteClasificacionSection()
+                        REPORTE_HORAS -> ReporteHorasSection(estado, viewModel::cargarHoras)
+                        else -> ReporteActividadesSection(estado, viewModel::cargarActividades)
+                    }
+                }
             }
         }
-    }
-}
-
-@Composable
-private fun AdminSectionPlaceholder(tab: String) {
-    val (titulo, subtitulo) = when (tab) {
-        "Resumen" -> "Resumen general" to "Aquí irán las métricas globales de la fundación."
-        "Instituciones" -> "Instituciones aliadas" to "Aquí irá el listado de instituciones registradas."
-        else -> "Reportes" to "Aquí irán los reportes generados por la fundación."
-    }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
-            .padding(18.dp)
-    ) {
-        Text(
-            text = titulo,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(text = subtitulo, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun AdminBottomBar(tabs: List<AdminTab>, selected: String, onTabClick: (AdminTab) -> Unit) {
-    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-        tabs.forEach { tab ->
-            NavigationBarItem(
-                selected = tab.label == selected,
-                onClick = { onTabClick(tab) },
-                icon = { Icon(imageVector = tab.icon, contentDescription = tab.label) },
-                label = { Text(text = tab.label, fontSize = 11.sp) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    indicatorColor = Color.Transparent
-                )
-            )
-        }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun AdminHomeScreenPreview() {
-    EnadMovilTheme {
-        AdminHomeScreen()
     }
 }

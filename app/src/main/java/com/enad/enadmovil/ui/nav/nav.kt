@@ -200,6 +200,7 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
 
         composable(Routes.ADMIN_HOME) {
             AdminHomeScreen(
+                nombreUsuario = nombreUsuario,
                 onCambiarUsuario = { volverALogin(navController) }
             )
         }
