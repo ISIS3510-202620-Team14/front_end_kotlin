@@ -7,6 +7,7 @@ import com.enad.enadmovil.data.local.entity.EstadoRemoto
 import com.enad.enadmovil.data.local.entity.EstudianteEntity
 import com.enad.enadmovil.data.repository.AsistenciaRepository
 import com.enad.enadmovil.data.repository.AuthRepository
+import com.enad.enadmovil.data.sync.ControlSincronizacion
 import com.enad.enadmovil.data.sync.SyncScheduler
 import com.enad.enadmovil.domain.model.EstudianteEscaneado
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -114,6 +115,10 @@ class AsistenciaViewModel(app: Application) : AndroidViewModel(app) {
                 refrescar()
             }
         }
+        // Si una sincronización en segundo plano encontró marcas de otro celular, se avisa aquí.
+        viewModelScope.launch {
+            pendientesFlow.collect { ControlSincronizacion.tomarAviso(contexto)?.let { avisar(it) } }
+        }
     }
 
     private fun refrescar() {
@@ -136,8 +141,24 @@ class AsistenciaViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { repo.limpiarDia(ids, filtros.value.fecha, uid) }
     }
 
-    /** Todo ya está guardado en el teléfono; esto solo pide subirlo ahora (o en cuanto haya internet). */
-    fun guardar() = SyncScheduler.programar(contexto)
+    /**
+     * Todo ya está guardado en el teléfono; esto intenta subirlo ya. Si otra sincronización de este
+     * celular tiene el turno (semáforo), o si otro celular registró primero, se le avisa al docente.
+     */
+    fun guardar() {
+        viewModelScope.launch {
+            when (val r = repo.sincronizarAhora()) {
+                AsistenciaRepository.ResultadoSync.Ocupado -> {
+                    avisar("Este celular ya está enviando la asistencia. Se terminará de enviar sola en un momento.")
+                    SyncScheduler.programar(contexto)
+                }
+                is AsistenciaRepository.ResultadoSync.Terminado -> {
+                    r.aviso?.let { avisar(it) }
+                    if (r.quedanPendientes) SyncScheduler.programar(contexto) // sin internet: queda en cola
+                }
+            }
+        }
+    }
 
     fun importar(filas: List<EstudianteEscaneado>) {
         val sid = schoolId.value ?: return avisar("Tu cuenta no tiene colegio asignado.")

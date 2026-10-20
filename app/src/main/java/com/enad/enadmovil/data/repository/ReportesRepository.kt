@@ -17,6 +17,24 @@ class ReportesRepository(
     suspend fun tiempoClasificacion(materia: String?): List<CloudFunctionsApi.InstitucionClasificacion> =
         CloudFunctionsApi.reporteClasificacion(token(), materia)
 
+    /** BQ #6: docentes que abrieron la app más de una vez en la semana (lunes yyyy-MM-dd; null = la actual). */
+    suspend fun aperturas(semana: String?): CloudFunctionsApi.ReporteAperturas =
+        CloudFunctionsApi.reporteAperturas(token(), semana)
+
+    /** Horas planeadas y realizadas por semana, y cuántos días se aceptó la sugerencia. */
+    suspend fun horas(): List<CloudFunctionsApi.SemanaHoras> =
+        CloudFunctionsApi.reporteHoras(token())
+
+    /** BQ #11: actividades más elegidas. */
+    suspend fun topActividades(): CloudFunctionsApi.TopActividades =
+        CloudFunctionsApi.topActividades(token())
+
+    suspend fun instituciones(busqueda: String = ""): List<CloudFunctionsApi.EscuelaAdmin> =
+        CloudFunctionsApi.institucionesAdmin(token(), busqueda)
+
+    suspend fun docentes(schoolId: String): List<CloudFunctionsApi.DocenteAdmin> =
+        CloudFunctionsApi.docentesDeEscuela(token(), schoolId)
+
     private suspend fun token(): String =
         auth.obtenerToken()
             ?: throw CloudFunctionsApi.ApiException("unauthenticated", "Inicia sesión de nuevo para ver el reporte.", 401)

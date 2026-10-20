@@ -33,6 +33,7 @@ object CloudFunctionsApi {
     private val GROUPS_URL = "$BASE_URL/groups"
     private val HOURS_URL = "$BASE_URL/workedHours"
     private val ANALYTICS_URL = "$BASE_URL/analytics"
+    private val TEACHERS_URL = "$BASE_URL/teachers"
 
 
     data class RespuestaAuth(
@@ -551,6 +552,106 @@ object CloudFunctionsApi {
         }
     }
 
+
+    // ---------- Portal admin ----------
+
+    data class SemanaHoras(
+        val semana: String,
+        val dias: Int,
+        val docentes: Int,
+        val planeadas: Double,
+        val realizadas: Double,
+        val sugeridas: Int,
+        val manuales: Int,
+        val porcentajeSugeridas: Double,
+        val conMotivo: Int
+    )
+
+    /** GET /workedHours/report (solo admin): horas planeadas y realizadas por semana. */
+    suspend fun reporteHoras(token: String, semanas: Int = 8): List<SemanaHoras> {
+        val arreglo = solicitar("GET", "/report?weeks=$semanas", token, null, HOURS_URL).optJSONArray("summary") ?: JSONArray()
+        return List(arreglo.length()) {
+            val o = arreglo.getJSONObject(it)
+            SemanaHoras(
+                semana = o.getString("week"),
+                dias = o.optInt("days"),
+                docentes = o.optInt("teachers"),
+                planeadas = o.optDouble("plannedHours", 0.0),
+                realizadas = o.optDouble("workedHours", 0.0),
+                sugeridas = o.optInt("suggested"),
+                manuales = o.optInt("manual"),
+                porcentajeSugeridas = o.optDouble("suggestedShare", 0.0),
+                conMotivo = o.optInt("withReason")
+            )
+        }
+    }
+
+    data class ActividadUso(val titulo: String, val materia: String?, val veces: Int, val porcentaje: Double?)
+    data class TopActividades(val total: Int, val actividades: List<ActividadUso>)
+
+    /** GET /analytics/top-activities (solo admin), BQ #11: actividades más elegidas por los docentes. */
+    suspend fun topActividades(token: String): TopActividades {
+        val json = solicitar("GET", "/top-activities", token, null, ANALYTICS_URL)
+        val arreglo = json.optJSONArray("activities") ?: JSONArray()
+        return TopActividades(
+            total = json.optInt("total"),
+            actividades = List(arreglo.length()) {
+                val o = arreglo.getJSONObject(it)
+                ActividadUso(
+                    titulo = o.getString("title"),
+                    materia = if (o.isNull("subject")) null else o.optString("subject"),
+                    veces = o.optInt("count"),
+                    porcentaje = if (o.isNull("percentage")) null else o.optDouble("percentage")
+                )
+            }
+        )
+    }
+
+    data class EscuelaAdmin(
+        val id: String,
+        val nombre: String,
+        val municipio: String?,
+        val departamento: String?,
+        val zona: String?,
+        val etapa: String?,
+        val sedes: List<String>
+    )
+
+    /** GET /schools?q= : al admin le llegan todas las instituciones activas. */
+    suspend fun institucionesAdmin(token: String, busqueda: String = ""): List<EscuelaAdmin> {
+        val ruta = if (busqueda.isBlank()) "" else "?q=${URLEncoder.encode(busqueda.trim(), "UTF-8")}"
+        val arreglo = solicitar("GET", ruta, token, null, SCHOOLS_URL).optJSONArray("schools") ?: JSONArray()
+        fun texto(o: JSONObject, campo: String) = if (o.isNull(campo)) null else o.optString(campo).ifBlank { null }
+        return List(arreglo.length()) {
+            val o = arreglo.getJSONObject(it)
+            val sedes = o.optJSONArray("campuses") ?: JSONArray()
+            EscuelaAdmin(
+                id = o.getString("id"),
+                nombre = o.getString("name"),
+                municipio = texto(o, "municipality"),
+                departamento = texto(o, "department"),
+                zona = texto(o, "zone"),
+                etapa = texto(o, "enadStage"),
+                sedes = List(sedes.length()) { j -> sedes.getJSONObject(j).optString("name") }
+            )
+        }
+    }
+
+    data class DocenteAdmin(val id: String, val nombre: String?, val correo: String?)
+
+    /** GET /teachers/school/{id}: docentes de una institución. */
+    suspend fun docentesDeEscuela(token: String, schoolId: String): List<DocenteAdmin> {
+        val ruta = "/school/${URLEncoder.encode(schoolId, "UTF-8")}"
+        val arreglo = solicitar("GET", ruta, token, null, TEACHERS_URL).optJSONArray("teachers") ?: JSONArray()
+        return List(arreglo.length()) {
+            val o = arreglo.getJSONObject(it)
+            DocenteAdmin(
+                id = o.getString("id"),
+                nombre = if (o.isNull("fullName")) null else o.optString("fullName").ifBlank { null },
+                correo = if (o.isNull("email")) null else o.optString("email").ifBlank { null }
+            )
+        }
+    }
 
     private suspend fun solicitar(metodo: String, ruta: String, token: String, cuerpo: JSONObject?, base: String = STUDENTS_URL): JSONObject =
         withContext(Dispatchers.IO) {
