@@ -98,11 +98,11 @@ fun AdminHomeScreen(
                 else -> {
                     AdminChips(REPORTES, reporte, onSeleccionar = { reporte = it })
                     when (reporte) {
-                        REPORTE_APERTURAS -> ReporteAperturasSection(estado, viewModel::cambiarSemanaAperturas, viewModel::cargarAperturas)
+                        REPORTE_APERTURAS -> ReporteAperturasSection(estado, viewModel::cambiarSemanaAperturas, viewModel::actualizarAperturas)
                         REPORTE_SINCRONIZACION -> ReporteSincronizacionSection()
                         REPORTE_CLASIFICACION -> ReporteClasificacionSection()
-                        REPORTE_HORAS -> ReporteHorasSection(estado, viewModel::cargarHoras)
-                        else -> ReporteActividadesSection(estado, viewModel::cargarActividades)
+                        REPORTE_HORAS -> ReporteHorasSection(estado, viewModel::actualizarHoras)
+                        else -> ReporteActividadesSection(estado, viewModel::actualizarActividades)
                     }
                 }
             }

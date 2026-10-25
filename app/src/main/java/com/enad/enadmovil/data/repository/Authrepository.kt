@@ -13,6 +13,7 @@ class AuthRepository {
 
     /** Abre la sesión de Firebase Auth en el cliente con el customToken que emitió el backend. */
     suspend fun abrirSesion(customToken: String) {
+        ReportesRepository.limpiarCache()
         FirebaseModule.auth.signInWithCustomToken(customToken).await()
     }
 
@@ -21,6 +22,7 @@ class AuthRepository {
         CloudFunctionsApi.institucionesRegistro()
 
     fun cerrarSesion() {
+        ReportesRepository.limpiarCache()
         FirebaseModule.auth.signOut()
     }
 

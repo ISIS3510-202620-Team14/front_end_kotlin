@@ -27,11 +27,11 @@ class ReporteSincronizacionViewModel(
         cargar()
     }
 
-    fun cargar() {
+    fun cargar(forzar: Boolean = false) {
         _uiState.value = ReporteUiState(cargando = true)
         viewModelScope.launch {
             _uiState.value = try {
-                ReporteUiState(cargando = false, reporte = repo.sincronizacionAgrupaciones())
+                ReporteUiState(cargando = false, reporte = repo.sincronizacionAgrupaciones(forzar))
             } catch (e: CloudFunctionsApi.ApiException) {
                 val mensaje = if (e.status == 403) "Solo un administrador puede ver este reporte." else e.message
                 ReporteUiState(cargando = false, error = mensaje)
@@ -40,4 +40,5 @@ class ReporteSincronizacionViewModel(
             }
         }
     }
+    fun actualizar() = cargar(forzar = true)
 }

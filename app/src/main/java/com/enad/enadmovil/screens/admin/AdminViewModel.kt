@@ -59,11 +59,11 @@ class AdminViewModel(
         cargarInstituciones()
     }
 
-    fun cargarAperturas() {
+    fun cargarAperturas(forzar: Boolean = false) {
         val semana = _uiState.value.semanaAperturas
         _uiState.update { it.copy(aperturas = Carga.Cargando) }
         viewModelScope.launch {
-            val resultado = consultar { repo.aperturas(semana.toString()) }
+            val resultado = consultar { repo.aperturas(semana.toString(), forzar) }
             // Si el admin cambió de semana mientras cargaba, esta respuesta ya no aplica
             if (_uiState.value.semanaAperturas == semana) _uiState.update { it.copy(aperturas = resultado) }
         }
@@ -76,18 +76,18 @@ class AdminViewModel(
         cargarAperturas()
     }
 
-    fun cargarHoras() {
+    fun cargarHoras(forzar: Boolean= false) {
         _uiState.update { it.copy(horas = Carga.Cargando) }
         viewModelScope.launch {
-            val resultado = consultar { repo.horas().sortedByDescending { s -> s.semana } }
+            val resultado = consultar { repo.horas(forzar).sortedByDescending { s -> s.semana } }
             _uiState.update { it.copy(horas = resultado) }
         }
     }
 
-    fun cargarActividades() {
+    fun cargarActividades(forzar: Boolean = false) {
         _uiState.update { it.copy(actividades = Carga.Cargando) }
         viewModelScope.launch {
-            val resultado = consultar { repo.topActividades() }
+            val resultado = consultar { repo.topActividades(forzar) }
             _uiState.update { it.copy(actividades = resultado) }
         }
     }
@@ -101,11 +101,11 @@ class AdminViewModel(
         }
     }
 
-    fun cargarInstituciones() {
+    fun cargarInstituciones(forzar: Boolean = false) {
         val busqueda = _uiState.value.busqueda
         _uiState.update { it.copy(instituciones = Carga.Cargando) }
         viewModelScope.launch {
-            val resultado = consultar { repo.instituciones(busqueda) }
+            val resultado = consultar { repo.instituciones(busqueda, forzar) }
             if (_uiState.value.busqueda == busqueda) _uiState.update { it.copy(instituciones = resultado) }
         }
     }
@@ -125,6 +125,9 @@ class AdminViewModel(
             }
         }
     }
+    fun actualizarAperturas() = cargarAperturas(forzar = true)
+    fun actualizarHoras() = cargarHoras(forzar = true)
+    fun actualizarActividades() = cargarActividades(forzar = true)
 
     private suspend fun <T> consultar(bloque: suspend () -> T): Carga<T> =
         try {
