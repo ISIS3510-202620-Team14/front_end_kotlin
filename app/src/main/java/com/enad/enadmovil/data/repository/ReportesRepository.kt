@@ -1,6 +1,7 @@
 package com.enad.enadmovil.data.repository
 
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
+import com.enad.enadmovil.data.cache.CacheMemoria
 
 /**
  * Repository de los reportes del admin (pestaña Reportes). Los endpoints exigen rol admin:
@@ -9,31 +10,41 @@ import com.enad.enadmovil.data.remote.CloudFunctionsApi
 class ReportesRepository(
     private val auth: AuthRepository = AuthRepository()
 ) {
+
+    companion object {
+        private const val MAX_ENTRADAS = 32
+        private const val tiempoDeVidaMs = 5 * 60 * 1000L
+
+        private val cache = CacheMemoria(MAX_ENTRADAS, tiempoDeVidaMs, "reportes")
+
+        fun limpiarCache() = cache.limpiar()
+    }
     /** BQ tipo 1: sesiones de agrupación que no se sincronizaron en 24 h. */
-    suspend fun sincronizacionAgrupaciones(): CloudFunctionsApi.ReporteSincronizacion =
-        CloudFunctionsApi.reporteSesionesAgrupacion(token())
+    suspend fun sincronizacionAgrupaciones(forzar: Boolean = false): CloudFunctionsApi.ReporteSincronizacion =
+        cache.obtenerOCargar("sincronización", forzar) { CloudFunctionsApi.reporteSesionesAgrupacion(token()) }
 
     /** BQ #9: minutos por cada 25 estudiantes, por institución y docente. null = las dos materias. */
-    suspend fun tiempoClasificacion(materia: String?): List<CloudFunctionsApi.InstitucionClasificacion> =
-        CloudFunctionsApi.reporteClasificacion(token(), materia)
+    suspend fun tiempoClasificacion(materia: String?, forzar: Boolean = false): List<CloudFunctionsApi.InstitucionClasificacion> =
+        cache.obtenerOCargar("clasificacion:${materia ?: "todas"}", forzar) { CloudFunctionsApi.reporteClasificacion(token(), materia) }
 
     /** BQ #6: docentes que abrieron la app más de una vez en la semana (lunes yyyy-MM-dd; null = la actual). */
-    suspend fun aperturas(semana: String?): CloudFunctionsApi.ReporteAperturas =
-        CloudFunctionsApi.reporteAperturas(token(), semana)
+    suspend fun aperturas(semana: String?, forzar: Boolean = false): CloudFunctionsApi.ReporteAperturas =
+        cache.obtenerOCargar(clave = "aperturas:${semana ?: "actual"}",
+            forzar = forzar, vence = { it.provisional }) { CloudFunctionsApi.reporteAperturas(token(), semana) }
 
     /** Horas planeadas y realizadas por semana, y cuántos días se aceptó la sugerencia. */
-    suspend fun horas(): List<CloudFunctionsApi.SemanaHoras> =
-        CloudFunctionsApi.reporteHoras(token())
+    suspend fun horas(forzar: Boolean = false): List<CloudFunctionsApi.SemanaHoras> =
+        cache.obtenerOCargar("horas", forzar) { CloudFunctionsApi.reporteHoras(token()) }
 
     /** BQ #11: actividades más elegidas. */
-    suspend fun topActividades(): CloudFunctionsApi.TopActividades =
-        CloudFunctionsApi.topActividades(token())
+    suspend fun topActividades(forzar: Boolean = false): CloudFunctionsApi.TopActividades =
+        cache.obtenerOCargar("actividades", forzar) { CloudFunctionsApi.topActividades(token()) }
 
-    suspend fun instituciones(busqueda: String = ""): List<CloudFunctionsApi.EscuelaAdmin> =
-        CloudFunctionsApi.institucionesAdmin(token(), busqueda)
+    suspend fun instituciones(busqueda: String = "", forzar: Boolean = false): List<CloudFunctionsApi.EscuelaAdmin> =
+        cache.obtenerOCargar("instituciones:$busqueda", forzar) { CloudFunctionsApi.institucionesAdmin(token(), busqueda) }
 
-    suspend fun docentes(schoolId: String): List<CloudFunctionsApi.DocenteAdmin> =
-        CloudFunctionsApi.docentesDeEscuela(token(), schoolId)
+    suspend fun docentes(schoolId: String, forzar: Boolean = false): List<CloudFunctionsApi.DocenteAdmin> =
+        cache.obtenerOCargar("docentes:$schoolId", forzar) { CloudFunctionsApi.docentesDeEscuela(token(), schoolId) }
 
     private suspend fun token(): String =
         auth.obtenerToken()
