@@ -35,7 +35,7 @@ fun ReporteSincronizacionSection(viewModel: ReporteSincronizacionViewModel = vie
             titulo = "Sincronización de agrupaciones",
             descripcion = "Sesiones que no llegaron al servidor en 24 h o terminaron en error (últimas 8 semanas).",
             cargando = estado.cargando,
-            onActualizar = viewModel::cargar
+            onActualizar = viewModel::actualizar
         )
         val carga: Carga<CloudFunctionsApi.ReporteSincronizacion?> = when {
             estado.cargando -> Carga.Cargando

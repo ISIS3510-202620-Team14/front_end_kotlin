@@ -62,7 +62,7 @@ class ReporteClasificacionViewModel(
         cargar()
     }
 
-    fun cargar() {
+    fun cargar(forzar: Boolean = false) {
         val materia = _uiState.value.materia
         _uiState.update { it.copy(cargando = true, error = null) }
         viewModelScope.launch {
@@ -70,7 +70,7 @@ class ReporteClasificacionViewModel(
                 ReporteClasificacionUiState(
                     cargando = false,
                     materia = materia,
-                    instituciones = repo.tiempoClasificacion(materia)
+                    instituciones = repo.tiempoClasificacion(materia, forzar)
                 )
             } catch (e: CloudFunctionsApi.ApiException) {
                 val mensaje = when (e.status) {
@@ -86,6 +86,8 @@ class ReporteClasificacionViewModel(
             if (_uiState.value.materia == materia) _uiState.value = nuevo
         }
     }
+
+    fun actualizar() = cargar(forzar = true)
 }
 
 @Composable
@@ -97,7 +99,7 @@ fun ReporteClasificacionSection(viewModel: ReporteClasificacionViewModel = viewM
             titulo = "Tiempo de clasificación",
             descripcion = "Minutos que tarda cada docente en clasificar 25 estudiantes (últimas 8 semanas).",
             cargando = estado.cargando,
-            onActualizar = viewModel::cargar
+            onActualizar = viewModel::actualizar
         )
         AdminChips(
             opciones = MATERIAS_REPORTE.map { it.second },
