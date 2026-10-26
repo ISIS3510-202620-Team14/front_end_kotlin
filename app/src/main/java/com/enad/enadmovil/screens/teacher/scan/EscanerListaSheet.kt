@@ -54,6 +54,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.enad.enadmovil.domain.model.EstudianteEscaneado
+import com.enad.enadmovil.domain.parser.FusionFilas
 import com.enad.enadmovil.ui.components.enadFieldColors
 import com.enad.enadmovil.ui.theme.ControlShape
 import com.enad.enadmovil.ui.theme.EnadBackground
@@ -83,7 +84,7 @@ fun EscanerListaSheet(
 
     LaunchedEffect(estado.filas) {
         if (estado.filas.isNotEmpty()) {
-            filas.addAll(estado.filas)
+            filas.addAll(FusionFilas.nuevas(filas, estado.filas))
             scanViewModel.tomarFilas()
         }
     }
