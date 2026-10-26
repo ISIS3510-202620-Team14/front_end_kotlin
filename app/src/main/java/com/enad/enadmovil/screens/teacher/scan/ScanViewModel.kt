@@ -6,7 +6,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.enad.enadmovil.data.ocr.HilosOcr
 import com.enad.enadmovil.data.ocr.TextRecognizerDataSource
+import com.enad.enadmovil.domain.model.EstudianteEscaneado
 import com.enad.enadmovil.domain.parser.ListaAsistenciaParser
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,6 +18,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * Escáner de varias páginas. La cámara deja cada foto en una cola y un lector por hilo del
+ * pool las va tomando: si el docente toma tres fotos seguidas, dos se leen al mismo tiempo
+ * y la tercera espera a que se libere un hilo. Mientras tanto la cámara sigue disponible.
+ */
 class ScanViewModel(app: Application) : AndroidViewModel(app) {
 
     private val hilos = HilosOcr()
@@ -22,36 +31,17 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     val uiState: StateFlow<ScanUiState> = _uiState.asStateFlow()
     private var siguientePagina = 1
 
+    private var fotos = Channel<Foto>(Channel.UNLIMITED)
+    private var lectores = iniciarLectores()
+
+    private data class Foto(val numero: Int, val uri: Uri)
+
     fun onFotoCapturada(uri: Uri) {
         val numero = siguientePagina++
         _uiState.update {
-            it.copy(procesando = true, error = null, paginas = it.paginas + PaginaEscaneada(numero, EstadoPagina.Leyendo))
+            it.copy(procesando = true, error = null, paginas = it.paginas + PaginaEscaneada(numero, EstadoPagina.EnCola))
         }
-        viewModelScope.launch {
-            // El OCR y el armado de filas corren en los hilos del escáner; aquí solo vuelve el resultado
-            runCatching { withContext(hilos.dispatcher) { ListaAsistenciaParser.parsear(ocr.reconocer(uri)) } }
-                .onSuccess { filas ->
-                    _uiState.update {
-                        it.copy(
-                            procesando = false,
-                            filas = it.filas + filas,
-                            paginas = it.paginas.marcar(numero, EstadoPagina.Lista(filas.size)),
-                            error = if (filas.isEmpty()) {
-                                "No se detectó ninguna fila. Intenta con más luz y la lista de frente."
-                            } else null
-                        )
-                    }
-                }
-                .onFailure {
-                    _uiState.update {
-                        it.copy(
-                            procesando = false,
-                            paginas = it.paginas.marcar(numero, EstadoPagina.Fallo),
-                            error = "No se pudo leer la foto."
-                        )
-                    }
-                }
-        }
+        fotos.trySend(Foto(numero, uri))
     }
 
     /** El sheet ya copió las filas nuevas a su lista: se vacían para no sumarlas dos veces. */
@@ -60,8 +50,50 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun limpiar() {
+        // Lo que seguía en cola o leyéndose es de un escaneo que ya se cerró: se descarta
+        lectores.cancel()
+        fotos.cancel()
+        fotos = Channel(Channel.UNLIMITED)
+        lectores = iniciarLectores()
         siguientePagina = 1
         _uiState.value = ScanUiState()
+    }
+
+    private fun iniciarLectores(): Job {
+        val cola = fotos
+        return viewModelScope.launch {
+            repeat(hilos.cantidad) {
+                launch { for (foto in cola) leer(foto) }
+            }
+        }
+    }
+
+    /**
+     * Los lectores viven en el hilo principal y solo saltan al pool para el trabajo pesado.
+     * Así el estado siempre se cambia desde el mismo hilo y dos páginas no se pisan.
+     */
+    private suspend fun leer(foto: Foto) {
+        _uiState.update { it.copy(paginas = it.paginas.marcar(foto.numero, EstadoPagina.Leyendo)) }
+        val filas: List<EstudianteEscaneado>? = try {
+            withContext(hilos.dispatcher) { ListaAsistenciaParser.parsear(ocr.reconocer(foto.uri)) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null // una foto que falla no detiene las demás
+        }
+        _uiState.update {
+            val paginas = it.paginas.marcar(foto.numero, filas?.let { f -> EstadoPagina.Lista(f.size) } ?: EstadoPagina.Fallo)
+            it.copy(
+                paginas = paginas,
+                filas = it.filas + filas.orEmpty(),
+                procesando = paginas.any { p -> p.estado == EstadoPagina.EnCola || p.estado == EstadoPagina.Leyendo },
+                error = when {
+                    filas == null -> "No se pudo leer la página ${foto.numero}."
+                    filas.isEmpty() -> "La página ${foto.numero} no tiene filas legibles. Intenta con más luz y la lista de frente."
+                    else -> it.error
+                }
+            )
+        }
     }
 
     private fun List<PaginaEscaneada>.marcar(numero: Int, estado: EstadoPagina) =

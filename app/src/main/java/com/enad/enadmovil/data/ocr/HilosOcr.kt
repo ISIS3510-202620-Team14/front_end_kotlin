@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * de red. Con un pool fijo se leen varias páginas a la vez sin quitarle CPU a la cámara ni
  * a la interfaz.
  */
-class HilosOcr(hilos: Int = cantidadDeHilos()) : AutoCloseable {
+class HilosOcr(val cantidad: Int = cantidadDeHilos()) : AutoCloseable {
 
     private val contador = AtomicInteger(1)
 
@@ -25,7 +25,7 @@ class HilosOcr(hilos: Int = cantidadDeHilos()) : AutoCloseable {
     }
 
     val dispatcher: ExecutorCoroutineDispatcher =
-        Executors.newFixedThreadPool(hilos, fabrica).asCoroutineDispatcher()
+        Executors.newFixedThreadPool(cantidad, fabrica).asCoroutineDispatcher()
 
     override fun close() = dispatcher.close()
 
