@@ -32,11 +32,18 @@ data class AsistenciaUiState(
     val estudiantes: List<EstudianteAsistencia> = emptyList(),
     val roster: List<EstudianteSalon> = emptyList(),
     val pendientesSync: Int = 0,
+    /** Marcas que no se aplicaron porque otro celular registró primero (BQ tipo 2). */
+    val reemplazadas: List<ControlSincronizacion.MarcaReemplazada> = emptyList(),
     val mensaje: String? = null
 )
 
 private data class Filtros(val grado: Int?, val fecha: String)
-private data class Meta(val cargando: Boolean = true, val sinColegio: Boolean = false, val mensaje: String? = null)
+private data class Meta(
+    val cargando: Boolean = true,
+    val sinColegio: Boolean = false,
+    val mensaje: String? = null,
+    val reemplazadas: List<ControlSincronizacion.MarcaReemplazada> = emptyList()
+)
 
 /** Lunes a viernes de la semana actual, con su fecha real. */
 internal fun diasDeLaSemana(hoy: LocalDate = LocalDate.now()): List<DiaSemana> {
@@ -60,7 +67,7 @@ class AsistenciaViewModel(app: Application) : AndroidViewModel(app) {
     private val uid = auth.uidActual().orEmpty()
 
     private val schoolId = MutableStateFlow<String?>(null)
-    private val meta = MutableStateFlow(Meta())
+    private val meta = MutableStateFlow(Meta(reemplazadas = ControlSincronizacion.reemplazadas(app)))
     private val filtros = MutableStateFlow(
         Filtros(grado = null, fecha = diaInicial(diasDeLaSemana()).fecha.toString())
     )
@@ -99,6 +106,7 @@ class AsistenciaViewModel(app: Application) : AndroidViewModel(app) {
             },
             roster = alumnos.map { EstudianteSalon(it.id, it.fullName, it.grade?.let { g -> "Grado $g" } ?: "—") },
             pendientesSync = pendientes,
+            reemplazadas = m.reemplazadas,
             mensaje = m.mensaje
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AsistenciaUiState())
@@ -117,7 +125,10 @@ class AsistenciaViewModel(app: Application) : AndroidViewModel(app) {
         }
         // Si una sincronización en segundo plano encontró marcas de otro celular, se avisa aquí.
         viewModelScope.launch {
-            pendientesFlow.collect { ControlSincronizacion.tomarAviso(contexto)?.let { avisar(it) } }
+            pendientesFlow.collect {
+                releerReemplazadas()
+                ControlSincronizacion.tomarAviso(contexto)?.let { aviso -> avisar(aviso) }
+            }
         }
     }
 
@@ -153,6 +164,7 @@ class AsistenciaViewModel(app: Application) : AndroidViewModel(app) {
                     SyncScheduler.programar(contexto)
                 }
                 is AsistenciaRepository.ResultadoSync.Terminado -> {
+                    releerReemplazadas()
                     r.aviso?.let { avisar(it) }
                     if (r.quedanPendientes) SyncScheduler.programar(contexto) // sin internet: queda en cola
                 }
@@ -180,6 +192,15 @@ class AsistenciaViewModel(app: Application) : AndroidViewModel(app) {
             ?: return avisar("Elige un curso (Grado 3, 4 o 5) para crear el estudiante.")
         viewModelScope.launch { repo.crearInesperado(sid, uid, nombre, edad, grado, filtros.value.fecha) }
     }
+
+    /** El docente ya revisó una marca reemplazada: sale de la lista. */
+    fun revisarReemplazada(estudianteId: String, fecha: String) {
+        ControlSincronizacion.descartarReemplazada(contexto, estudianteId, fecha)
+        releerReemplazadas()
+    }
+
+    private fun releerReemplazadas() =
+        meta.update { it.copy(reemplazadas = ControlSincronizacion.reemplazadas(contexto)) }
 
     fun consumirMensaje() = meta.update { it.copy(mensaje = null) }
 

@@ -67,6 +67,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.enad.enadmovil.data.local.entity.EstadoRemoto
+import com.enad.enadmovil.data.sync.ControlSincronizacion
 import com.enad.enadmovil.ui.components.EnadBottomBar
 import com.enad.enadmovil.ui.components.EnadHeading
 import com.enad.enadmovil.ui.components.EnadPanel
@@ -282,6 +284,15 @@ fun AsistenciaScreen(
 
                 item {
                     ResumenAsistencia(total = total, fecha = fechaSeleccionada, porcentaje = porcentaje)
+                }
+
+                if (ui.reemplazadas.isNotEmpty()) {
+                    item {
+                        PanelMarcasReemplazadas(
+                            marcas = ui.reemplazadas,
+                            onRevisada = { id, fecha -> viewModel.revisarReemplazada(id, fecha) }
+                        )
+                    }
                 }
 
                 if (estudiantes.isEmpty() || filtrados.isEmpty()) {
@@ -521,6 +532,50 @@ private fun TarjetaAsistencia(
             )
         }
     }
+}
+
+/**
+ * Marcas que no se aplicaron porque otro celular registró primero: el docente ve la suya y la que
+ * quedó en el servidor, para corregirla en la lista si hace falta.
+ */
+@Composable
+private fun PanelMarcasReemplazadas(
+    marcas: List<ControlSincronizacion.MarcaReemplazada>,
+    onRevisada: (String, String) -> Unit
+) {
+    EnadPanel {
+        Text("Marcas reemplazadas", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Otro celular registró primero la asistencia de ${marcas.size} estudiante(s). " +
+                "Estas son tus marcas y las que quedaron guardadas.",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        marcas.forEach { marca ->
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(marca.nombre.ifBlank { "Estudiante" }, style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        "${fechaLegible(marca.fecha)} · tú marcaste ${estadoLegible(marca.enviada)}, " +
+                            "quedó ${estadoLegible(marca.conservada)}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                TextButton(onClick = { onRevisada(marca.estudianteId, marca.fecha) }) {
+                    Text("Revisada", style = MaterialTheme.typography.labelMedium, color = EnadPrimary)
+                }
+            }
+        }
+    }
+}
+
+private fun fechaLegible(fecha: String): String =
+    runCatching { etiquetaFecha(LocalDate.parse(fecha)) }.getOrDefault(fecha)
+
+private fun estadoLegible(estado: String): String = when (estado) {
+    EstadoRemoto.VINO -> "asistió"
+    EstadoRemoto.NO_VINO -> "no asistió"
+    else -> "sin registrar"
 }
 
 @Composable
