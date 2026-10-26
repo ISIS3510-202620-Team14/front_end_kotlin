@@ -32,6 +32,9 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     private var siguientePagina = 1
 
     private var fotos = Channel<Foto>(Channel.UNLIMITED)
+    // Filas de páginas que terminaron antes que una anterior: esperan para salir en orden
+    private val terminadas = mutableMapOf<Int, List<EstudianteEscaneado>>()
+    private var entregadas = 0
     private var lectores = iniciarLectores()
 
     private data class Foto(val numero: Int, val uri: Uri)
@@ -56,6 +59,8 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         fotos = Channel(Channel.UNLIMITED)
         lectores = iniciarLectores()
         siguientePagina = 1
+        terminadas.clear()
+        entregadas = 0
         _uiState.value = ScanUiState()
     }
 
@@ -81,11 +86,12 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         } catch (e: Exception) {
             null // una foto que falla no detiene las demás
         }
+        val enOrden = enOrden(foto.numero, filas.orEmpty())
         _uiState.update {
             val paginas = it.paginas.marcar(foto.numero, filas?.let { f -> EstadoPagina.Lista(f.size) } ?: EstadoPagina.Fallo)
             it.copy(
                 paginas = paginas,
-                filas = it.filas + filas.orEmpty(),
+                filas = it.filas + enOrden,
                 procesando = paginas.any { p -> p.estado == EstadoPagina.EnCola || p.estado == EstadoPagina.Leyendo },
                 error = when {
                     filas == null -> "No se pudo leer la página ${foto.numero}."
@@ -94,6 +100,21 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
                 }
             )
         }
+    }
+
+    /**
+     * La página 2 puede terminar antes que la 1 porque se leen al mismo tiempo. Sus filas se
+     * guardan hasta que todas las anteriores terminen, y así la lista queda en el orden de las fotos.
+     */
+    private fun enOrden(numero: Int, filas: List<EstudianteEscaneado>): List<EstudianteEscaneado> {
+        terminadas[numero] = filas
+        val listas = mutableListOf<EstudianteEscaneado>()
+        while (true) {
+            val siguiente = terminadas.remove(entregadas + 1) ?: break
+            listas += siguiente
+            entregadas++
+        }
+        return listas
     }
 
     private fun List<PaginaEscaneada>.marcar(numero: Int, estado: EstadoPagina) =
