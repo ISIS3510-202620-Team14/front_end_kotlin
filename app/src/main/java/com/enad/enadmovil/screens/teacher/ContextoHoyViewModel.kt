@@ -20,7 +20,7 @@ data class ContextoHoyUiState(
     val eligiendo: Boolean = false
 )
 
-/** "Hoy": sugiere el grupo del día según la sede donde está el docente. Nunca decide por él. */
+/** "Hoy": sugiere el grupo del día según la institución donde está el docente. Nunca decide por él. */
 class ContextoHoyViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = ContextoRepository(app)
@@ -37,9 +37,9 @@ class ContextoHoyViewModel(app: Application) : AndroidViewModel(app) {
         _uiState.update { it.copy(cargando = true) }
         viewModelScope.launch {
             repo.descargarCatalogo()
-            val sede = repo.registrarPresencia()
+            val schoolId = repo.registrarPresencia()
             val confirmado = repo.contextoDeHoy()
-            val sugerencia = if (confirmado == null) repo.sugerir(sede) else null
+            val sugerencia = if (confirmado == null) repo.sugerir(schoolId) else null
             val grupos = repo.gruposDelDocente()
             _uiState.value = ContextoHoyUiState(
                 confirmado = confirmado,

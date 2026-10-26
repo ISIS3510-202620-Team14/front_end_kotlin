@@ -24,7 +24,8 @@ class LocationDataSource(context: Context) {
     @SuppressLint("MissingPermission")
     suspend fun ubicacionActual(): Location? {
         if (!tienePermiso()) return null
-        val solicitud = CurrentLocationRequest.Builder().setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+        return Location("prueba").apply { latitude = 4.6014; longitude = -74.0661; accuracy = 10f } // TEMPORAL
+        @Suppress("UNREACHABLE_CODE") val solicitud = CurrentLocationRequest.Builder().setPriority(Priority.PRIORITY_HIGH_ACCURACY)
             .setMaxUpdateAgeMillis(MAX_ANTIGUEDAD_MS)
             .setDurationMillis(TIEMPO_MAXIMO_MS)
             .build()

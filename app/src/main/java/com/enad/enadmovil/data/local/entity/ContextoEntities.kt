@@ -11,7 +11,7 @@ data class SedeEntity(@PrimaryKey val id: String, val schoolId: String, val camp
 @Entity(tableName = "grupos_horario")
 data class GrupoHorarioEntity(@PrimaryKey val id: String, val docenteUid: String, val nombre: String, val materia: String, val schoolId: String, val campusId: String?, val horario: String)
 
-/** Presencia en una sede por día. Solo horas: nunca se guardan coordenadas del docente. */
+/** Presencia en una institución por día (sedeId guarda el id de la institución). Solo horas: nunca se guardan coordenadas del docente. */
 @Entity(tableName = "presencia_sede", primaryKeys = ["docenteUid", "fecha", "sedeId"])
 data class PresenciaSedeEntity(val docenteUid: String, val fecha: String, val sedeId: String, val primeraVez: Long, val ultimaVez: Long)
 

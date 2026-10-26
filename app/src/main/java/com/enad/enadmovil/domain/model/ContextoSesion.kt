@@ -7,8 +7,8 @@ object OrigenValor {
     const val SUGERIDO = "suggested"
     const val MANUAL = "manual"
 }
-/** Un grupo del docente visto desde un día concreto. */
-data class GrupoDelDia(val id: String, val nombre: String, val materia: String, val sede: String?, val horasPlaneadas: Double?)
+/** Un grupo del docente visto desde un día concreto, con el nombre de su institución. */
+data class GrupoDelDia(val id: String, val nombre: String, val materia: String, val escuela: String?, val horasPlaneadas: Double?)
 
 /** Sugerencia de horas realizadas de un día. Nunca supera la permanencia en la sede. */
 data class SugerenciaHoras(val horas: Double, val permanenciaHoras: Double)
