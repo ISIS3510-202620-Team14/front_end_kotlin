@@ -19,8 +19,8 @@ interface ContextoDao {
     @Query("SELECT * FROM sedes WHERE lat IS NOT NULL AND lng IS NOT NULL")
     suspend fun sedesUbicadas(): List<SedeEntity>
 
-    @Query("SELECT * FROM sedes WHERE id = :id")
-    suspend fun sede(id: String): SedeEntity?
+    @Query("SELECT escuela FROM sedes WHERE schoolId = :schoolId LIMIT 1")
+    suspend fun nombreEscuela(schoolId: String): String?
 
     @Query("DELETE FROM grupos_horario WHERE docenteUid = :uid")
     suspend fun borrarGrupos(uid: String)

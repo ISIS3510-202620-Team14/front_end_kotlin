@@ -16,6 +16,7 @@ import java.time.LocalDate
 
 /**
  * Context-aware: con una lectura de ubicación y el horario de los grupos sugiere el contexto del día.
+ * El contexto es la institución completa: estar en cualquiera de sus sedes cuenta como estar en la institución.
  * Solo sugiere; el docente siempre confirma. Funciona sin señal con lo último descargado.
  */
 class ContextoRepository(context: Context) {
@@ -32,7 +33,7 @@ class ContextoRepository(context: Context) {
 
     fun tienePermisoUbicacion(): Boolean = ubicacion.tienePermiso()
 
-    /** Descarga sedes y grupos con horario. Sin internet devuelve false y queda lo último guardado. */
+    /** Descarga instituciones (con las coordenadas de sus sedes) y grupos con horario. Sin internet devuelve false y queda lo último guardado. */
     suspend fun descargarCatalogo(): Boolean {
         val uid = auth.uidActual() ?: return false
         val token = runCatching { auth.obtenerToken() }.getOrNull() ?: return false
@@ -66,21 +67,22 @@ class ContextoRepository(context: Context) {
         }
     }
     /**
-     * Una lectura de ubicación. Si el docente está en una sede, guarda la hora de hoy (primera y última)
-     * y devuelve la sede. La posición se usa solo para comparar y no se guarda.
+     * Una lectura de ubicación. Si el docente está en alguna sede de una institución, guarda la hora de hoy
+     * (primera y última) para esa institución y devuelve su id. La posición se usa solo para comparar y no se guarda.
      */
-    suspend fun registrarPresencia(ahora: Long = System.currentTimeMillis()): SedeEntity? {
+    suspend fun registrarPresencia(ahora: Long = System.currentTimeMillis()): String? {
         val uid = auth.uidActual() ?: return null
         val posicion = ubicacion.ubicacionActual() ?: return null
         if (posicion.hasAccuracy() && posicion.accuracy > MAX_IMPRECISION_M) return null
-        val sede = sedeCercana(posicion.latitude, posicion.longitude) ?: return null
+        val schoolId = escuelaCercana(posicion.latitude, posicion.longitude) ?: return null
         val fecha = LocalDate.now().toString()
-        val previa = dao.presencia(uid, fecha, sede.id)
-        dao.guardarPresencia(PresenciaSedeEntity(uid, fecha, sede.id, previa?.primeraVez ?: ahora, ahora))
-        return sede
+        val previa = dao.presencia(uid, fecha, schoolId)
+        dao.guardarPresencia(PresenciaSedeEntity(uid, fecha, schoolId, previa?.primeraVez ?: ahora, ahora))
+        return schoolId
     }
 
-    private suspend fun sedeCercana(lat: Double, lng: Double): SedeEntity? {
+    /** Institución de la sede más cercana dentro del radio. Las sedes solo aportan las coordenadas. */
+    private suspend fun escuelaCercana(lat: Double, lng: Double): String? {
         val distancia = FloatArray(1)
         return dao.sedesUbicadas()
             .map { sede ->
@@ -91,15 +93,15 @@ class ContextoRepository(context: Context) {
                 metros <= RADIO_SEDE_M
             }
             .minByOrNull { (_, metros) -> metros }
-            ?.first
+            ?.first?.schoolId
     }
-    /** Grupo que hoy se dicta en esa sede, si hay alguno planeado. */
-    suspend fun sugerir(sede: SedeEntity?): GrupoDelDia? {
+    /** Grupo que hoy se dicta en esa institución, en cualquiera de sus sedes, si hay alguno planeado. */
+    suspend fun sugerir(schoolId: String?): GrupoDelDia? {
         val uid = auth.uidActual() ?: return null
-        sede ?: return null
+        schoolId ?: return null
         val hoy = LocalDate.now()
         return dao.grupos(uid)
-            .filter { it.schoolId == sede.schoolId && it.campusId == sede.campusId }
+            .filter { it.schoolId == schoolId }
             .map { aGrupoDelDia(it, hoy) }
             .firstOrNull { it.horasPlaneadas != null}
     }
@@ -126,7 +128,7 @@ class ContextoRepository(context: Context) {
         id = grupo.id,
         nombre = grupo.nombre,
         materia = grupo.materia,
-        sede = grupo.campusId?.let { dao.sede("${grupo.schoolId}/$it")?.nombre },
+        escuela = dao.nombreEscuela(grupo.schoolId),
         horasPlaneadas = Horario.horasDelDia(grupo.horario, fecha.dayOfWeek)
     )
 }

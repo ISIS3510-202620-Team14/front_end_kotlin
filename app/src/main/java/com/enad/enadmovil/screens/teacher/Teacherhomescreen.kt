@@ -193,7 +193,7 @@ fun TeacherHomeScreen(
         contextoState.confirmado
             ?.let { grupo ->
                 listOfNotNull(
-                    grupo.sede,
+                    grupo.escuela,
                     nombreMateria(grupo.materia)
                 ).joinToString(" · ")
             }

@@ -42,7 +42,7 @@ fun ContextoSesionCard(
     val sugerencia = estado.sugerencia
     when {
         estado.cargando -> Text(
-            text = "Buscando tu sede…",
+            text = "Buscando tu institución…",
             fontSize = 13.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = modifier
@@ -62,7 +62,7 @@ private fun TarjetaSugerencia(grupo: GrupoDelDia, onAceptar: () -> Unit, onCambi
         )
         Text(
             text = listOfNotNull(
-                grupo.sede?.let { "Estás en la sede $it" },
+                grupo.escuela?.let { "Estás en $it" },
                 grupo.horasPlaneadas?.let { "hoy ${formatearHoras(it)} h planeadas" }
             ).joinToString(" · "),
             fontSize = 13.sp,
@@ -94,7 +94,7 @@ private fun TarjetaElegir(grupos: List<GrupoDelDia>, onElegir: (GrupoDelDia) -> 
                 Text(
                     text = listOfNotNull(
                         nombreMateria(grupo.materia),
-                        grupo.sede,
+                        grupo.escuela,
                         grupo.horasPlaneadas?.let { "hoy ${formatearHoras(it)} h" }
                     ).joinToString(" · "),
                     fontSize = 12.sp,
