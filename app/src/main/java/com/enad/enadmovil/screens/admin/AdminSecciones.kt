@@ -36,6 +36,7 @@ fun AdminResumenSection(estado: AdminUiState, onAbrirReporte: (Int) -> Unit, onA
     val aperturas = estado.aperturas.datos
     val horas = estado.horas.datos?.firstOrNull()
     val top = estado.actividades.datos?.actividades?.firstOrNull()
+    val conflictos = estado.conflictos.datos
     val instituciones = estado.instituciones.datos
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -74,6 +75,17 @@ fun AdminResumenSection(estado: AdminUiState, onAbrirReporte: (Int) -> Unit, onA
                 onClick = { onAbrirReporte(REPORTE_ACTIVIDADES) },
                 modifier = Modifier.weight(1f)
             )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Indicador(
+                etiqueta = "Conflictos",
+                valor = conflictos?.let { if (it.total == 0) "—" else porcentajeTexto(it.porcentaje) },
+                detalle = conflictos?.let { "${it.conflictos} de ${it.total} marcas" } ?: "",
+                carga = estado.conflictos,
+                onClick = { onAbrirReporte(REPORTE_CONFLICTOS) },
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(Modifier.weight(1f))
         }
         EnadPanel(onClick = { onAbrirReporte(REPORTE_SINCRONIZACION) }) {
             Text("Sincronización y clasificación", style = MaterialTheme.typography.titleMedium)

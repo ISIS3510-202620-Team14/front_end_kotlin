@@ -66,11 +66,11 @@ fun AdminChips(opciones: List<String>, seleccionada: Int, onSeleccionar: (Int) -
 
 /** Título y descripción de un reporte, con el botón de actualizar. */
 @Composable
-fun EncabezadoReporte(titulo: String, descripcion: String, cargando: Boolean, onActualizar: () -> Unit) {
+fun EncabezadoReporte(titulo: String, descripcion: String = "", cargando: Boolean, onActualizar: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(titulo, style = MaterialTheme.typography.titleLarge)
-            Text(descripcion, style = MaterialTheme.typography.bodyMedium)
+            if (descripcion.isNotBlank()) Text(descripcion, style = MaterialTheme.typography.bodyMedium)
         }
         IconButton(onClick = onActualizar, enabled = !cargando) {
             Icon(Icons.Filled.Refresh, contentDescription = "Actualizar", tint = EnadInk)
