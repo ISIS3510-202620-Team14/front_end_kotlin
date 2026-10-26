@@ -2,6 +2,8 @@ package com.enad.enadmovil.ui.screens.teacher.scan
 
 import android.app.Application
 import android.net.Uri
+import android.os.SystemClock
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.enad.enadmovil.data.ocr.HilosOcr
@@ -80,7 +82,13 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun leer(foto: Foto) {
         _uiState.update { it.copy(paginas = it.paginas.marcar(foto.numero, EstadoPagina.Leyendo)) }
         val filas: List<EstudianteEscaneado>? = try {
-            withContext(hilos.dispatcher) { ListaAsistenciaParser.parsear(ocr.reconocer(foto.uri)) }
+            withContext(hilos.dispatcher) {
+                val inicio = SystemClock.elapsedRealtime()
+                ListaAsistenciaParser.parsear(ocr.reconocer(foto.uri)).also {
+                    // El nombre del hilo muestra en Logcat que cada página se leyó en el pool del escáner
+                    Log.d(TAG, "Página ${foto.numero}: ${it.size} filas en ${SystemClock.elapsedRealtime() - inicio} ms (${Thread.currentThread().name})")
+                }
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -126,5 +134,9 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         ocr.cerrar()
         hilos.close()
         super.onCleared()
+    }
+
+    private companion object {
+        const val TAG = "ScanViewModel"
     }
 }
