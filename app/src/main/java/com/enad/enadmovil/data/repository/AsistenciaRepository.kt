@@ -10,6 +10,8 @@ import com.enad.enadmovil.data.local.entity.SyncStatus
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.data.sync.ControlSincronizacion
 import com.enad.enadmovil.data.sync.SyncScheduler
+import com.enad.enadmovil.data.telemetria.EventosSincronizacion
+import com.enad.enadmovil.data.telemetria.InfoDispositivo
 import com.enad.enadmovil.domain.model.EstudianteEscaneado
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -55,7 +57,10 @@ class AsistenciaRepository(context: Context) {
     private suspend fun recordarBase(estudianteId: String, fecha: String) {
         val previo = asistencias.buscar(estudianteId, fecha)
         if (previo == null || previo.syncStatus == SyncStatus.SYNCED) {
-            ControlSincronizacion.recordarBase(appContext, estudianteId, fecha, previo?.estado ?: EstadoRemoto.SIN_REGISTRO)
+            ControlSincronizacion.recordarBase(
+                appContext, estudianteId, fecha, previo?.estado ?: EstadoRemoto.SIN_REGISTRO,
+                InfoDispositivo.conectividad(appContext)
+            )
         }
     }
 
@@ -242,6 +247,8 @@ class AsistenciaRepository(context: Context) {
 
         var enviadas = 0
         val enConflicto = mutableListOf<Pair<EstudianteEntity, String>>()
+        val reemplazadas = mutableListOf<ControlSincronizacion.MarcaReemplazada>()
+        val conteos = mutableMapOf<Triple<String, String, String>, EventosSincronizacion.Conteo>()
         for ((grupo, marcas) in listas.groupBy { (a, est) -> est.schoolId to a.fecha }) {
             val (schoolId, fecha) = grupo
             val enServidor = try {
@@ -259,19 +266,40 @@ class AsistenciaRepository(context: Context) {
             }
             resultados.forEach { r ->
                 when (r) {
-                    is Subida.Enviada -> enviadas++
-                    is Subida.Conflicto -> enConflicto += r.estudiante to r.fecha
+                    is Subida.Enviada -> {
+                        enviadas++
+                        val clave = Triple(schoolId, fecha, r.conectividad)
+                        val previo = conteos[clave] ?: EventosSincronizacion.Conteo()
+                        conteos[clave] = previo.copy(enviadas = previo.enviadas + 1)
+                    }
+                    is Subida.Conflicto -> {
+                        enConflicto += r.estudiante to r.fecha
+                        reemplazadas += ControlSincronizacion.MarcaReemplazada(
+                            r.estudiante.id, r.estudiante.fullName, r.fecha, r.enviada, r.conservada
+                        )
+                        val clave = Triple(schoolId, fecha, r.conectividad)
+                        val previo = conteos[clave] ?: EventosSincronizacion.Conteo()
+                        conteos[clave] = previo.copy(conflictos = previo.conflictos + 1)
+                    }
                     Subida.Reintentar -> todoBien = false
                     Subida.Fallida -> Unit
                 }
             }
         }
+        ControlSincronizacion.guardarReemplazadas(appContext, reemplazadas)
+        if (conteos.isNotEmpty()) EventosSincronizacion.registrar(uid, conteos)
         return ResultadoSync.Terminado(enviadas, enConflicto.size, !todoBien, avisoConflictos(enConflicto))
     }
 
     private sealed interface Subida {
-        data object Enviada : Subida
-        data class Conflicto(val estudiante: EstudianteEntity, val fecha: String) : Subida
+        data class Enviada(val conectividad: String) : Subida
+        data class Conflicto(
+            val estudiante: EstudianteEntity,
+            val fecha: String,
+            val enviada: String,
+            val conservada: String,
+            val conectividad: String
+        ) : Subida
         data object Reintentar : Subida
         data object Fallida : Subida
     }
@@ -282,16 +310,18 @@ class AsistenciaRepository(context: Context) {
      */
     private suspend fun subirMarca(token: String, a: AsistenciaEntity, est: EstudianteEntity, servidor: String): Subida {
         val base = ControlSincronizacion.base(appContext, a.estudianteId, a.fecha) ?: servidor
+        // Marcas hechas antes de guardar la conectividad cuentan como "unknown" en el reporte
+        val conectividad = ControlSincronizacion.conectividadAlMarcar(appContext, a.estudianteId, a.fecha) ?: "unknown"
         if (servidor != base && servidor != a.estado) {
             asistencias.upsert(a.copy(estado = servidor, syncStatus = SyncStatus.SYNCED))
             ControlSincronizacion.olvidarBase(appContext, a.estudianteId, a.fecha)
-            return Subida.Conflicto(est, a.fecha)
+            return Subida.Conflicto(est, a.fecha, a.estado, servidor, conectividad)
         }
         return try {
             CloudFunctionsApi.marcarAsistencia(token, a.estudianteId, a.fecha, a.estado)
             asistencias.actualizarSync(a.estudianteId, a.fecha, a.estado, SyncStatus.SYNCED)
             ControlSincronizacion.olvidarBase(appContext, a.estudianteId, a.fecha)
-            Subida.Enviada
+            Subida.Enviada(conectividad)
         } catch (ex: CloudFunctionsApi.ApiException) {
             if (ex.esTransitorio) {
                 Subida.Reintentar
@@ -309,7 +339,7 @@ class AsistenciaRepository(context: Context) {
         val nombres = conflictos.take(3).joinToString(", ") { (est, fecha) -> "${est.fullName} ($fecha)" }
         val resto = if (conflictos.size > 3) " y ${conflictos.size - 3} más" else ""
         return "Otro celular registró primero la asistencia de ${conflictos.size} estudiante(s): $nombres$resto. " +
-            "Tus marcas no se enviaron para no pisar las suyas; ahora ves las del servidor. Revísalas y corrígelas si hace falta."
+            "Tus marcas no se enviaron para no pisar las suyas; ahora ves las del servidor. Revísalas en \"Marcas reemplazadas\"."
     }
 
     /**

@@ -26,6 +26,31 @@ import com.enad.enadmovil.ui.theme.EnadPrimary
 import com.enad.enadmovil.ui.theme.EnadSoftInk
 import com.enad.enadmovil.ui.theme.EnadSuccessBg
 import com.enad.enadmovil.ui.theme.EnadSuccessText
+import java.time.LocalDate
+
+/** Flechas para moverse entre semanas; la semana en curso es el tope. */
+@Composable
+private fun SelectorSemana(semana: LocalDate, onCambiarSemana: (Long) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = { onCambiarSemana(-1) }) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Semana anterior", tint = EnadInk)
+        }
+        Text(
+            semanaLegible(semana.toString()),
+            style = MaterialTheme.typography.labelMedium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.weight(1f)
+        )
+        val esActual = semana == lunesActual()
+        IconButton(onClick = { onCambiarSemana(1) }, enabled = !esActual) {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = "Semana siguiente",
+                tint = if (esActual) EnadSoftInk.copy(alpha = 0.4f) else EnadInk
+            )
+        }
+    }
+}
 
 /** Reporte "Aperturas" (BQ #6): docentes que abrieron la app más de una vez en la semana. */
 @Composable
@@ -37,25 +62,7 @@ fun ReporteAperturasSection(estado: AdminUiState, onCambiarSemana: (Long) -> Uni
             cargando = estado.aperturas is Carga.Cargando,
             onActualizar = onActualizar
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { onCambiarSemana(-1) }) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Semana anterior", tint = EnadInk)
-            }
-            Text(
-                semanaLegible(estado.semanaAperturas.toString()),
-                style = MaterialTheme.typography.labelMedium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.weight(1f)
-            )
-            val esActual = estado.semanaAperturas == lunesActual()
-            IconButton(onClick = { onCambiarSemana(1) }, enabled = !esActual) {
-                Icon(
-                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = "Semana siguiente",
-                    tint = if (esActual) EnadSoftInk.copy(alpha = 0.4f) else EnadInk
-                )
-            }
-        }
+        SelectorSemana(estado.semanaAperturas, onCambiarSemana)
         ContenidoCarga(estado.aperturas, vacio = { false }, textoVacio = "") { r ->
             val fraccion = if (r.docentes == 0) 0.0 else r.docentesMasDeUna.toDouble() / r.docentes
             EnadPanel {
@@ -170,4 +177,76 @@ private fun FilaActividad(puesto: Int, a: CloudFunctionsApi.ActividadUso) {
     }
     Spacer(Modifier.height(6.dp))
     EnadProgress(((a.porcentaje ?: 0.0) / 100).toFloat(), color = if (puesto == 1) EnadPrimary else EnadInk)
+}
+
+/**
+ * Reporte "Conflictos" (BQ Sprint 3 tipo 1): marcas de asistencia que no se aplicaron porque otro
+ * celular ya había registrado otro valor para el mismo estudiante y día.
+ */
+@Composable
+fun ReporteConflictosSection(estado: AdminUiState, onCambiarSemana: (Long) -> Unit, onActualizar: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        EncabezadoReporte(
+            titulo = "Conflictos de asistencia",
+            cargando = estado.conflictos is Carga.Cargando,
+            onActualizar = onActualizar
+        )
+        SelectorSemana(estado.semanaConflictos, onCambiarSemana)
+        ContenidoCarga(
+            estado.conflictos,
+            vacio = { it.total == 0 },
+            textoVacio = "Esta semana no se enviaron marcas de asistencia."
+        ) { r ->
+            EnadPanel {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Marcas reemplazadas", style = MaterialTheme.typography.titleMedium)
+                        Text("${r.conflictos} de ${r.total} marcas enviadas", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Text(porcentajeTexto(r.porcentaje), style = MaterialTheme.typography.headlineSmall, color = EnadPrimary)
+                }
+                Spacer(Modifier.height(10.dp))
+                EnadProgress(((r.porcentaje ?: 0.0) / 100).toFloat(), color = EnadPrimary)
+                if (r.provisional) {
+                    Spacer(Modifier.height(10.dp))
+                    PildoraProvisional()
+                }
+            }
+            GrupoConflictos("Por institución", r.porInstitucion)
+            GrupoConflictos("Por conectividad al marcar", r.porConectividad.map { it.copy(etiqueta = conectividadLegible(it.etiqueta)) })
+            GrupoConflictos("Por plataforma", r.porPlataforma.map { it.copy(etiqueta = plataformaLegible(it.etiqueta)) })
+        }
+    }
+}
+
+@Composable
+private fun GrupoConflictos(titulo: String, filas: List<CloudFunctionsApi.FilaConflictos>) {
+    if (filas.isEmpty()) return
+    EnadPanel {
+        Text(titulo, style = MaterialTheme.typography.titleMedium)
+        filas.forEach { fila ->
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(fila.etiqueta, style = MaterialTheme.typography.labelMedium)
+                    Text("${fila.conflictos} de ${fila.total} marcas", style = MaterialTheme.typography.bodyMedium)
+                }
+                Text(porcentajeTexto(fila.porcentaje), style = MaterialTheme.typography.labelLarge)
+            }
+            Spacer(Modifier.height(6.dp))
+            EnadProgress(((fila.porcentaje ?: 0.0) / 100).toFloat(), color = EnadPrimary)
+        }
+    }
+}
+
+private fun conectividadLegible(valor: String): String = when (valor) {
+    "online" -> "Con conexión"
+    "offline" -> "Sin conexión"
+    else -> "Sin dato"
+}
+
+private fun plataformaLegible(valor: String): String = when (valor) {
+    "kotlin" -> "Kotlin"
+    "flutter" -> "Flutter"
+    else -> "Sin dato"
 }

@@ -30,6 +30,8 @@ data class AdminUiState(
     val aperturas: Carga<CloudFunctionsApi.ReporteAperturas> = Carga.Cargando,
     val horas: Carga<List<CloudFunctionsApi.SemanaHoras>> = Carga.Cargando,
     val actividades: Carga<CloudFunctionsApi.TopActividades> = Carga.Cargando,
+    val semanaConflictos: LocalDate = lunesActual(),
+    val conflictos: Carga<CloudFunctionsApi.ReporteConflictos> = Carga.Cargando,
     val busqueda: String = "",
     val instituciones: Carga<List<CloudFunctionsApi.EscuelaAdmin>> = Carga.Cargando,
     val docentes: Map<String, Carga<List<CloudFunctionsApi.DocenteAdmin>>> = emptyMap()
@@ -56,6 +58,7 @@ class AdminViewModel(
         cargarAperturas()
         cargarHoras()
         cargarActividades()
+        cargarConflictos()
         cargarInstituciones()
     }
 
@@ -74,6 +77,22 @@ class AdminViewModel(
         if (nueva.isAfter(lunesActual())) return
         _uiState.update { it.copy(semanaAperturas = nueva) }
         cargarAperturas()
+    }
+
+    fun cargarConflictos(forzar: Boolean = false) {
+        val semana = _uiState.value.semanaConflictos
+        _uiState.update { it.copy(conflictos = Carga.Cargando) }
+        viewModelScope.launch {
+            val resultado = consultar { repo.conflictosAsistencia(semana.toString(), forzar) }
+            if (_uiState.value.semanaConflictos == semana) _uiState.update { it.copy(conflictos = resultado) }
+        }
+    }
+
+    fun cambiarSemanaConflictos(semanas: Long) {
+        val nueva = _uiState.value.semanaConflictos.plusWeeks(semanas)
+        if (nueva.isAfter(lunesActual())) return
+        _uiState.update { it.copy(semanaConflictos = nueva) }
+        cargarConflictos()
     }
 
     fun cargarHoras(forzar: Boolean= false) {
@@ -128,6 +147,7 @@ class AdminViewModel(
     fun actualizarAperturas() = cargarAperturas(forzar = true)
     fun actualizarHoras() = cargarHoras(forzar = true)
     fun actualizarActividades() = cargarActividades(forzar = true)
+    fun actualizarConflictos() = cargarConflictos(forzar = true)
 
     private suspend fun <T> consultar(bloque: suspend () -> T): Carga<T> =
         try {
