@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ScanViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -23,7 +24,8 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     fun onFotoCapturada(uri: Uri) {
         _uiState.value = ScanUiState(procesando = true)
         viewModelScope.launch {
-            runCatching { ListaAsistenciaParser.parsear(ocr.reconocer(uri)) }
+            // El OCR y el armado de filas corren en los hilos del escáner; aquí solo vuelve el resultado
+            runCatching { withContext(hilos.dispatcher) { ListaAsistenciaParser.parsear(ocr.reconocer(uri)) } }
                 .onSuccess { filas ->
                     _uiState.update {
                         it.copy(
