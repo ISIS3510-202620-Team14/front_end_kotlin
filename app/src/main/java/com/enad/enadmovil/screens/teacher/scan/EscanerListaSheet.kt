@@ -84,7 +84,7 @@ fun EscanerListaSheet(
     LaunchedEffect(estado.filas) {
         if (estado.filas.isNotEmpty()) {
             filas.addAll(estado.filas)
-            scanViewModel.limpiar()
+            scanViewModel.tomarFilas()
         }
     }
 
