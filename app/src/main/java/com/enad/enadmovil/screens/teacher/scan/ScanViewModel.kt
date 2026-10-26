@@ -119,4 +119,12 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun List<PaginaEscaneada>.marcar(numero: Int, estado: EstadoPagina) =
         map { if (it.numero == numero) it.copy(estado = estado) else it }
+
+    override fun onCleared() {
+        // Sin esto los hilos del pool y el modelo de ML Kit quedan vivos después de cerrar la pantalla
+        fotos.cancel()
+        ocr.cerrar()
+        hilos.close()
+        super.onCleared()
+    }
 }

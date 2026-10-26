@@ -30,4 +30,7 @@ class TextRecognizerDataSource(private val context: Context, executor: Executor?
             linea.boundingBox?.let { LineaOcr(linea.text, it.left, it.top, it.bottom) }
         }
     }
+
+    /** Libera el modelo de ML Kit. */
+    fun cerrar() = recognizer.close()
 }
