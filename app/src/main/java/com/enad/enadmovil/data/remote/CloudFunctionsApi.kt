@@ -34,6 +34,7 @@ object CloudFunctionsApi {
     private val HOURS_URL = "$BASE_URL/workedHours"
     private val ANALYTICS_URL = "$BASE_URL/analytics"
     private val TEACHERS_URL = "$BASE_URL/teachers"
+    private val CONFLICTS_URL = "$BASE_URL/attendanceConflicts"
 
 
     data class RespuestaAuth(
@@ -607,6 +608,52 @@ object CloudFunctionsApi {
         )
     }
 
+    /** Una fila del reporte de conflictos de asistencia: una institución, una conectividad o una plataforma. */
+    data class FilaConflictos(val etiqueta: String, val total: Int, val conflictos: Int, val porcentaje: Double?)
+
+    data class ReporteConflictos(
+        val semana: String,
+        val total: Int,
+        val conflictos: Int,
+        val porcentaje: Double?,
+        val porInstitucion: List<FilaConflictos>,
+        val porConectividad: List<FilaConflictos>,
+        val porPlataforma: List<FilaConflictos>,
+        val provisional: Boolean
+    )
+
+    /**
+     * GET /attendanceConflicts/report (solo admin), BQ Sprint 3 tipo 1: marcas de asistencia que
+     * no se aplicaron porque otro celular ya había registrado otro valor ese día.
+     */
+    suspend fun reporteConflictos(token: String, semana: String? = null): ReporteConflictos {
+        val ruta = if (semana != null) "/report?week=$semana" else "/report"
+        val json = solicitar("GET", ruta, token, null, CONFLICTS_URL)
+        return ReporteConflictos(
+            semana = json.getString("week"),
+            total = json.optInt("total"),
+            conflictos = json.optInt("conflicts"),
+            porcentaje = if (json.isNull("percentage")) null else json.optDouble("percentage"),
+            porInstitucion = filasConflictos(json, "bySchool", "name"),
+            porConectividad = filasConflictos(json, "byConnectivity", "connectivity"),
+            porPlataforma = filasConflictos(json, "byPlatform", "platform"),
+            provisional = json.optBoolean("provisional", false)
+        )
+    }
+
+    private fun filasConflictos(json: JSONObject, campo: String, etiqueta: String): List<FilaConflictos> {
+        val arreglo = json.optJSONArray(campo) ?: JSONArray()
+        return List(arreglo.length()) {
+            val o = arreglo.getJSONObject(it)
+            FilaConflictos(
+                etiqueta = o.optString(etiqueta).ifBlank { "Sin dato" },
+                total = o.optInt("total"),
+                conflictos = o.optInt("conflicts"),
+                porcentaje = if (o.isNull("percentage")) null else o.optDouble("percentage")
+            )
+        }
+    }
+
     data class EscuelaAdmin(
         val id: String,
         val nombre: String,
@@ -682,4 +729,4 @@ object CloudFunctionsApi {
                 conexion.disconnect()
             }
         }
-}
+}
