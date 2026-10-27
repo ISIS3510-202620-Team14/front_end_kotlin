@@ -1,5 +1,6 @@
 package com.enad.enadmovil.ui.screens.teacher.scan
 
+import android.net.Uri
 import com.enad.enadmovil.domain.model.EstudianteEscaneado
 
 data class ScanUiState(
@@ -9,8 +10,8 @@ data class ScanUiState(
     val paginas: List<PaginaEscaneada> = emptyList()
 )
 
-/** Una foto tomada en el escáner y en qué va su lectura. */
-data class PaginaEscaneada(val numero: Int, val estado: EstadoPagina)
+/** Una foto tomada en el escáner, dónde quedó guardada y en qué va su lectura. */
+data class PaginaEscaneada(val numero: Int, val estado: EstadoPagina, val foto: Uri)
 
 sealed interface EstadoPagina {
     data object EnCola : EstadoPagina

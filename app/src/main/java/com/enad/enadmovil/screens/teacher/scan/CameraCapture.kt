@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.SystemClock
 import android.provider.Settings
@@ -22,8 +23,10 @@ import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -92,7 +95,10 @@ private const val ESPERA_ENCUADRE_MS = 1_500L
 fun CameraCapture(
     onFotoCapturada: (Uri, CondicionesCaptura) -> Unit,
     onError: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // Páginas ya tomadas en este escaneo, para que el docente vea cuántas lleva
+    paginas: List<PaginaEscaneada> = emptyList(),
+    miniatura: suspend (PaginaEscaneada) -> Bitmap? = { null }
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -288,6 +294,18 @@ fun CameraCapture(
                     .align(Alignment.TopEnd)
                     .padding(top = 100.dp, end = 16.dp)
             ) { Text(if (automatico) "Automática: sí" else "Automática: no", fontSize = 12.sp) }
+        }
+
+        // Cada vez que se abre la cámara estas miniaturas salen de la caché y no del disco
+        if (paginas.isNotEmpty()) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 24.dp, bottom = 88.dp)
+            ) {
+                paginas.takeLast(4).forEach { MiniaturaPagina(it, miniatura) }
+            }
         }
 
         Button(
