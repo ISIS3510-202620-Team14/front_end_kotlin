@@ -243,10 +243,12 @@ private fun ClasificacionContenido(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                // Como en Flutter, el paso 3 resalta toda la pantalla: así se puede cambiar el curso o agregar estudiantes.
+                .objetivoGuia(Guia.EVALUACION, 3)
                 .verticalScroll(rememberScrollState())
                 .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 32.dp)
         ) {
-            EnadPanel(modifier = if (estudiantes.isEmpty()) Modifier.objetivoGuia(Guia.EVALUACION, 3) else Modifier) {
+            EnadPanel {
                 Desplegable(
                     etiqueta = "Momento de evaluación *",
                     valor = estado.momento?.let { MOMENTOS_EVALUACION[it] }.orEmpty(),
@@ -305,7 +307,7 @@ private fun ClasificacionContenido(
                     modifier = Modifier.padding(top = 24.dp)
                 )
 
-                else -> Column(Modifier.objetivoGuia(Guia.EVALUACION, 3)) {
+                else -> {
                     Spacer(Modifier.height(16.dp))
                     Text(
                         "Las fichas muestran el último nivel registrado. Los nuevos resultados se guardan en el momento seleccionado.",

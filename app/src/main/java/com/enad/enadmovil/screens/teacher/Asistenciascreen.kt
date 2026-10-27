@@ -95,6 +95,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.SideEffect
 import com.enad.enadmovil.feature.ayuda.Guia
 import com.enad.enadmovil.feature.ayuda.LocalGuia
@@ -168,6 +169,7 @@ fun AsistenciaScreen(
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val guia = LocalGuia.current
+    val lista = rememberLazyListState()
 
     val estudiantes = ui.estudiantes
     val total = estudiantes.size
@@ -201,6 +203,10 @@ fun AsistenciaScreen(
     if (guia != null && guia.flujo == Guia.ASISTENCIA) {
         SideEffect {
             guia.fijarRequisito(requisitoAsistencia(guia.paso, ui.cargando || guardando, faltan))
+        }
+        // Paso 4: el botón "Agregar estudiante" es el último de la lista; se baja hasta allí para que exista y se resalte.
+        LaunchedEffect(guia.paso) {
+            if (guia.paso == 4) lista.animateScrollToItem((lista.layoutInfo.totalItemsCount - 1).coerceAtLeast(0))
         }
         LaunchedEffect(guia.paso, ui.cargando, guardando, faltan, ui.pendientesSync) {
             if (guia.paso == 5 && !ui.cargando && !guardando && total > 0 && faltan == 0 && ui.pendientesSync == 0) {
@@ -264,7 +270,9 @@ fun AsistenciaScreen(
             }
 
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                state = lista,
+                // Paso 3: toda la lista es el objetivo (las fichas lejanas todavía no existen en pantalla).
+                modifier = Modifier.fillMaxSize().objetivoGuia(Guia.ASISTENCIA, 3),
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -331,7 +339,7 @@ fun AsistenciaScreen(
                 if (sinRegistrar.isNotEmpty()) {
                     item { Text("Sin registrar", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 4.dp, top = 4.dp)) }
                     itemsIndexed(sinRegistrar, key = { _, e -> e.id }) { indice, e ->
-                        TarjetaAsistencia(e, onAbrir = { if (guia?.activa != true) onAbrirEstudiante(e.id) }, onMarcar = { marcar(e.id, it) }, modifier = if (indice == 0) Modifier.objetivoGuia(Guia.ASISTENCIA, 3) else Modifier)
+                        TarjetaAsistencia(e, onAbrir = { if (guia?.activa != true) onAbrirEstudiante(e.id) }, onMarcar = { marcar(e.id, it) })
                     }
                 }
 

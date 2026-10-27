@@ -3,6 +3,7 @@ package com.enad.enadmovil.feature.horas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -43,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -90,9 +92,12 @@ fun HorasScreen(
 
     // La guía necesita saber si hay motivo y si el paso actual se puede continuar.
     if (guia != null && guia.flujo == Guia.HORAS) {
+        // El paso se lee aquí, al componer, para que la pantalla se recomponga cuando cambie. Dentro del
+        // SideEffect no cuenta, y el requisito del paso nuevo no se calculaba hasta tocar otro campo.
+        val pasoGuia = guia.paso
         SideEffect {
             guia.horasPideMotivo = registro?.pideMotivo == true
-            guia.fijarRequisito(requisitoHoras(guia.paso, registro))
+            guia.fijarRequisito(requisitoHoras(pasoGuia, registro))
         }
     }
     // El último paso se cumple cuando las horas quedan guardadas.
@@ -153,42 +158,54 @@ fun HorasScreen(
                 )
                 if (registro.pideMotivo) {
                     Spacer(Modifier.height(20.dp))
-                    Desplegable(
-                        etiqueta = "Motivo",
-                        valor = registro.categoria.orEmpty(),
-                        opciones = MOTIVOS_HORAS.map { it to it },
-                        onSeleccionar = viewModel::cambiarCategoria,
-                        modifier = Modifier.objetivoGuia(Guia.HORAS, 4)
-                    )
-                    if (registro.categoria != null) {
-                        Spacer(Modifier.height(16.dp))
-                        OutlinedTextField(
-                            value = registro.detalle,
-                            onValueChange = viewModel::cambiarDetalle,
-                            enabled = !estado.guardando,
-                            label = { Text(if (registro.categoria == "Otro") "Explica el motivo" else "Detalle (opcional)") },
-                            minLines = 2,
-                            maxLines = 4,
-                            shape = ControlShape,
-                            colors = enadFieldColors(),
-                            textStyle = typography.bodyLarge,
-                            modifier = Modifier.fillMaxWidth()
+                    // El motivo y su detalle van juntos: con "Otro" el detalle es obligatorio y hay que poder escribirlo.
+                    Column(Modifier.objetivoGuia(Guia.HORAS, 4)) {
+                        Desplegable(
+                            etiqueta = "Motivo",
+                            valor = registro.categoria.orEmpty(),
+                            opciones = MOTIVOS_HORAS.map { it to it },
+                            onSeleccionar = viewModel::cambiarCategoria
                         )
-                    }
-                    registro.errorMotivo?.takeIf { registro.categoria != null }?.let {
-                        Spacer(Modifier.height(8.dp))
-                        Text(it, style = typography.bodyMedium)
+                        if (registro.categoria != null) {
+                            Spacer(Modifier.height(16.dp))
+                            OutlinedTextField(
+                                value = registro.detalle,
+                                onValueChange = viewModel::cambiarDetalle,
+                                enabled = !estado.guardando,
+                                label = { Text(if (registro.categoria == "Otro") "Explica el motivo" else "Detalle (opcional)") },
+                                minLines = 2,
+                                maxLines = 4,
+                                shape = ControlShape,
+                                colors = enadFieldColors(),
+                                textStyle = typography.bodyLarge,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        registro.errorMotivo?.takeIf { registro.categoria != null }?.let {
+                            Spacer(Modifier.height(8.dp))
+                            Text(it, style = typography.bodyMedium)
+                        }
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                EnadPrimaryButton(
-                    text = "Guardar",
-                    onClick = { if (registro.existe) confirmarReemplazo = true else viewModel.guardar() },
-                    enabled = registro.puedeGuardar && !estado.guardando,
-                    modifier = Modifier.objetivoGuia(Guia.HORAS, 5)
-                )
-                if (estado.guardando) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = EnadPrimary, trackColor = EnadLine)
+                Box(Modifier.fillMaxWidth().objetivoGuia(Guia.HORAS, 5)) {
+                    EnadPrimaryButton(
+                        text = "Guardar",
+                        onClick = { if (registro.existe) confirmarReemplazo = true else viewModel.guardar() },
+                        enabled = registro.puedeGuardar && !estado.guardando
+                    )
+                    if (estado.guardando) {
+                        // Como en Flutter: mientras guarda, el botón se ve gris y una línea negra recorre su borde inferior.
+                        LinearProgressIndicator(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp)
+                                .height(3.dp),
+                            color = EnadInk,
+                            trackColor = Color.Transparent
+                        )
+                    }
                 }
                 estado.mensaje?.let {
                     Spacer(Modifier.height(12.dp))

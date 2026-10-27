@@ -32,7 +32,7 @@ val PASOS_GUIA: Map<Guia, List<PasoGuia>> = mapOf(
         PasoGuia("Abre Evaluación formativa", "Toca el botón resaltado."),
         PasoGuia("Elige el área", "Selecciona Lectura o Matemáticas."),
         PasoGuia("Elige el momento", "Selecciona el momento de evaluación que vas a registrar."),
-        PasoGuia("Evalúa a un estudiante", "Abre la ficha con la flecha, completa los datos, elige el nivel observado y pulsa Guardar evaluación. Si no hay estudiantes, revisa el curso."),
+        PasoGuia("Evalúa a un estudiante", "Abre la ficha con la flecha, completa los datos, elige el nivel observado y pulsa Guardar evaluación. Si no hay estudiantes, revisa el curso o agrégalos."),
         PasoGuia("¡Evaluación guardada!", "El resultado del estudiante quedó guardado.")
     ),
     Guia.ACTIVIDADES to listOf(

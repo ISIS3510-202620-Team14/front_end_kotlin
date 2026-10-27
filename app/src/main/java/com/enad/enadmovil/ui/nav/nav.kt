@@ -34,6 +34,11 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -89,8 +94,9 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
 
     CompositionLocalProvider(LocalGuia provides guia) {
         Box(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize()) {
-                Box(Modifier.weight(1f)) {
+            // Con la guía abierta, la app se achica sobre el teclado para que la tarjeta no tape el campo resaltado.
+            Column(Modifier.fillMaxSize().then(if (guia.activa) Modifier.imePadding() else Modifier)) {
+                Box(Modifier.weight(1f).onGloballyPositioned { guia.fijarArea(it.boundsInRoot()) }) {
                     NavHost(navController = navController, startDestination = Routes.LOGIN) {
 
                         composable(Routes.LOGIN) {
@@ -241,7 +247,13 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                     }
                 }
                 if (guia.activa) {
-                    Spacer(Modifier.navigationBarsPadding().height(alturaReservadaGuia(compacta)))
+                    // Alto real de la tarjeta (más sus márgenes); antes de medirla se usa un valor aproximado.
+                    val reservada = if (guia.alturaTarjeta > 0) {
+                        with(LocalDensity.current) { guia.alturaTarjeta.toDp() } + 32.dp
+                    } else {
+                        alturaReservadaGuia(compacta)
+                    }
+                    Spacer(Modifier.navigationBarsPadding().height(reservada))
                 }
             }
 

@@ -35,6 +35,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -239,7 +240,10 @@ fun EnadPrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Mo
             disabledContainerColor = EnadLine,
             disabledContentColor = EnadSoftInk,
         ),
-    ) { Text(text, style = MaterialTheme.typography.labelLarge) }
+    ) {
+        // El tema fija el color de bodyLarge (negro) y el texto lo heredaba en vez del blanco del botón.
+        Text(text, style = MaterialTheme.typography.labelLarge, color = LocalContentColor.current)
+    }
 }
 
 /** Botón secundario blanco con borde suave e icono rojo opcional ("Crear grupo", "Gestionar estudiantes"). */

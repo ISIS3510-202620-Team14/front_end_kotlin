@@ -20,6 +20,14 @@ class GuiaViewModel : ViewModel() {
         private set
 
     var horasPideMotivo = false
+
+    /** Zona de la pantalla donde se ve la app (sin la franja de la tarjeta). El recuadro no sale de ella. */
+    var area by mutableStateOf<Rect?>(null)
+        private set
+
+    /** Alto real de la tarjeta de la guía, en píxeles: es lo que se reserva debajo de la app. */
+    var alturaTarjeta by mutableIntStateOf(0)
+        private set
     private var corrida = ""
     private val objetivos = mutableStateMapOf<String, Rect>()
 
@@ -80,6 +88,14 @@ class GuiaViewModel : ViewModel() {
             GuiaEventos.registrar(nombre, it, corrida, paso)
         }
     }
+    fun fijarArea(rect: Rect) {
+        if (area != rect) area = rect
+    }
+
+    fun fijarAlturaTarjeta(px: Int) {
+        if (alturaTarjeta != px) alturaTarjeta = px
+    }
+
     internal fun registrarObjetivo(clave: String, rect: Rect) {
         if(objetivos[clave] != rect) objetivos[clave] = rect
     }

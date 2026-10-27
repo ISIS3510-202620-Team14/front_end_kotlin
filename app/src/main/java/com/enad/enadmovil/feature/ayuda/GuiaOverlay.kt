@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -36,6 +37,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -44,6 +46,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.enad.enadmovil.ui.theme.EnadBackground
 import com.enad.enadmovil.ui.theme.EnadInk
 import com.enad.enadmovil.ui.theme.EnadPrimary
@@ -51,6 +54,11 @@ import com.enad.enadmovil.ui.theme.EnadSurface
 import kotlin.math.roundToInt
 
 fun alturaReservadaGuia(compacta: Boolean): Dp = if (compacta) 150.dp else 270.dp
+
+/** Zona de la pantalla que la guía deja libre (el elemento del paso con un margen), o null si no hay. */
+private fun recorteDe(guia: GuiaViewModel, pantalla: Rect, margen: Float): Rect? =
+    if (guia.completa) null
+    else guia.objetivo?.inflate(margen)?.intersect(guia.area ?: pantalla)?.takeUnless { it.isEmpty }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -64,21 +72,23 @@ fun GuiaOverlay(guia: GuiaViewModel, compacta: Boolean, modifier: Modifier = Mod
 
     BoxWithConstraints(modifier.fillMaxSize()) {
         val pantalla = Rect(0f, 0f, constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
-        val objetivo = if (guia.completa) null else
-            guia.objetivo?.inflate(margen)?.intersect(pantalla)?.takeUnless { it.isEmpty }
+        val objetivo = recorteDe(guia, pantalla, margen)
 
         Canvas(Modifier.fillMaxSize()) {
+            // El rectángulo se lee aquí, en la fase de dibujo: así el recorte sigue al elemento en el mismo
+            // cuadro en que se mueve, sin esperar a que la pantalla se recomponga (se veía atrasado).
+            val destino = recorteDe(guia, pantalla, margen)
             val recorte = Path().apply {
                 fillType = PathFillType.EvenOdd
                 addRect(Rect(Offset.Zero, size))
-                if (objetivo != null) addRoundRect(RoundRect(objetivo, CornerRadius(radio)))
+                if (destino != null) addRoundRect(RoundRect(destino, CornerRadius(radio)))
             }
             drawPath(recorte, EnadBackground.copy(alpha = 0.82f))
-            if (objetivo != null) {
+            if (destino != null) {
                 drawRoundRect(
                     color = EnadPrimary.copy(alpha= 0.6f),
-                    topLeft = objetivo.topLeft,
-                    size = objetivo.size,
+                    topLeft = destino.topLeft,
+                    size = destino.size,
                     cornerRadius = CornerRadius(radio),
                     style = Stroke(width = 1.5.dp.toPx())
                 )
@@ -116,6 +126,7 @@ fun GuiaOverlay(guia: GuiaViewModel, compacta: Boolean, modifier: Modifier = Mod
                 .padding(16.dp)
                 .widthIn(max = 460.dp)
                 .fillMaxWidth()
+                .onSizeChanged { guia.fijarAlturaTarjeta(it.height) }
         ) {
             Column(Modifier.padding(20.dp)) {
                 if (!compacta) {
@@ -129,7 +140,8 @@ fun GuiaOverlay(guia: GuiaViewModel, compacta: Boolean, modifier: Modifier = Mod
                 )
                 if (!compacta) {
                     Spacer(Modifier.height(8.dp))
-                    Text(paso.texto, style = MaterialTheme.typography.bodyMedium)
+                    // 12 sp: a 14 sp, en un teléfono de 360 dp el texto salta antes de llegar al borde de la tarjeta.
+                    Text(paso.texto, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp))
                 }
                 val requisito = guia.requisito
                 if (guia.mostrarContinuar && !paso.opcional && requisito != null) {
@@ -155,7 +167,13 @@ fun GuiaOverlay(guia: GuiaViewModel, compacta: Boolean, modifier: Modifier = Mod
                                 },
                                 enabled = guia.puedeContinuar,
                                 colors = ButtonDefaults.buttonColors(containerColor = EnadPrimary, contentColor = EnadSurface)
-                            ) { Text(if (paso.opcional) "Omitir" else "Continuar") }
+                            ) {
+                                // El tema fija el color del texto en bodyLarge (negro); aquí se usa el del botón: blanco.
+                                Text(
+                                    if (paso.opcional) "Omitir" else "Continuar",
+                                    color = LocalContentColor.current
+                                )
+                            }
                         }
                     }
                 }

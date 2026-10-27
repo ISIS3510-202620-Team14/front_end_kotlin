@@ -67,9 +67,8 @@ import com.enad.enadmovil.ui.theme.EnadHeaderChip
 import com.enad.enadmovil.ui.theme.EnadMovilTheme
 import com.enad.enadmovil.ui.theme.EnadTrack
 import kotlinx.coroutines.launch
-import androidx.compose.material.icons.automirrored.outlined.HelpOutline
-import androidx.compose.material3.ExtendedFloatingActionButton
 import com.enad.enadmovil.feature.ayuda.AyudaSheet
+import com.enad.enadmovil.feature.ayuda.BotonAyuda
 import com.enad.enadmovil.feature.ayuda.Guia
 import com.enad.enadmovil.feature.ayuda.LocalGuia
 import com.enad.enadmovil.feature.ayuda.objetivoGuia
@@ -419,13 +418,7 @@ fun TeacherHomeScreen(
 
         floatingActionButton = {
             if (tabSeleccionado == TeacherTabs.HOY && guia?.activa != true) {
-                ExtendedFloatingActionButton(
-                    onClick = { mostrarAyuda = true },
-                    containerColor = EnadSurface,
-                    contentColor = EnadInk,
-                    icon = { Icon(Icons.AutoMirrored.Outlined.HelpOutline, contentDescription = null) },
-                    text = { Text("Ayuda") }
-                )
+                BotonAyuda(onClick = { mostrarAyuda = true })
             }
         }
     ) { padding ->

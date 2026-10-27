@@ -63,7 +63,9 @@ fun ActividadesScreen(
             .padding(
                 horizontal = 20.dp,
                 vertical = 18.dp
-            ),
+            )
+            // Paso 2: como en Flutter, todo el cuerpo es el objetivo (se puede cambiar de área o desplazar la biblioteca).
+            .objetivoGuia(Guia.ACTIVIDADES, 2),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
 
@@ -104,10 +106,7 @@ fun ActividadesScreen(
 
         item {
             Row(
-                modifier = Modifier.objetivoGuia(Guia.ACTIVIDADES, 1)
-                    .then(
-                        if (viewModel.library.isEmpty()) Modifier.objetivoGuia(Guia.ACTIVIDADES, 2) else Modifier
-                    ),
+                modifier = Modifier.objetivoGuia(Guia.ACTIVIDADES, 1),
                 horizontalArrangement =
                     Arrangement.spacedBy(8.dp)
             ) {
@@ -152,8 +151,7 @@ fun ActividadesScreen(
                         template
                     )
                     guia?.avanzar(Guia.ACTIVIDADES, 2)
-                },
-                modifier = if (indice == 0) Modifier.objetivoGuia(Guia.ACTIVIDADES, 2) else Modifier
+                }
             )
         }
 

@@ -22,9 +22,12 @@ fun Modifier.objetivoGuia(flujo: Guia, paso: Int): Modifier = composed {
     val requester = remember { BringIntoViewRequester() }
     val esElActual = guia.flujo == flujo && guia.paso == paso
 
-    LaunchedEffect(esElActual) {
+    // Se vuelve a pedir cada vez que el elemento cambia de lugar (la pantalla se achica al aparecer la tarjeta
+    // de la guía, cargan otras tarjetas, etc.). Si ya se ve completo no desplaza nada, así que termina sola.
+    val ubicacion = if (esElActual) guia.objetivo else null
+    LaunchedEffect(esElActual, ubicacion) {
         if (esElActual) {
-            delay(150)
+            delay(40)
             requester.bringIntoView()
         }
     }
