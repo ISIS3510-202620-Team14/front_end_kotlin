@@ -526,7 +526,8 @@ fun TeacherHomeScreen(
                 }, modifier = Modifier.objetivoGuia(Guia.ASISTENCIA, 0))
                 EnadActionCard("Evaluación formativa", Icons.Outlined.Assessment, onClick = {
                     onAccionClick(ActionItem(ACCION_EVALUACION, ""))
-                })
+                    guia?.avanzar(Guia.EVALUACION, 0)
+                }, modifier = Modifier.objetivoGuia(Guia.EVALUACION, 0))
                 EnadActionCard("Planear actividades", Icons.AutoMirrored.Outlined.MenuBook, onClick = {
                     mostrarActividades = true
                 })

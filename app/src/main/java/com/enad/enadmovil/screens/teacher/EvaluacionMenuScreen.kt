@@ -34,7 +34,9 @@ import com.enad.enadmovil.ui.components.EnadPanel
 import com.enad.enadmovil.ui.components.EnadProgress
 import com.enad.enadmovil.ui.theme.EnadBackground
 import com.enad.enadmovil.ui.theme.EnadInk
-
+import com.enad.enadmovil.feature.ayuda.Guia
+import com.enad.enadmovil.feature.ayuda.LocalGuia
+import com.enad.enadmovil.feature.ayuda.objetivoGuia
 /**
  * Entrada a la evaluación formativa (evaluation_menu_view en Flutter): una tarjeta por
  * materia con el porcentaje de estudiantes evaluados y el acceso a la lista.
@@ -46,6 +48,7 @@ fun EvaluacionMenuScreen(
     viewModel: TeacherProgressViewModel = viewModel(),
 ) {
     val estado by viewModel.uiState.collectAsStateWithLifecycle()
+    val guia = LocalGuia.current
 
     LifecycleResumeEffect(viewModel) {
         viewModel.refrescar()
@@ -74,27 +77,31 @@ fun EvaluacionMenuScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(bottom = 4.dp)
             )
-            materias.forEach { materia ->
-                EnadPanel(onClick = { onMateria(materia.titulo) }) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(materia.titulo, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                        Spacer(Modifier.width(12.dp))
-                        Text("${materia.porcentaje}%", style = MaterialTheme.typography.titleLarge)
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    EnadProgress(materia.porcentaje / 100f, color = EnadInk)
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        "${materia.evaluados} de ${materia.total} estudiantes evaluados",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Ver estudiantes", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp))
+            Column(Modifier.objetivoGuia(Guia.EVALUACION, 1), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                materias.forEach { materia ->
+                    EnadPanel(onClick = { guia?.avanzar(Guia.EVALUACION, 1)
+                        onMateria(materia.titulo) }) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(materia.titulo, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                            Spacer(Modifier.width(12.dp))
+                            Text("${materia.porcentaje}%", style = MaterialTheme.typography.titleLarge)
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        EnadProgress(materia.porcentaje / 100f, color = EnadInk)
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "${materia.evaluados} de ${materia.total} estudiantes evaluados",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Ver estudiantes", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp))
+                        }
                     }
                 }
             }
+
         }
     }
 }
