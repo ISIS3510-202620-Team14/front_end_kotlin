@@ -54,6 +54,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.enad.enadmovil.feature.actividades.ActividadesScreen
+import com.enad.enadmovil.domain.model.AccionSugerida
 import com.enad.enadmovil.domain.model.AreaMateria
 import com.enad.enadmovil.feature.grupos.CrearGrupoScreen
 import com.enad.enadmovil.feature.grupos.EditarGrupoScreen
@@ -188,6 +189,8 @@ fun TeacherHomeScreen(
 
     LifecycleResumeEffect(progresoViewModel) {
         progresoViewModel.refrescar()
+        // Al volver de Asistencia u Horas (o con el paso de las horas) el momento del día cambia.
+        contextoViewModel.refrescarMomento()
 
         onPauseOrDispose {
         }
@@ -495,6 +498,20 @@ fun TeacherHomeScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 EnadHeading("Hoy", modifier = Modifier.padding(bottom = 8.dp))
+                // Context-aware: el siguiente paso según la hora, el horario y lo ya registrado hoy.
+                MomentoDelDiaCard(
+                    momento = contextoState.momento,
+                    resumen = contextoState.resumen,
+                    onAccion = { accion ->
+                        when (accion) {
+                            AccionSugerida.ASISTENCIA -> onAccionClick(ActionItem(ACCION_ASISTENCIA, ""))
+                            AccionSugerida.EVALUACION -> onAccionClick(ActionItem(ACCION_EVALUACION, ""))
+                            AccionSugerida.HORAS -> onTabSeleccionadoChange(TeacherTabs.HORAS)
+                            AccionSugerida.ACTIVIDADES -> mostrarActividades = true
+                            AccionSugerida.NINGUNA -> Unit
+                        }
+                    }
+                )
                 // SF #1: sugerencia de sede y grupo según ubicación y horario.
                 ContextoSesionCard(
                     estado = contextoState,
