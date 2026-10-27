@@ -128,6 +128,7 @@ class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
                     it.copy(sexo = sexo, edad = edad.toString(), muestra = muestra, nivelActual = nivel)
                 }
                 sesion?.registrarClasificacion(id)
+                guardarAvance()
                 alTerminar("Evaluación guardada.")
             } catch (e: Exception) {
                 // No actualizamos la UI si el backend no confirmó la evaluación.
@@ -184,6 +185,7 @@ class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
     fun alPausar() {
         enPrimerPlano = false
         sesion?.pausar()
+        guardarAvance()
     }
 
     override fun onCleared() {
@@ -197,11 +199,19 @@ class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
         sesion = SesionClasificacion(schoolId, estudiantes).also { if (enPrimerPlano) it.reanudar() }
     }
 
-    /** Si el docente clasificó al menos un estudiante, deja la sesión en cola para el backend. */
     private fun cerrarSesion() {
-        val terminada = sesion ?: return
+        guardarAvance()
         sesion = null
-        val cuerpo = terminada.aJson(materiaClave, InfoDispositivo.versionApp(getApplication())) ?: return
+    }
+
+    /**
+     * Si el docente clasificó al menos un estudiante, deja en cola la sesión con lo que lleva.
+     * Se llama tras cada clasificación y al pausar, así el reporte del admin la ve mientras avanza
+     * y no se pierde si la app se cierra de golpe (WorkManager la guarda en disco).
+     */
+    private fun guardarAvance() {
+        val actual = sesion ?: return
+        val cuerpo = actual.aJson(materiaClave, InfoDispositivo.versionApp(getApplication())) ?: return
         repo.enviarSesion(cuerpo)
     }
 

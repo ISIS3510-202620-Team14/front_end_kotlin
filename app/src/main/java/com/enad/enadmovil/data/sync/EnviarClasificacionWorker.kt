@@ -15,7 +15,7 @@ import org.json.JSONObject
 
 /**
  * BQ 9: manda una sesión de clasificación al backend. Si no hay internet, WorkManager la
- * guarda y la manda cuando vuelva; el clientId evita que un reintento la duplique.
+ * guarda y la manda cuando vuelva; con el mismo clientId el backend actualiza la sesión en vez de duplicarla.
  */
 class EnviarClasificacionWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
 
@@ -45,7 +45,8 @@ class EnviarClasificacionWorker(ctx: Context, params: WorkerParameters) : Corout
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
                 .build()
             WorkManager.getInstance(context.applicationContext)
-                .enqueueUniqueWork("clasificacion_${sesion.getString("clientId")}", ExistingWorkPolicy.KEEP, peticion)
+                // La misma sesión se reencola con cada avance: el envío nuevo reemplaza al que seguía pendiente
+                .enqueueUniqueWork("clasificacion_${sesion.getString("clientId")}", ExistingWorkPolicy.REPLACE, peticion)
         }
     }
 }
