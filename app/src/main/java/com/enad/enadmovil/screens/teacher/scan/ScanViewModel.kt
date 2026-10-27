@@ -44,7 +44,7 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     fun onFotoCapturada(uri: Uri) {
         val numero = siguientePagina++
         _uiState.update {
-            it.copy(procesando = true, error = null, paginas = it.paginas + PaginaEscaneada(numero, EstadoPagina.EnCola))
+            it.copy(procesando = true, error = null, paginas = it.paginas + PaginaEscaneada(numero, EstadoPagina.EnCola, uri))
         }
         fotos.trySend(Foto(numero, uri))
     }
