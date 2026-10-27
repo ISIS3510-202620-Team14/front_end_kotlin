@@ -37,6 +37,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.enad.enadmovil.domain.model.ActivitySource
 import com.enad.enadmovil.domain.model.ActivityTemplate
+import androidx.compose.foundation.lazy.itemsIndexed
+import com.enad.enadmovil.feature.ayuda.Guia
+import com.enad.enadmovil.feature.ayuda.LocalGuia
+import com.enad.enadmovil.feature.ayuda.objetivoGuia
+import com.google.mlkit.common.sdkinternal.model.ModelFileHelper
 
 @Composable
 fun ActividadesScreen(
@@ -45,6 +50,7 @@ fun ActividadesScreen(
     viewModel: ActividadesViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val guia = LocalGuia.current
 
     var mostrarDialogoPropia by remember {
         mutableStateOf(false)
@@ -98,6 +104,10 @@ fun ActividadesScreen(
 
         item {
             Row(
+                modifier = Modifier.objetivoGuia(Guia.ACTIVIDADES, 1)
+                    .then(
+                        if (viewModel.library.isEmpty()) Modifier.objetivoGuia(Guia.ACTIVIDADES, 2) else Modifier
+                    ),
                 horizontalArrangement =
                     Arrangement.spacedBy(8.dp)
             ) {
@@ -131,17 +141,19 @@ fun ActividadesScreen(
             )
         }
 
-        items(
+        itemsIndexed(
             items = viewModel.library,
-            key = { it.id }
-        ) { template ->
+            key = { _, template -> template.id }
+        ) { indice, template ->
             ActivityTemplateCard(
                 template = template,
                 onUse = {
                     viewModel.usarActividadDeBiblioteca(
                         template
                     )
-                }
+                    guia?.avanzar(Guia.ACTIVIDADES, 2)
+                },
+                modifier = if (indice == 0) Modifier.objetivoGuia(Guia.ACTIVIDADES, 2) else Modifier
             )
         }
 
@@ -339,10 +351,11 @@ private fun UsageCard(
 @Composable
 private fun ActivityTemplateCard(
     template: ActivityTemplate,
-    onUse: () -> Unit
+    onUse: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     OutlinedCard(
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     ) {
         Column(
             modifier = Modifier.padding(14.dp),

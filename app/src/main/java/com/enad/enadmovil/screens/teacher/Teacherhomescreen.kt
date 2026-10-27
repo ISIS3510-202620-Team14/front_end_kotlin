@@ -530,7 +530,8 @@ fun TeacherHomeScreen(
                 }, modifier = Modifier.objetivoGuia(Guia.EVALUACION, 0))
                 EnadActionCard("Planear actividades", Icons.AutoMirrored.Outlined.MenuBook, onClick = {
                     mostrarActividades = true
-                })
+                    guia?.avanzar(Guia.ACTIVIDADES, 0)
+                }, modifier = Modifier.objetivoGuia(Guia.ACTIVIDADES, 0))
             }
         }
     }
