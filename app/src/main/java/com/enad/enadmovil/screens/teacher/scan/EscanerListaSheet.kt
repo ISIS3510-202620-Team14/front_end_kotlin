@@ -182,9 +182,9 @@ fun EscanerListaSheet(
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
             CameraCapture(
-                onFotoCapturada = { uri, _ ->
+                onFotoCapturada = { uri, condiciones ->
                     mostrarCamara = false
-                    scanViewModel.onFotoCapturada(uri)
+                    scanViewModel.onFotoCapturada(uri, condiciones)
                 },
                 onError = { mostrarCamara = false },
                 modifier = Modifier.fillMaxSize()
