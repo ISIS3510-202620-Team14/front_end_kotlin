@@ -522,7 +522,8 @@ fun TeacherHomeScreen(
                 )
                 EnadActionCard("Reportar asistencia", Icons.Outlined.FactCheck, onClick = {
                     onAccionClick(ActionItem(ACCION_ASISTENCIA, ""))
-                })
+                    guia?.avanzar(Guia.ASISTENCIA, 0)
+                }, modifier = Modifier.objetivoGuia(Guia.ASISTENCIA, 0))
                 EnadActionCard("Evaluación formativa", Icons.Outlined.Assessment, onClick = {
                     onAccionClick(ActionItem(ACCION_EVALUACION, ""))
                 })

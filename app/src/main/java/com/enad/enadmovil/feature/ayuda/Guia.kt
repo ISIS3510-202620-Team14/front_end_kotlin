@@ -22,7 +22,7 @@ val PASOS_GUIA: Map<Guia, List<PasoGuia>> = mapOf(
     Guia.ASISTENCIA to listOf(
         PasoGuia("Abre Reportar asistencia", "Toca el botón resaltado."),
         PasoGuia("Revisa el curso y la fecha", "Usa Editar para elegir el curso. Ahí también puedes cambiar la fecha.", continuar = true),
-        PasoGuia("Añade estudiantes (opcional)", "Si necesitas registrar estudiantes desde una lista, abre Editar, luego Estudiantes, y usa el escáner. Puedes omitirlo.", continuar = true, opcional = true),
+        PasoGuia("Añade estudiantes (opcional)", "Si necesitas registrar estudiantes desde una lista, abre Editar y luego Estudiantes. Esa pantalla cierra la guía. Puedes omitir este paso.", continuar = true, opcional = true),
         PasoGuia("Marca la asistencia", "En cada ficha elige Asistió o No asistió. Revisa también los registrados.", continuar = true),
         PasoGuia("Agrega a quien falte (opcional)", "Si alguien no aparece, pulsa Agregar estudiante a la sesión. Si están todos, omite este paso.", continuar = true, opcional = true),
         PasoGuia("Guarda la sesión", "Pulsa Guardar para enviar las marcas. La guía termina cuando se confirma el envío."),
