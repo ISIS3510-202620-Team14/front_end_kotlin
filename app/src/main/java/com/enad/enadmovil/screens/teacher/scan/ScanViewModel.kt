@@ -85,6 +85,8 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         siguientePagina = 1
         terminadas.clear()
         entregadas = 0
+        // Las miniaturas eran de las fotos de este escaneo y no se vuelven a mostrar
+        CacheMiniaturas.limpiar()
         _uiState.value = ScanUiState()
     }
 
