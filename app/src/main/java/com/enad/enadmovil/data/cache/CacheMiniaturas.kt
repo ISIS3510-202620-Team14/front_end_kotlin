@@ -1,0 +1,30 @@
+package com.enad.enadmovil.data.cache
+
+import android.graphics.Bitmap
+import android.util.LruCache
+
+/**
+ * Miniaturas de las páginas escaneadas guardadas en memoria.
+ *
+ * El límite no es de cantidad sino de bytes: 1/8 de la memoria que Android le da a la app.
+ * Cuando se llena, sale la miniatura que lleva más tiempo sin usarse (LRU).
+ * No vencen por tiempo porque la foto de una página no cambia.
+ */
+object CacheMiniaturas {
+    // LruCache mide en la unidad que devuelve sizeOf, aquí kilobytes
+    private val maxKb = (Runtime.getRuntime().maxMemory() / 1024 / 8).toInt()
+
+    private val lru = object : LruCache<String, Bitmap>(maxKb) {
+        override fun sizeOf(key: String, value: Bitmap) = (value.byteCount / 1024).coerceAtLeast(1)
+    }
+
+    fun obtener(clave: String): Bitmap? = lru.get(clave)
+
+    fun guardar(clave: String, miniatura: Bitmap) {
+        lru.put(clave, miniatura)
+    }
+
+    fun limpiar() {
+        lru.evictAll()
+    }
+}
