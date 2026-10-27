@@ -1,6 +1,8 @@
 package com.enad.enadmovil.ui.screens.teacher.scan
 
 import android.app.Application
+import android.content.ComponentCallbacks2
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.SystemClock
@@ -44,6 +46,17 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     private var lectores = iniciarLectores()
 
     private data class Foto(val numero: Int, val uri: Uri)
+
+    private val avisosDeMemoria = object : ComponentCallbacks2 {
+        override fun onTrimMemory(level: Int) = CacheMiniaturas.recortar(level)
+        override fun onConfigurationChanged(newConfig: Configuration) = Unit
+        @Deprecated("Se maneja en onTrimMemory")
+        override fun onLowMemory() = CacheMiniaturas.limpiar()
+    }
+
+    init {
+        app.registerComponentCallbacks(avisosDeMemoria)
+    }
 
     fun onFotoCapturada(uri: Uri) {
         val numero = siguientePagina++
@@ -157,6 +170,7 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         fotos.cancel()
         ocr.cerrar()
         hilos.close()
+        getApplication<Application>().unregisterComponentCallbacks(avisosDeMemoria)
         super.onCleared()
     }
 

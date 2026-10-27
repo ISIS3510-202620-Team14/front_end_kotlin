@@ -1,5 +1,6 @@
 package com.enad.enadmovil.data.cache
 
+import android.content.ComponentCallbacks2
 import android.graphics.Bitmap
 import android.util.LruCache
 
@@ -26,5 +27,16 @@ object CacheMiniaturas {
 
     fun limpiar() {
         lru.evictAll()
+    }
+
+    /**
+     * Android avisa cuando le falta memoria. Si la app pasó a segundo plano se suelta todo,
+     * y si solo se ocultó la pantalla se queda con la mitad de las miniaturas más recientes.
+     */
+    fun recortar(nivel: Int) {
+        when {
+            nivel >= ComponentCallbacks2.TRIM_MEMORY_BACKGROUND -> lru.evictAll()
+            nivel >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> lru.trimToSize(lru.maxSize() / 2)
+        }
     }
 }
