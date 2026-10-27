@@ -1,9 +1,11 @@
 package com.enad.enadmovil.ui.screens.teacher.scan
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.SystemClock
 import android.provider.Settings
 import android.view.MotionEvent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -57,12 +59,19 @@ import com.enad.enadmovil.data.sensores.LecturaSensores
 import com.enad.enadmovil.data.sensores.SensoresCaptura
 import com.enad.enadmovil.domain.model.CondicionesCaptura
 import com.enad.enadmovil.domain.model.NivelLuz
+import kotlinx.coroutines.delay
 import java.io.File
 
 // Misma paleta del Login.
 private val Rojo = Color(0xFFA6241F)
 private val TextoOscuro = Color(0xFF2B2320)
 private val TextoSuave = Color(0xFF7A7168)
+
+// El disparo automático se recuerda entre escaneos.
+private const val PREFS_ESCANER = "enad_escaner"
+private const val CLAVE_AUTOMATICO = "disparo_automatico"
+// Al abrir la cámara se deja este tiempo para encuadrar antes de disparar sola.
+private const val ESPERA_ENCUADRE_MS = 1_500L
 
 /**
  * Sensor: cámara del teléfono (CameraX). Antes de pedir el permiso muestra una
@@ -75,6 +84,9 @@ private val TextoSuave = Color(0xFF7A7168)
  * Sensores de luz y acelerómetro ([SensoresCaptura]): avisan si hay poca luz, mucho brillo
  * o si el celular se mueve, y prenden la linterna solos cuando está oscuro. Con cada foto
  * se devuelven las [CondicionesCaptura] que había.
+ *
+ * Disparo automático (opcional): toma la foto sola cuando hay buena luz y el celular
+ * lleva un momento quieto.
  */
 @Composable
 fun CameraCapture(
@@ -155,8 +167,16 @@ fun CameraCapture(
         }
     }
 
-    fun tomarFoto() {
-        val condiciones = CondicionesCaptura(lectura.lux, nivelLuz, lectura.estable, linterna, automatica = false)
+    val prefs = remember { context.getSharedPreferences(PREFS_ESCANER, Context.MODE_PRIVATE) }
+    var automatico by remember { mutableStateOf(prefs.getBoolean(CLAVE_AUTOMATICO, false)) }
+    var tomando by remember { mutableStateOf(false) }
+    val abiertaEn = remember { SystemClock.elapsedRealtime() }
+    val aviso = avisoDe(nivelLuz, lectura.estable, linterna, automatico)
+
+    fun tomarFoto(automatica: Boolean) {
+        if (tomando) return
+        tomando = true
+        val condiciones = CondicionesCaptura(lectura.lux, nivelLuz, lectura.estable, linterna, automatica)
         val archivo = File(context.cacheDir, "lista_${System.currentTimeMillis()}.jpg")
         val opciones = ImageCapture.OutputFileOptions.Builder(archivo).build()
         imageCapture.takePicture(
@@ -169,10 +189,18 @@ fun CameraCapture(
                 }
 
                 override fun onError(exception: ImageCaptureException) {
+                    tomando = false
                     notificarError("No se pudo tomar la foto.")
                 }
             }
         )
+    }
+
+    // Si algo cambia durante la espera (se mueve, baja la luz), el efecto se cancela y vuelve a empezar.
+    LaunchedEffect(automatico, aviso.listo, lectura.estable, camara.value) {
+        if (!automatico || !aviso.listo || lectura.estable != true || camara.value == null) return@LaunchedEffect
+        delay((ESPERA_ENCUADRE_MS - (SystemClock.elapsedRealtime() - abiertaEn)).coerceAtLeast(0))
+        tomarFoto(automatica = true)
     }
 
     Box(modifier = modifier) {
@@ -224,7 +252,7 @@ fun CameraCapture(
         )
 
         AvisoCaptura(
-            aviso = avisoDe(nivelLuz, lectura.estable, linterna),
+            aviso = aviso,
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(top = 48.dp, start = 16.dp, end = 150.dp)
@@ -245,8 +273,26 @@ fun CameraCapture(
                 .padding(top = 48.dp, end = 16.dp)
         ) { Text(if (linterna) "Linterna: sí" else "Linterna: no", fontSize = 12.sp) }
 
+        // Sin acelerómetro no se sabe si está quieto: no se ofrece el disparo automático.
+        if (lectura.estable != null) {
+            Button(
+                onClick = {
+                    automatico = !automatico
+                    prefs.edit().putBoolean(CLAVE_AUTOMATICO, automatico).apply()
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0x99000000),
+                    contentColor = Color.White
+                ),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 100.dp, end = 16.dp)
+            ) { Text(if (automatico) "Automática: sí" else "Automática: no", fontSize = 12.sp) }
+        }
+
         Button(
-            onClick = { tomarFoto() },
+            onClick = { tomarFoto(automatica = false) },
+            enabled = !tomando,
             colors = ButtonDefaults.buttonColors(containerColor = Rojo, contentColor = Color.White),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -261,11 +307,12 @@ fun CameraCapture(
 private data class Aviso(val texto: String, val listo: Boolean)
 
 /** Primero la luz (es lo que más daña la lectura), después el movimiento. */
-private fun avisoDe(nivelLuz: NivelLuz, estable: Boolean?, linterna: Boolean): Aviso = when {
+private fun avisoDe(nivelLuz: NivelLuz, estable: Boolean?, linterna: Boolean, automatico: Boolean): Aviso = when {
     nivelLuz == NivelLuz.OSCURO && !linterna -> Aviso("Hay muy poca luz. Prende la linterna o acércate a una ventana.", false)
     nivelLuz == NivelLuz.BAJA && !linterna -> Aviso("Poca luz: acércate a una ventana o prende la linterna.", false)
     nivelLuz == NivelLuz.EXCESIVA -> Aviso("Mucho brillo: evita el sol directo sobre la hoja.", false)
-    estable == false -> Aviso("Mantén el celular quieto.", false)
+    estable == false -> Aviso(if (automatico) "Mantén el celular quieto y la foto se toma sola." else "Mantén el celular quieto.", false)
+    automatico && estable == true -> Aviso("Quieto. Tomando la foto…", true)
     else -> Aviso("Listo. Toca la pantalla para enfocar.", true)
 }
 
