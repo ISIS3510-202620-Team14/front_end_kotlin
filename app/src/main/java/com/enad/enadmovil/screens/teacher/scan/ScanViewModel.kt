@@ -1,16 +1,20 @@
 package com.enad.enadmovil.ui.screens.teacher.scan
 
 import android.app.Application
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.enad.enadmovil.data.cache.CacheMiniaturas
+import com.enad.enadmovil.data.imagen.LectorMiniaturas
 import com.enad.enadmovil.data.ocr.HilosOcr
 import com.enad.enadmovil.data.ocr.TextRecognizerDataSource
 import com.enad.enadmovil.domain.model.EstudianteEscaneado
 import com.enad.enadmovil.domain.parser.ListaAsistenciaParser
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,6 +51,24 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
             it.copy(procesando = true, error = null, paginas = it.paginas + PaginaEscaneada(numero, EstadoPagina.EnCola, uri))
         }
         fotos.trySend(Foto(numero, uri))
+    }
+
+    /**
+     * Miniatura de una página. Si ya está en la caché sale de memoria al instante. Si no,
+     * se abre achicada desde el disco en un hilo de IO y se guarda para la próxima vez.
+     */
+    suspend fun miniatura(pagina: PaginaEscaneada): Bitmap? {
+        val clave = pagina.foto.toString()
+        CacheMiniaturas.obtener(clave)?.let { return it }
+        val leida = try {
+            withContext(Dispatchers.IO) { LectorMiniaturas.leer(pagina.foto) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null // sin miniatura la página se sigue leyendo igual
+        } ?: return null
+        CacheMiniaturas.guardar(clave, leida)
+        return leida
     }
 
     /** El sheet ya copió las filas nuevas a su lista: se vacían para no sumarlas dos veces. */
