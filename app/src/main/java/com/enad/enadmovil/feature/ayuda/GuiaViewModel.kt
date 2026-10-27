@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import java.util.UUID
 
 internal fun claveObjetivo(flujo: Guia, paso: Int) = "${flujo.name}:$paso"
 
@@ -19,6 +20,7 @@ class GuiaViewModel : ViewModel() {
         private set
 
     var horasPideMotivo = false
+    private var corrida = ""
     private val objetivos = mutableStateMapOf<String, Rect>()
 
     val activa: Boolean get() = flujo != null && paso >= 0
@@ -37,16 +39,21 @@ class GuiaViewModel : ViewModel() {
         flujo = guia
         paso = 0
         requisito = null
+        corrida = UUID.randomUUID().toString()
+        registrar(GuiaEventos.INICIADA)
     }
 
     fun avanzar(guia: Guia, esperado: Int) {
         if (flujo != guia || paso != esperado) return
+        registrar(GuiaEventos.PASO_COMPLETADO)
         paso++
         requisito = null
+        if (completa) registrar(GuiaEventos.COMPLETADA)
     }
 
     fun siguiente() {
         if (!puedeContinuar) return
+        registrar(if (actual?.opcional == true) GuiaEventos.PASO_OMITIDO else GuiaEventos.PASO_COMPLETADO)
         paso++
         if (flujo == Guia.HORAS && paso == 4 && !horasPideMotivo) paso++
         requisito = null
@@ -58,6 +65,7 @@ class GuiaViewModel : ViewModel() {
         requisito = null
     }
     fun salir() {
+        if (activa && !completa) registrar(GuiaEventos.ABANDONADA)
         flujo = null
         paso = -1
         requisito = null
@@ -67,6 +75,11 @@ class GuiaViewModel : ViewModel() {
         if (requisito != texto ) requisito = texto
     }
 
+    private fun registrar(nombre: String) {
+        flujo?.let {
+            GuiaEventos.registrar(nombre, it, corrida, paso)
+        }
+    }
     internal fun registrarObjetivo(clave: String, rect: Rect) {
         if(objetivos[clave] != rect) objetivos[clave] = rect
     }
