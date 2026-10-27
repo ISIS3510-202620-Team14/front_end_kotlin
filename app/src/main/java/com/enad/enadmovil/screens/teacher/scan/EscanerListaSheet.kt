@@ -1,6 +1,9 @@
 package com.enad.enadmovil.ui.screens.teacher.scan
 
+import android.graphics.Bitmap
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,11 +44,16 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -116,7 +124,7 @@ fun EscanerListaSheet(
             )
             if (estado.paginas.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
-                ProgresoPaginas(estado.paginas)
+                ProgresoPaginas(estado.paginas, miniatura = scanViewModel::miniatura)
             }
             Spacer(Modifier.height(12.dp))
             Text(
@@ -226,10 +234,10 @@ private fun CajaEscaneo(leyendo: Boolean, conFilas: Boolean, onClick: () -> Unit
     }
 }
 
-/** Una línea por foto: en cola, leyéndose, cuántos estudiantes salieron o si falló. */
+/** Una línea por foto con su miniatura: en cola, leyéndose, cuántos estudiantes salieron o si falló. */
 @Composable
-private fun ProgresoPaginas(paginas: List<PaginaEscaneada>) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+private fun ProgresoPaginas(paginas: List<PaginaEscaneada>, miniatura: suspend (PaginaEscaneada) -> Bitmap?) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         paginas.forEach { pagina ->
             val (texto, error) = when (val estado = pagina.estado) {
                 EstadoPagina.EnCola -> "en cola" to false
@@ -237,10 +245,38 @@ private fun ProgresoPaginas(paginas: List<PaginaEscaneada>) {
                 is EstadoPagina.Lista -> (if (estado.filas == 1) "1 estudiante" else "${estado.filas} estudiantes") to (estado.filas == 0)
                 EstadoPagina.Fallo -> "no se pudo leer" to true
             }
-            Text(
-                text = "Página ${pagina.numero} · $texto",
-                style = MaterialTheme.typography.bodySmall,
-                color = if (error) EnadPrimary else EnadSoftInk
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Miniatura(pagina, miniatura)
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = "Página ${pagina.numero} · $texto",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (error) EnadPrimary else EnadSoftInk
+                )
+            }
+        }
+    }
+}
+
+/** Mientras la miniatura no está lista se ve un cuadro gris del mismo tamaño. */
+@Composable
+private fun Miniatura(pagina: PaginaEscaneada, miniatura: suspend (PaginaEscaneada) -> Bitmap?) {
+    val imagen by produceState<ImageBitmap?>(null, pagina.foto) {
+        value = miniatura(pagina)?.asImageBitmap()
+    }
+    val forma = RoundedCornerShape(6.dp)
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(forma)
+            .background(EnadLine, forma)
+    ) {
+        imagen?.let {
+            Image(
+                bitmap = it,
+                contentDescription = "Foto de la página ${pagina.numero}",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
             )
         }
     }
