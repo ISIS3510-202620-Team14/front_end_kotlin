@@ -54,6 +54,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.enad.enadmovil.domain.model.EstudianteEscaneado
+import com.enad.enadmovil.domain.parser.FusionFilas
 import com.enad.enadmovil.ui.components.enadFieldColors
 import com.enad.enadmovil.ui.theme.ControlShape
 import com.enad.enadmovil.ui.theme.EnadBackground
@@ -83,8 +84,8 @@ fun EscanerListaSheet(
 
     LaunchedEffect(estado.filas) {
         if (estado.filas.isNotEmpty()) {
-            filas.addAll(estado.filas)
-            scanViewModel.limpiar()
+            filas.addAll(FusionFilas.nuevas(filas, estado.filas))
+            scanViewModel.tomarFilas()
         }
     }
 
@@ -107,15 +108,21 @@ fun EscanerListaSheet(
         ) {
             Text("Escanear lista de estudiantes", style = MaterialTheme.typography.headlineLarge)
             Spacer(Modifier.height(16.dp))
+            // La cámara no se bloquea mientras se leen las páginas anteriores
             CajaEscaneo(
-                procesando = estado.procesando,
-                conFilas = filas.isNotEmpty(),
+                leyendo = estado.procesando,
+                conFilas = filas.isNotEmpty() || estado.paginas.isNotEmpty(),
                 onClick = { mostrarCamara = true }
             )
+            if (estado.paginas.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                ProgresoPaginas(estado.paginas)
+            }
             Spacer(Modifier.height(12.dp))
             Text(
                 text = when {
-                    estado.procesando -> "Leyendo nombres…"
+                    estado.procesando -> "Leyendo ${estado.paginas.count { it.estado == EstadoPagina.EnCola || it.estado == EstadoPagina.Leyendo }} " +
+                        "página(s). Puedes seguir tomando fotos."
                     estado.error != null -> estado.error.orEmpty()
                     filas.isNotEmpty() && exigirCodigo -> "Completa los códigos reales y revisa los nombres antes de importar. " +
                         "Toca uno para corregirlo. Puedes escanear otra página."
@@ -187,35 +194,54 @@ fun EscanerListaSheet(
 }
 
 @Composable
-private fun CajaEscaneo(procesando: Boolean, conFilas: Boolean, onClick: () -> Unit) {
+private fun CajaEscaneo(leyendo: Boolean, conFilas: Boolean, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
-        enabled = !procesando,
         shape = RoundedCornerShape(12.dp),
         color = EnadBackground,
         border = BorderStroke(1.dp, EnadLine),
         modifier = Modifier.fillMaxWidth().height(if (conFilas) 72.dp else 150.dp)
     ) {
         Box(contentAlignment = Alignment.Center) {
-            if (procesando) {
-                CircularProgressIndicator(color = EnadPrimary)
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Outlined.DocumentScanner,
-                        contentDescription = null,
-                        tint = EnadPrimary,
-                        modifier = Modifier.size(if (conFilas) 28.dp else 48.dp)
-                    )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Outlined.DocumentScanner,
+                    contentDescription = null,
+                    tint = EnadPrimary,
+                    modifier = Modifier.size(if (conFilas) 28.dp else 48.dp)
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    if (conFilas) "ESCANEAR OTRA PÁGINA" else "ABRIR CÁMARA",
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.5.sp,
+                    color = EnadInk
+                )
+                if (leyendo) {
                     Spacer(Modifier.width(12.dp))
-                    Text(
-                        if (conFilas) "ESCANEAR OTRA PÁGINA" else "ABRIR CÁMARA",
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 0.5.sp,
-                        color = EnadInk
-                    )
+                    CircularProgressIndicator(color = EnadPrimary, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
                 }
             }
+        }
+    }
+}
+
+/** Una línea por foto: en cola, leyéndose, cuántos estudiantes salieron o si falló. */
+@Composable
+private fun ProgresoPaginas(paginas: List<PaginaEscaneada>) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        paginas.forEach { pagina ->
+            val (texto, error) = when (val estado = pagina.estado) {
+                EstadoPagina.EnCola -> "en cola" to false
+                EstadoPagina.Leyendo -> "leyendo…" to false
+                is EstadoPagina.Lista -> (if (estado.filas == 1) "1 estudiante" else "${estado.filas} estudiantes") to (estado.filas == 0)
+                EstadoPagina.Fallo -> "no se pudo leer" to true
+            }
+            Text(
+                text = "Página ${pagina.numero} · $texto",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (error) EnadPrimary else EnadSoftInk
+            )
         }
     }
 }
