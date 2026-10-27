@@ -2,6 +2,7 @@ package com.enad.enadmovil.data.cache
 
 import android.content.ComponentCallbacks2
 import android.graphics.Bitmap
+import android.util.Log
 import android.util.LruCache
 
 /**
@@ -19,7 +20,16 @@ object CacheMiniaturas {
         override fun sizeOf(key: String, value: Bitmap) = (value.byteCount / 1024).coerceAtLeast(1)
     }
 
-    fun obtener(clave: String): Bitmap? = lru.get(clave)
+    /**
+     * El conteo sale en Logcat con el filtro "CacheMiniaturas". Con dos páginas ya escaneadas,
+     * abrir otra vez la cámara da dos aciertos. Cada foto nueva da un solo fallo, el de la primera vez.
+     */
+    fun obtener(clave: String): Bitmap? {
+        val miniatura = lru.get(clave)
+        Log.d(TAG, "${if (miniatura != null) "ACIERTO" else "FALLO"} ${clave.substringAfterLast('/')} " +
+            "(aciertos ${lru.hitCount()}, fallos ${lru.missCount()}, ${lru.size()} de $maxKb KB)")
+        return miniatura
+    }
 
     fun guardar(clave: String, miniatura: Bitmap) {
         lru.put(clave, miniatura)
@@ -39,4 +49,6 @@ object CacheMiniaturas {
             nivel >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> lru.trimToSize(lru.maxSize() / 2)
         }
     }
+
+    private const val TAG = "CacheMiniaturas"
 }
