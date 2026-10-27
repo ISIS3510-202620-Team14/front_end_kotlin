@@ -12,6 +12,7 @@ import com.enad.enadmovil.data.location.LocationDataSource
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.domain.model.GrupoDelDia
 import com.enad.enadmovil.domain.model.Horario
+import com.enad.enadmovil.domain.model.ResumenDelDia
 import java.time.LocalDate
 
 /**
@@ -29,6 +30,7 @@ class ContextoRepository(context: Context) {
     companion object {
         const val RADIO_SEDE_M = 150f
         private const val MAX_IMPRECISION_M = 200f
+        private const val MS_POR_HORA = 3_600_000.0
     }
 
     fun tienePermisoUbicacion(): Boolean = ubicacion.tienePermiso()
@@ -117,6 +119,26 @@ class ContextoRepository(context: Context) {
         val uid = auth.uidActual() ?: return emptyList()
         val hoy = LocalDate.now()
         return dao.grupos(uid).map { aGrupoDelDia(it, hoy)}
+    }
+
+    /**
+     * Lo que el docente lleva hecho hoy, para la tarjeta del momento del día: horas del horario,
+     * asistencia, horas reportadas y tiempo en la sede. Todo sale de Room, así que funciona sin señal.
+     * [grupoHoy]: el grupo confirmado o sugerido; si no hay, el primero que tenga clase hoy.
+     */
+    suspend fun resumenDelDia(grupoHoy: GrupoDelDia?, hoy: LocalDate = LocalDate.now()): ResumenDelDia? {
+        val uid = auth.uidActual() ?: return null
+        val fecha = hoy.toString()
+        val deHoy = dao.grupos(uid).mapNotNull { grupo ->
+            Horario.horasDelDia(grupo.horario, hoy.dayOfWeek)?.let { horas -> grupo to horas }
+        }
+        return ResumenDelDia(
+            grupo = grupoHoy?.nombre ?: deHoy.firstOrNull()?.first?.nombre,
+            horasPlaneadas = deHoy.sumOf { (_, horas) -> horas },
+            marcasAsistencia = dao.asistenciasDelDia(uid, fecha),
+            horasReportadas = dao.reporte(uid, fecha) != null,
+            horasEnSede = dao.presenciasDelDia(uid, fecha).maxOfOrNull { (it.ultimaVez - it.primeraVez) / MS_POR_HORA }
+        )
     }
 
     suspend fun confirmar(grupoId: String, origen: String) {
