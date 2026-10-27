@@ -195,6 +195,8 @@ fun EscanerListaSheet(
                     scanViewModel.onFotoCapturada(uri)
                 },
                 onError = { mostrarCamara = false },
+                paginas = estado.paginas,
+                miniatura = scanViewModel::miniatura,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -246,7 +248,7 @@ private fun ProgresoPaginas(paginas: List<PaginaEscaneada>, miniatura: suspend (
                 EstadoPagina.Fallo -> "no se pudo leer" to true
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Miniatura(pagina, miniatura)
+                MiniaturaPagina(pagina, miniatura)
                 Spacer(Modifier.width(10.dp))
                 Text(
                     text = "Página ${pagina.numero} · $texto",
@@ -260,7 +262,7 @@ private fun ProgresoPaginas(paginas: List<PaginaEscaneada>, miniatura: suspend (
 
 /** Mientras la miniatura no está lista se ve un cuadro gris del mismo tamaño. */
 @Composable
-private fun Miniatura(pagina: PaginaEscaneada, miniatura: suspend (PaginaEscaneada) -> Bitmap?) {
+internal fun MiniaturaPagina(pagina: PaginaEscaneada, miniatura: suspend (PaginaEscaneada) -> Bitmap?) {
     val imagen by produceState<ImageBitmap?>(null, pagina.foto) {
         value = miniatura(pagina)?.asImageBitmap()
     }
