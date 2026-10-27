@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -27,6 +28,8 @@ import com.enad.enadmovil.ui.components.EnadPanel
 import com.enad.enadmovil.ui.theme.ControlShape
 import com.enad.enadmovil.ui.theme.EnadBackground
 import com.enad.enadmovil.ui.theme.EnadPrimary
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,6 +48,9 @@ data class ReporteClasificacionUiState(
     val error: String? = null
 )
 
+/** Cada cuánto se vuelve a pedir el reporte mientras el admin lo tiene en pantalla. */
+private const val REFRESCO_MS = 30_000L
+
 /** BQ tipo 3 (#9): cuánto tarda en promedio cada docente en clasificar 25 estudiantes, por institución. */
 class ReporteClasificacionViewModel(
     private val repo: ReportesRepository = ReportesRepository()
@@ -53,8 +59,25 @@ class ReporteClasificacionViewModel(
     private val _uiState = MutableStateFlow(ReporteClasificacionUiState())
     val uiState: StateFlow<ReporteClasificacionUiState> = _uiState.asStateFlow()
 
-    init {
-        cargar()
+    private var refresco: Job? = null
+
+    /**
+     * Mientras el reporte está visible se recarga al aparecer y luego cada [REFRESCO_MS], así el
+     * admin ve las sesiones que los docentes van mandando sin tocar Actualizar.
+     */
+    fun iniciarRefresco() {
+        if (refresco?.isActive == true) return
+        refresco = viewModelScope.launch {
+            while (true) {
+                cargar(forzar = true, silencioso = true)
+                delay(REFRESCO_MS)
+            }
+        }
+    }
+
+    fun detenerRefresco() {
+        refresco?.cancel()
+        refresco = null
     }
 
     fun seleccionarMateria(materia: String?) {
@@ -62,9 +85,12 @@ class ReporteClasificacionViewModel(
         cargar()
     }
 
-    fun cargar(forzar: Boolean = false) {
+    /** [silencioso]: si ya hay datos en pantalla no se muestra el spinner ni se cambian por un error. */
+    fun cargar(forzar: Boolean = false, silencioso: Boolean = false) {
         val materia = _uiState.value.materia
-        _uiState.update { it.copy(cargando = true, error = null) }
+        val conDatos = _uiState.value.let { !it.cargando && it.error == null }
+        val enSegundoPlano = silencioso && conDatos
+        if (!enSegundoPlano) _uiState.update { it.copy(cargando = true, error = null) }
         viewModelScope.launch {
             val nuevo = try {
                 ReporteClasificacionUiState(
@@ -83,7 +109,10 @@ class ReporteClasificacionViewModel(
                 ReporteClasificacionUiState(cargando = false, materia = materia, error = "No se pudo cargar el reporte. Revisa tu conexión e intenta de nuevo.")
             }
             // Si el admin cambió de materia mientras cargaba, esta respuesta ya no aplica
-            if (_uiState.value.materia == materia) _uiState.value = nuevo
+            if (_uiState.value.materia != materia) return@launch
+            // Un refresco automático que falla deja lo que ya se veía
+            if (enSegundoPlano && nuevo.error != null) return@launch
+            _uiState.value = nuevo
         }
     }
 
@@ -92,12 +121,17 @@ class ReporteClasificacionViewModel(
 
 @Composable
 fun ReporteClasificacionSection(viewModel: ReporteClasificacionViewModel = viewModel()) {
+    // Solo se refresca mientras el reporte está en pantalla y la app en primer plano.
+    LifecycleResumeEffect(viewModel) {
+        viewModel.iniciarRefresco()
+        onPauseOrDispose { viewModel.detenerRefresco() }
+    }
     val estado by viewModel.uiState.collectAsStateWithLifecycle()
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         EncabezadoReporte(
             titulo = "Tiempo de clasificación",
-            descripcion = "Minutos que tarda cada docente en clasificar 25 estudiantes (últimas 8 semanas).",
+            descripcion = "Minutos que tarda cada docente en clasificar 25 estudiantes (últimas 8 semanas). Se actualiza solo cada 30 s.",
             cargando = estado.cargando,
             onActualizar = viewModel::actualizar
         )

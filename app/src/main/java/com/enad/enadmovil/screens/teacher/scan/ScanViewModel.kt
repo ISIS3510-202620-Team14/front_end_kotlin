@@ -13,6 +13,9 @@ import com.enad.enadmovil.data.cache.CacheMiniaturas
 import com.enad.enadmovil.data.imagen.LectorMiniaturas
 import com.enad.enadmovil.data.ocr.HilosOcr
 import com.enad.enadmovil.data.ocr.TextRecognizerDataSource
+import com.enad.enadmovil.data.repository.AuthRepository
+import com.enad.enadmovil.data.telemetria.EventosEscaneo
+import com.enad.enadmovil.domain.model.CondicionesCaptura
 import com.enad.enadmovil.domain.model.EstudianteEscaneado
 import com.enad.enadmovil.domain.parser.ListaAsistenciaParser
 import kotlinx.coroutines.CancellationException
@@ -45,7 +48,9 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     private var entregadas = 0
     private var lectores = iniciarLectores()
 
-    private data class Foto(val numero: Int, val uri: Uri)
+    private val auth = AuthRepository()
+
+    private data class Foto(val numero: Int, val uri: Uri, val condiciones: CondicionesCaptura)
 
     private val avisosDeMemoria = object : ComponentCallbacks2 {
         override fun onTrimMemory(level: Int) = CacheMiniaturas.recortar(level)
@@ -58,12 +63,12 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         app.registerComponentCallbacks(avisosDeMemoria)
     }
 
-    fun onFotoCapturada(uri: Uri) {
+    fun onFotoCapturada(uri: Uri, condiciones: CondicionesCaptura = CondicionesCaptura.SIN_SENSORES) {
         val numero = siguientePagina++
         _uiState.update {
             it.copy(procesando = true, error = null, paginas = it.paginas + PaginaEscaneada(numero, EstadoPagina.EnCola, uri))
         }
-        fotos.trySend(Foto(numero, uri))
+        fotos.trySend(Foto(numero, uri, condiciones))
     }
 
     /**
@@ -118,9 +123,9 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
      */
     private suspend fun leer(foto: Foto) {
         _uiState.update { it.copy(paginas = it.paginas.marcar(foto.numero, EstadoPagina.Leyendo)) }
+        val inicio = SystemClock.elapsedRealtime()
         val filas: List<EstudianteEscaneado>? = try {
             withContext(hilos.dispatcher) {
-                val inicio = SystemClock.elapsedRealtime()
                 ListaAsistenciaParser.parsear(ocr.reconocer(foto.uri)).also {
                     // El nombre del hilo muestra en Logcat que cada página se leyó en el pool del escáner
                     Log.d(TAG, "Página ${foto.numero}: ${it.size} filas en ${SystemClock.elapsedRealtime() - inicio} ms (${Thread.currentThread().name})")
@@ -131,6 +136,7 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         } catch (e: Exception) {
             null // una foto que falla no detiene las demás
         }
+        auth.uidActual()?.let { EventosEscaneo.registrar(it, foto.condiciones, filas?.size, SystemClock.elapsedRealtime() - inicio) }
         val enOrden = enOrden(foto.numero, filas.orEmpty())
         _uiState.update {
             val paginas = it.paginas.marcar(foto.numero, filas?.let { f -> EstadoPagina.Lista(f.size) } ?: EstadoPagina.Fallo)
