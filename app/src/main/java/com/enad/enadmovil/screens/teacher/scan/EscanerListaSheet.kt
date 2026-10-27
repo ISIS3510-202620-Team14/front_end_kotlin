@@ -182,7 +182,7 @@ fun EscanerListaSheet(
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
             CameraCapture(
-                onFotoCapturada = { uri ->
+                onFotoCapturada = { uri, _ ->
                     mostrarCamara = false
                     scanViewModel.onFotoCapturada(uri)
                 },

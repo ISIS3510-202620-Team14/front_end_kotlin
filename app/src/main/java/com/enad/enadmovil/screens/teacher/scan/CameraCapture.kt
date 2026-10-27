@@ -35,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +52,11 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.enad.enadmovil.data.sensores.LecturaSensores
+import com.enad.enadmovil.data.sensores.SensoresCaptura
+import com.enad.enadmovil.domain.model.CondicionesCaptura
+import com.enad.enadmovil.domain.model.NivelLuz
 import java.io.File
 
 // Misma paleta del Login.
@@ -65,10 +71,14 @@ private val TextoSuave = Color(0xFF7A7168)
  *
  * Configurada para leer texto: máxima calidad, mayor resolución disponible,
  * enfoque al tocar la pantalla y linterna.
+ *
+ * Sensores de luz y acelerómetro ([SensoresCaptura]): avisan si hay poca luz, mucho brillo
+ * o si el celular se mueve, y prenden la linterna solos cuando está oscuro. Con cada foto
+ * se devuelven las [CondicionesCaptura] que había.
  */
 @Composable
 fun CameraCapture(
-    onFotoCapturada: (Uri) -> Unit,
+    onFotoCapturada: (Uri, CondicionesCaptura) -> Unit,
     onError: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -132,6 +142,38 @@ fun CameraCapture(
     }
     val camara = remember { mutableStateOf<Camera?>(null) }
     var linterna by remember { mutableStateOf(false) }
+    // Si el docente tocó el botón de la linterna, la app ya no la prende ni la apaga por él.
+    var linternaTocada by remember { mutableStateOf(false) }
+
+    val sensores = remember { SensoresCaptura(context) }
+    val lectura by remember { sensores.lecturas() }.collectAsStateWithLifecycle(LecturaSensores(null, null))
+    val nivelLuz = NivelLuz.de(lectura.lux)
+
+    LaunchedEffect(nivelLuz, camara.value) {
+        if (nivelLuz == NivelLuz.OSCURO && !linternaTocada && !linterna) {
+            camara.value?.cameraControl?.enableTorch(true)?.let { linterna = true }
+        }
+    }
+
+    fun tomarFoto() {
+        val condiciones = CondicionesCaptura(lectura.lux, nivelLuz, lectura.estable, linterna, automatica = false)
+        val archivo = File(context.cacheDir, "lista_${System.currentTimeMillis()}.jpg")
+        val opciones = ImageCapture.OutputFileOptions.Builder(archivo).build()
+        imageCapture.takePicture(
+            opciones,
+            ContextCompat.getMainExecutor(context),
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                    camara.value?.cameraControl?.enableTorch(false)
+                    onFotoCapturada(Uri.fromFile(archivo), condiciones)
+                }
+
+                override fun onError(exception: ImageCaptureException) {
+                    notificarError("No se pudo tomar la foto.")
+                }
+            }
+        )
+    }
 
     Box(modifier = modifier) {
         AndroidView(
@@ -181,17 +223,16 @@ fun CameraCapture(
             }
         )
 
-        Text(
-            text = "Toca la pantalla para enfocar",
-            color = Color.White,
-            fontSize = 13.sp,
+        AvisoCaptura(
+            aviso = avisoDe(nivelLuz, lectura.estable, linterna),
             modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 24.dp)
+                .align(Alignment.TopStart)
+                .padding(top = 48.dp, start = 16.dp, end = 150.dp)
         )
 
         Button(
             onClick = {
+                linternaTocada = true
                 linterna = !linterna
                 camara.value?.cameraControl?.enableTorch(linterna)
             },
@@ -205,24 +246,7 @@ fun CameraCapture(
         ) { Text(if (linterna) "Linterna: sí" else "Linterna: no", fontSize = 12.sp) }
 
         Button(
-            onClick = {
-                val archivo = File(context.cacheDir, "lista_${System.currentTimeMillis()}.jpg")
-                val opciones = ImageCapture.OutputFileOptions.Builder(archivo).build()
-                imageCapture.takePicture(
-                    opciones,
-                    ContextCompat.getMainExecutor(context),
-                    object : ImageCapture.OnImageSavedCallback {
-                        override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                            camara.value?.cameraControl?.enableTorch(false)
-                            onFotoCapturada(Uri.fromFile(archivo))
-                        }
-
-                        override fun onError(exception: ImageCaptureException) {
-                            notificarError("No se pudo tomar la foto.")
-                        }
-                    }
-                )
-            },
+            onClick = { tomarFoto() },
             colors = ButtonDefaults.buttonColors(containerColor = Rojo, contentColor = Color.White),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -230,6 +254,30 @@ fun CameraCapture(
                 .fillMaxWidth()
                 .height(52.dp)
         ) { Text("Tomar foto") }
+    }
+}
+
+/** Mensaje sobre la vista previa según lo que miden los sensores. [listo] = la foto va a salir bien. */
+private data class Aviso(val texto: String, val listo: Boolean)
+
+/** Primero la luz (es lo que más daña la lectura), después el movimiento. */
+private fun avisoDe(nivelLuz: NivelLuz, estable: Boolean?, linterna: Boolean): Aviso = when {
+    nivelLuz == NivelLuz.OSCURO && !linterna -> Aviso("Hay muy poca luz. Prende la linterna o acércate a una ventana.", false)
+    nivelLuz == NivelLuz.BAJA && !linterna -> Aviso("Poca luz: acércate a una ventana o prende la linterna.", false)
+    nivelLuz == NivelLuz.EXCESIVA -> Aviso("Mucho brillo: evita el sol directo sobre la hoja.", false)
+    estable == false -> Aviso("Mantén el celular quieto.", false)
+    else -> Aviso("Listo. Toca la pantalla para enfocar.", true)
+}
+
+@Composable
+private fun AvisoCaptura(aviso: Aviso, modifier: Modifier = Modifier) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = if (aviso.listo) Color(0xCC1E6B3A) else Color(0xCC8A5A00),
+        contentColor = Color.White,
+        modifier = modifier
+    ) {
+        Text(aviso.texto, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
     }
 }
 
