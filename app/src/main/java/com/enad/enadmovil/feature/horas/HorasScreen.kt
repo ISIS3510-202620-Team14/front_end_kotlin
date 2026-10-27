@@ -3,6 +3,7 @@ package com.enad.enadmovil.feature.horas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -43,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -64,6 +66,10 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import kotlin.math.round
+import androidx.compose.runtime.SideEffect
+import com.enad.enadmovil.feature.ayuda.Guia
+import com.enad.enadmovil.feature.ayuda.LocalGuia
+import com.enad.enadmovil.feature.ayuda.objetivoGuia
 
 private val formatoFecha = DateTimeFormatter.ofPattern("dd/MM/yyyy")
 private val etiquetasDia = listOf("Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom")
@@ -82,6 +88,24 @@ fun HorasScreen(
     var mostrarFecha by remember { mutableStateOf(false) }
     var confirmarReemplazo by remember { mutableStateOf(false) }
     val registro = estado.registro
+    val guia = LocalGuia.current
+
+    // La guía necesita saber si hay motivo y si el paso actual se puede continuar.
+    if (guia != null && guia.flujo == Guia.HORAS) {
+        // El paso se lee aquí, al componer, para que la pantalla se recomponga cuando cambie. Dentro del
+        // SideEffect no cuenta, y el requisito del paso nuevo no se calculaba hasta tocar otro campo.
+        val pasoGuia = guia.paso
+        SideEffect {
+            guia.horasPideMotivo = registro?.pideMotivo == true
+            guia.fijarRequisito(requisitoHoras(pasoGuia, registro))
+        }
+    }
+    // El último paso se cumple cuando las horas quedan guardadas.
+    LaunchedEffect(estado.mensaje) {
+        if (guia?.flujo == Guia.HORAS && estado.mensaje?.startsWith("Horas guardadas") == true) {
+            guia.avanzar(Guia.HORAS, 5)
+        }
+    }
     val inicioSemana = estado.fecha.minusDays((estado.fecha.dayOfWeek.value - 1).toLong())
 
     Column(
@@ -93,7 +117,7 @@ fun HorasScreen(
         EnadHeading("Reportar horas")
         Spacer(Modifier.height(24.dp))
 
-        EnadPanel {
+        EnadPanel(modifier = Modifier.objetivoGuia(Guia.HORAS, 1)) {
             Text(
                 "${inicioSemana.format(formatoFecha)} al ${inicioSemana.plusDays(6).format(formatoFecha)}",
                 style = typography.titleMedium
@@ -116,51 +140,72 @@ fun HorasScreen(
             if (registro == null) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = EnadPrimary, trackColor = EnadLine)
             } else {
-                CampoHoras("Programadas", registro.textoPlaneadas, !estado.guardando, viewModel::cambiarPlaneadas)
+                CampoHoras(
+                    "Programadas",
+                    registro.textoPlaneadas,
+                    !estado.guardando,
+                    viewModel::cambiarPlaneadas,
+                    modifier = Modifier.objetivoGuia(Guia.HORAS, 2)
+                )
                 Spacer(Modifier.height(20.dp))
                 CampoHoras(
                     "Realizadas",
                     registro.texto,
                     !estado.guardando,
                     viewModel::cambiarHoras,
-                    ayuda = if (registro.sugerido) "Sugerido, ajústalo" else null
+                    ayuda = if (registro.sugerido) "Sugerido, ajústalo" else null,
+                    modifier = Modifier.objetivoGuia(Guia.HORAS, 3)
                 )
                 if (registro.pideMotivo) {
                     Spacer(Modifier.height(20.dp))
-                    Desplegable(
-                        etiqueta = "Motivo",
-                        valor = registro.categoria.orEmpty(),
-                        opciones = MOTIVOS_HORAS.map { it to it },
-                        onSeleccionar = viewModel::cambiarCategoria
-                    )
-                    if (registro.categoria != null) {
-                        Spacer(Modifier.height(16.dp))
-                        OutlinedTextField(
-                            value = registro.detalle,
-                            onValueChange = viewModel::cambiarDetalle,
-                            enabled = !estado.guardando,
-                            label = { Text(if (registro.categoria == "Otro") "Explica el motivo" else "Detalle (opcional)") },
-                            minLines = 2,
-                            maxLines = 4,
-                            shape = ControlShape,
-                            colors = enadFieldColors(),
-                            textStyle = typography.bodyLarge,
-                            modifier = Modifier.fillMaxWidth()
+                    // El motivo y su detalle van juntos: con "Otro" el detalle es obligatorio y hay que poder escribirlo.
+                    Column(Modifier.objetivoGuia(Guia.HORAS, 4)) {
+                        Desplegable(
+                            etiqueta = "Motivo",
+                            valor = registro.categoria.orEmpty(),
+                            opciones = MOTIVOS_HORAS.map { it to it },
+                            onSeleccionar = viewModel::cambiarCategoria
                         )
-                    }
-                    registro.errorMotivo?.takeIf { registro.categoria != null }?.let {
-                        Spacer(Modifier.height(8.dp))
-                        Text(it, style = typography.bodyMedium)
+                        if (registro.categoria != null) {
+                            Spacer(Modifier.height(16.dp))
+                            OutlinedTextField(
+                                value = registro.detalle,
+                                onValueChange = viewModel::cambiarDetalle,
+                                enabled = !estado.guardando,
+                                label = { Text(if (registro.categoria == "Otro") "Explica el motivo" else "Detalle (opcional)") },
+                                minLines = 2,
+                                maxLines = 4,
+                                shape = ControlShape,
+                                colors = enadFieldColors(),
+                                textStyle = typography.bodyLarge,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        registro.errorMotivo?.takeIf { registro.categoria != null }?.let {
+                            Spacer(Modifier.height(8.dp))
+                            Text(it, style = typography.bodyMedium)
+                        }
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                EnadPrimaryButton(
-                    text = "Guardar",
-                    onClick = { if (registro.existe) confirmarReemplazo = true else viewModel.guardar() },
-                    enabled = registro.puedeGuardar && !estado.guardando
-                )
-                if (estado.guardando) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = EnadPrimary, trackColor = EnadLine)
+                Box(Modifier.fillMaxWidth().objetivoGuia(Guia.HORAS, 5)) {
+                    EnadPrimaryButton(
+                        text = "Guardar",
+                        onClick = { if (registro.existe) confirmarReemplazo = true else viewModel.guardar() },
+                        enabled = registro.puedeGuardar && !estado.guardando
+                    )
+                    if (estado.guardando) {
+                        // Como en Flutter: mientras guarda, el botón se ve gris y una línea negra recorre su borde inferior.
+                        LinearProgressIndicator(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp)
+                                .height(3.dp),
+                            color = EnadInk,
+                            trackColor = Color.Transparent
+                        )
+                    }
                 }
                 estado.mensaje?.let {
                     Spacer(Modifier.height(12.dp))
@@ -217,7 +262,14 @@ fun HorasScreen(
 }
 
 @Composable
-private fun CampoHoras(etiqueta: String, valor: String, habilitado: Boolean, onCambio: (String) -> Unit, ayuda: String? = null) {
+private fun CampoHoras(
+    etiqueta: String,
+    valor: String,
+    habilitado: Boolean,
+    onCambio: (String) -> Unit,
+    ayuda: String? = null,
+    modifier: Modifier = Modifier
+) {
     OutlinedTextField(
         value = valor,
         onValueChange = onCambio,
@@ -230,7 +282,7 @@ private fun CampoHoras(etiqueta: String, valor: String, habilitado: Boolean, onC
         shape = ControlShape,
         colors = enadFieldColors(),
         textStyle = typography.bodyLarge,
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     )
 }
 
@@ -293,5 +345,22 @@ fun formatearHoras(horas: Double): String {
         redondeado.toInt().toString()
     } else {
         redondeado.toString()
+    }
+}
+
+/** Qué le falta al docente para poder continuar la guía en el paso actual (null si nada). */
+private fun requisitoHoras(paso: Int, registro: RegistroDiaUi?): String? {
+    if (registro == null) return "Espera a que termine de cargar el reporte."
+    fun valor(texto: String) = texto.replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() && it in 0.0..24.0 }
+    return when (paso) {
+        2 -> if (valor(registro.textoPlaneadas) == null) "Escribe un número entre 0 y 24." else null
+        3 -> when {
+            valor(registro.texto) == null -> "Escribe un número entre 0 y 24."
+            valor(registro.texto) == 0.0 && valor(registro.textoPlaneadas) == 0.0 ->
+                "Las horas programadas y realizadas no pueden ser ambas cero."
+            else -> null
+        }
+        4 -> registro.errorMotivo
+        else -> null
     }
 }

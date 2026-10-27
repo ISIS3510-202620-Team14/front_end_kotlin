@@ -84,6 +84,9 @@ import com.enad.enadmovil.ui.theme.EnadSoftInk
 import com.enad.enadmovil.ui.theme.EnadSurface
 import com.enad.enadmovil.ui.theme.PanelShape
 import kotlinx.coroutines.launch
+import com.enad.enadmovil.feature.ayuda.Guia
+import com.enad.enadmovil.feature.ayuda.LocalGuia
+import com.enad.enadmovil.feature.ayuda.objetivoGuia
 
 // "materia" parametriza la pantalla para que Lectura y Matemáticas la compartan
 // (título + niveles propios). Los colores de nivel son los de LevelPalette en Flutter.
@@ -193,6 +196,7 @@ private fun ClasificacionContenido(
     onEvaluar: (String, String, String, Int, Int, (String) -> Unit) -> Unit,
     onRetirar: (String, (String) -> Unit) -> Unit
 ) {
+    val guia = LocalGuia.current
     val estudiantes = estado.visibles
     var expandidoId by remember { mutableStateOf<String?>(null) }
     var retiradosAbiertos by remember { mutableStateOf(false) }
@@ -200,6 +204,10 @@ private fun ClasificacionContenido(
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val avisar: (String) -> Unit = { texto -> scope.launch { snackbar.showSnackbar(texto) } }
+    val avisarEvaluacion: (String) -> Unit = { texto ->
+        avisar(texto)
+        if (texto == "Evaluación guardada.") guia?.avanzar(Guia.EVALUACION, 3)
+    }
 
     val activos = estudiantes.filter { it.nivelActual != NIVEL_RETIRADO }
     val retirados = estudiantes.filter { it.nivelActual == NIVEL_RETIRADO }
@@ -214,8 +222,8 @@ private fun ClasificacionContenido(
             materia = materia,
             expandida = expandidoId == e.id,
             onAlternar = { expandidoId = if (expandidoId == e.id) null else e.id },
-            onVerPerfil = { onVerPerfil(e.id) },
-            onGuardar = { nivel, sexo, edad, muestra -> onEvaluar(e.id, nivel, sexo, edad, muestra, avisar) },
+            onVerPerfil = { if (guia?.activa != true) onVerPerfil(e.id) },
+            onGuardar = { nivel, sexo, edad, muestra -> onEvaluar(e.id, nivel, sexo, edad, muestra, avisarEvaluacion) },
             onRetirar = { onRetirar(e.id, avisar) }
         )
     }
@@ -235,6 +243,8 @@ private fun ClasificacionContenido(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                // Como en Flutter, el paso 3 resalta toda la pantalla: así se puede cambiar el curso o agregar estudiantes.
+                .objetivoGuia(Guia.EVALUACION, 3)
                 .verticalScroll(rememberScrollState())
                 .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 32.dp)
         ) {
@@ -243,7 +253,11 @@ private fun ClasificacionContenido(
                     etiqueta = "Momento de evaluación *",
                     valor = estado.momento?.let { MOMENTOS_EVALUACION[it] }.orEmpty(),
                     opciones = MOMENTOS_EVALUACION.entries.map { it.key to it.value },
-                    onSeleccionar = onSeleccionarMomento
+                    onSeleccionar = { clave ->
+                        onSeleccionarMomento(clave)
+                        guia?.avanzar(Guia.EVALUACION, 2)
+                    },
+                    modifier = Modifier.objetivoGuia(Guia.EVALUACION, 2)
                 )
                 if (estado.instituciones.size > 1) {
                     Spacer(Modifier.height(16.dp))

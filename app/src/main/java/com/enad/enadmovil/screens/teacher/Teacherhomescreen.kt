@@ -67,6 +67,13 @@ import com.enad.enadmovil.ui.theme.EnadHeaderChip
 import com.enad.enadmovil.ui.theme.EnadMovilTheme
 import com.enad.enadmovil.ui.theme.EnadTrack
 import kotlinx.coroutines.launch
+import com.enad.enadmovil.feature.ayuda.AyudaSheet
+import com.enad.enadmovil.feature.ayuda.BotonAyuda
+import com.enad.enadmovil.feature.ayuda.Guia
+import com.enad.enadmovil.feature.ayuda.LocalGuia
+import com.enad.enadmovil.feature.ayuda.objetivoGuia
+import com.enad.enadmovil.ui.theme.EnadInk
+import com.enad.enadmovil.ui.theme.EnadSurface
 
 data class ProgressItem(
     val title: String,
@@ -213,6 +220,9 @@ fun TeacherHomeScreen(
         remember { SnackbarHostState() }
 
     val scope = rememberCoroutineScope()
+
+    val guia = LocalGuia.current
+    var mostrarAyuda by remember { mutableStateOf(false) }
 
     if (mostrarActividades) {
         BackHandler {
@@ -389,19 +399,27 @@ fun TeacherHomeScreen(
         },
 
         bottomBar = {
-            TeacherBottomBar(
-                tabs = tabsConSeleccion,
-                onTabClick = { tab ->
-                    val index =
-                        tabsConSeleccion.indexOf(tab)
+            if (guia?.activa != true) {
+                TeacherBottomBar(
+                    tabs = tabsConSeleccion,
+                    onTabClick = { tab ->
+                        val index =
+                            tabsConSeleccion.indexOf(tab)
 
-                    if (index >= 0) {
-                        onTabSeleccionadoChange(index)
+                        if (index >= 0) {
+                            onTabSeleccionadoChange(index)
+                        }
+
+                        onTabClick(tab)
                     }
+                )
+            }
+        },
 
-                    onTabClick(tab)
-                }
-            )
+        floatingActionButton = {
+            if (tabSeleccionado == TeacherTabs.HOY && guia?.activa != true) {
+                BotonAyuda(onClick = { mostrarAyuda = true })
+            }
         }
     ) { padding ->
 
@@ -486,20 +504,39 @@ fun TeacherHomeScreen(
                 )
                 // BQ #6: aperturas de la app en la semana.
                 AperturasSemanaCard(aperturasState)
-                EnadActionCard("Reportar horas", Icons.Outlined.AccessTime, onClick = {
-                    onTabSeleccionadoChange(TeacherTabs.HORAS)
-                })
+                EnadActionCard(
+                    "Reportar horas",
+                    Icons.Outlined.AccessTime,
+                    onClick = {
+                        onTabSeleccionadoChange(TeacherTabs.HORAS)
+                        guia?.avanzar(Guia.HORAS, 0)
+                    },
+                    modifier = Modifier.objetivoGuia(Guia.HORAS, 0)
+                )
                 EnadActionCard("Reportar asistencia", Icons.Outlined.FactCheck, onClick = {
                     onAccionClick(ActionItem(ACCION_ASISTENCIA, ""))
-                })
+                    guia?.avanzar(Guia.ASISTENCIA, 0)
+                }, modifier = Modifier.objetivoGuia(Guia.ASISTENCIA, 0))
                 EnadActionCard("Evaluación formativa", Icons.Outlined.Assessment, onClick = {
                     onAccionClick(ActionItem(ACCION_EVALUACION, ""))
-                })
+                    guia?.avanzar(Guia.EVALUACION, 0)
+                }, modifier = Modifier.objetivoGuia(Guia.EVALUACION, 0))
                 EnadActionCard("Planear actividades", Icons.AutoMirrored.Outlined.MenuBook, onClick = {
                     mostrarActividades = true
-                })
+                    guia?.avanzar(Guia.ACTIVIDADES, 0)
+                }, modifier = Modifier.objetivoGuia(Guia.ACTIVIDADES, 0))
             }
         }
+    }
+
+    if (mostrarAyuda) {
+        AyudaSheet(
+            onElegir = { elegida ->
+                mostrarAyuda = false
+                guia?.iniciar(elegida)
+            },
+            onCerrar = { mostrarAyuda = false }
+        )
     }
 }
 

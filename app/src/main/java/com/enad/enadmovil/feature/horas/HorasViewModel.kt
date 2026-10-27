@@ -7,6 +7,7 @@ import com.enad.enadmovil.data.repository.ContextoRepository
 import com.enad.enadmovil.data.repository.HorasRepository
 import com.enad.enadmovil.domain.model.DiaSesion
 import com.enad.enadmovil.domain.model.OrigenValor
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -83,6 +84,9 @@ data class HorasUiState(
     val mensaje: String? = null
 )
 
+/** Tiempo mínimo que se ve la barra de progreso al guardar. */
+private const val DURACION_MINIMA_GUARDADO_MS = 1_200L
+
 class HorasViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = HorasRepository(app)
@@ -156,9 +160,14 @@ class HorasViewModel(app: Application) : AndroidViewModel(app) {
         if (!actual.puedeGuardar || local.value.guardando) return
         local.update { it.copy(guardando = true, mensaje = null) }
         viewModelScope.launch {
+            val inicio = System.currentTimeMillis()
             val ok = runCatching {
                 repo.guardar(actual.fecha, planeadas, horas, actual.origen, actual.motivo.takeIf { actual.pideMotivo })
             }.isSuccess
+            // Guardar en el teléfono es casi instantáneo: se deja la barra de progreso a la vista un momento
+            // para que el docente note que algo ocurre (en Flutter dura lo que tarda el envío).
+            val restante = DURACION_MINIMA_GUARDADO_MS - (System.currentTimeMillis() - inicio)
+            if (restante > 0) delay(restante)
             local.update {
                 it.copy(
                     guardando = false,

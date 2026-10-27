@@ -96,7 +96,12 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
-
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.SideEffect
+import com.enad.enadmovil.feature.ayuda.Guia
+import com.enad.enadmovil.feature.ayuda.LocalGuia
+import com.enad.enadmovil.feature.ayuda.objetivoGuia
 private val CURSOS_DISPONIBLES = listOf("Todos", "Grado 3", "Grado 4", "Grado 5")
 
 data class DiaSemana(
@@ -165,6 +170,8 @@ fun AsistenciaScreen(
 
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val guia = LocalGuia.current
+    val lista = rememberLazyListState()
 
     val estudiantes = ui.estudiantes
     val total = estudiantes.size
@@ -177,6 +184,7 @@ fun AsistenciaScreen(
     LaunchedEffect(guardando, ui.pendientesSync) {
         if (guardando && ui.pendientesSync == 0) {
             guardando = false
+            guia?.avanzar(Guia.ASISTENCIA, 5)
             snackbar.showSnackbar("Asistencia enviada.")
         }
     }
@@ -193,6 +201,22 @@ fun AsistenciaScreen(
     }
 
     val mostrarBarraGuardar = guardando || faltan > 0 || ui.pendientesSync > 0
+
+    if (guia != null && guia.flujo == Guia.ASISTENCIA) {
+        SideEffect {
+            guia.fijarRequisito(requisitoAsistencia(guia.paso, ui.cargando || guardando, faltan))
+        }
+        // Paso 4: el botón "Agregar estudiante" es el último de la lista; se baja hasta allí para que exista y se resalte.
+        LaunchedEffect(guia.paso) {
+            if (guia.paso == 4) lista.animateScrollToItem((lista.layoutInfo.totalItemsCount - 1).coerceAtLeast(0))
+        }
+        LaunchedEffect(guia.paso, ui.cargando, guardando, faltan, ui.pendientesSync) {
+            if (guia.paso == 5 && !ui.cargando && !guardando && total > 0 && faltan == 0 && ui.pendientesSync == 0) {
+                guia.avanzar(Guia.ASISTENCIA, 5)
+            }
+        }
+    }
+
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -211,16 +235,20 @@ fun AsistenciaScreen(
                         onGuardar = {
                             guardando = true
                             viewModel.guardar()
-                        }
+                        },
+                        modifier = Modifier.objetivoGuia(Guia.ASISTENCIA, 5)
                     )
                 }
-                EnadBottomBar(
-                    items = TeacherNavItems.mapIndexed { i, item ->
-                        if (i == TeacherTabs.MI_LISTA) item.copy(badge = ui.pendientesSync) else item
-                    },
-                    seleccionado = TeacherTabs.MI_LISTA,
-                    onSeleccionar = { i -> onTabClick(TeacherNavItems[i].label) }
-                )
+                if (guia?.activa != true) {
+                    EnadBottomBar(
+                        items = TeacherNavItems.mapIndexed { i, item ->
+                            if (i == TeacherTabs.MI_LISTA) item.copy(badge = ui.pendientesSync) else item
+                        },
+                        seleccionado = TeacherTabs.MI_LISTA,
+                        onSeleccionar = { i -> onTabClick(TeacherNavItems[i].label) }
+                    )
+                }
+
             }
         }
     ) { padding ->
@@ -244,39 +272,43 @@ fun AsistenciaScreen(
             }
 
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                state = lista,
+                // Paso 3: toda la lista es el objetivo (las fichas lejanas todavía no existen en pantalla).
+                modifier = Modifier.fillMaxSize().objetivoGuia(Guia.ASISTENCIA, 3),
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item {
-                    EnadPanel {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Curso · ${cursoSeleccionado}", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                            TextButton(onClick = { filtrosAbiertos = !filtrosAbiertos }) {
-                                Icon(Icons.Outlined.Edit, contentDescription = null, tint = EnadPrimary, modifier = Modifier.size(20.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text(if (filtrosAbiertos) "Cerrar" else "Editar", style = MaterialTheme.typography.labelMedium, color = EnadInk)
+                    Column(Modifier.objetivoGuia(Guia.ASISTENCIA, 1).objetivoGuia(Guia.ASISTENCIA, 2)) {
+                        EnadPanel {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Curso · ${cursoSeleccionado}", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                                TextButton(onClick = { filtrosAbiertos = !filtrosAbiertos }) {
+                                    Icon(Icons.Outlined.Edit, contentDescription = null, tint = EnadPrimary, modifier = Modifier.size(20.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(if (filtrosAbiertos) "Cerrar" else "Editar", style = MaterialTheme.typography.labelMedium, color = EnadInk)
+                                }
                             }
                         }
-                    }
-                }
-
-                if (filtrosAbiertos) {
-                    item {
-                        EnadPanel {
-                            SelectorCurso(
-                                seleccionado = cursoSeleccionado,
-                                onSeleccionar = {
-                                    cursoSeleccionado = it
-                                    viewModel.seleccionarGrado(it.removePrefix("Grado ").toIntOrNull()) // "Todos" -> null
+                        if (filtrosAbiertos) {
+                            Spacer(Modifier.height(12.dp))
+                            EnadPanel {
+                                SelectorCurso(
+                                    seleccionado = cursoSeleccionado,
+                                    onSeleccionar = {
+                                        cursoSeleccionado = it
+                                        viewModel.seleccionarGrado(it.removePrefix("Grado ").toIntOrNull()) // "Todos" -> null
+                                    }
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                AccionFiltro("Elegir fecha", Icons.Outlined.CalendarMonth) { mostrarFecha = true }
+                                AccionFiltro("Descartar cambios") { viewModel.limpiar() }
+                                AccionFiltro("Estudiantes") {
+                                    filtrosAbiertos = false
+                                    // Abrir Estudiantes cambia de pantalla: la guía se cierra.
+                                    guia?.salir()
+                                    if (onGestionarEstudiantes != null) onGestionarEstudiantes() else mostrarEscaner = true
                                 }
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            AccionFiltro("Elegir fecha", Icons.Outlined.CalendarMonth) { mostrarFecha = true }
-                            AccionFiltro("Descartar cambios") { viewModel.limpiar() }
-                            AccionFiltro("Estudiantes") {
-                                filtrosAbiertos = false
-                                if (onGestionarEstudiantes != null) onGestionarEstudiantes() else mostrarEscaner = true
                             }
                         }
                     }
@@ -317,8 +349,8 @@ fun AsistenciaScreen(
 
                 if (sinRegistrar.isNotEmpty()) {
                     item { Text("Sin registrar", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 4.dp, top = 4.dp)) }
-                    items(sinRegistrar, key = { it.id }) { e ->
-                        TarjetaAsistencia(e, onAbrir = { onAbrirEstudiante(e.id) }, onMarcar = { marcar(e.id, it) })
+                    itemsIndexed(sinRegistrar, key = { _, e -> e.id }) { indice, e ->
+                        TarjetaAsistencia(e, onAbrir = { if (guia?.activa != true) onAbrirEstudiante(e.id) }, onMarcar = { marcar(e.id, it) })
                     }
                 }
 
@@ -351,7 +383,8 @@ fun AsistenciaScreen(
                         EnadSecondaryButton(
                             "Agregar estudiante a la sesión",
                             onClick = { mostrarInesperado = true },
-                            icon = Icons.Outlined.PersonAddAlt
+                            icon = Icons.Outlined.PersonAddAlt,
+                            modifier = Modifier.objetivoGuia(Guia.ASISTENCIA, 4)
                         )
                     }
                 }
@@ -484,13 +517,19 @@ private fun ResumenAsistencia(total: Int, fecha: LocalDate, porcentaje: Int) {
         }
     }
 }
-
+private fun requisitoAsistencia(paso: Int, cargando: Boolean, faltan: Int): String? = when {
+    paso !in 1..4 -> null
+    cargando -> "Espera a que termine de cargar la sesión."
+    paso == 3 && faltan > 0 -> "Falta marcar a $faltan estudiantes. Revisa la lista."
+    else -> null
+}
 /** Tarjeta de estudiante (AttendanceStudentCard): al marcar, borde negro, fondo tenue y check animado. */
 @Composable
 private fun TarjetaAsistencia(
     estudiante: EstudianteAsistencia,
     onAbrir: () -> Unit,
-    onMarcar: (EstadoAsistencia) -> Unit
+    onMarcar: (EstadoAsistencia) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val marcado = estudiante.estado != EstadoAsistencia.PENDIENTE
     val duracion = tween<Color>(450)
@@ -502,7 +541,7 @@ private fun TarjetaAsistencia(
         shape = PanelShape,
         color = fondo,
         border = BorderStroke(2.dp, borde),
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -579,8 +618,8 @@ private fun estadoLegible(estado: String): String = when (estado) {
 }
 
 @Composable
-private fun BarraGuardar(texto: String, habilitado: Boolean, onGuardar: () -> Unit) {
-    Surface(color = EnadSurface) {
+private fun BarraGuardar(texto: String, habilitado: Boolean, onGuardar: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(color = EnadSurface, modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically

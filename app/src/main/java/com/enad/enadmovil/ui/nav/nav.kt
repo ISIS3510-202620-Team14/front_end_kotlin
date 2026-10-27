@@ -27,6 +27,29 @@ import com.enad.enadmovil.ui.screens.teacher.MATERIA_LECTURA
 import com.enad.enadmovil.ui.screens.teacher.MATERIA_MATEMATICAS
 import com.enad.enadmovil.ui.screens.teacher.TeacherHomeScreen
 import com.enad.enadmovil.ui.screens.teacher.TeacherTabs
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.enad.enadmovil.feature.ayuda.GuiaOverlay
+import com.enad.enadmovil.feature.ayuda.GuiaViewModel
+import com.enad.enadmovil.feature.ayuda.LocalGuia
+import com.enad.enadmovil.feature.ayuda.alturaReservadaGuia
 
 private object Routes {
     const val LOGIN = "login"
@@ -56,6 +79,7 @@ private fun volverALogin(navController: NavHostController) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AppNavigation(navController: NavHostController = rememberNavController()) {
     var nombreUsuario by remember { mutableStateOf("") }
@@ -64,151 +88,178 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
     // (ej. Horas) desde otra pantalla en vez de siempre caer en "Hoy".
     var teacherTabSeleccionado by rememberSaveable { mutableStateOf(TeacherTabs.HOY) }
 
-    NavHost(navController = navController, startDestination = Routes.LOGIN) {
+    val guia: GuiaViewModel = viewModel()
+    val compacta = WindowInsets.isImeVisible
 
-        composable(Routes.LOGIN) {
-            LoginScreen(
-                onLoginExitoso = { usuario ->
-                    nombreUsuario = usuario.fullName.ifBlank { usuario.email }
-                    val destino = when (usuario.rol) {
-                        Rol.DOCENTE -> Routes.TEACHER_HOME
-                        Rol.ADMINISTRADOR -> Routes.ADMIN_HOME
-                        Rol.VOLUNTARIO -> Routes.FOUNDATION_REPORTS
-                        else -> null // AuthViewModel already filters this out before calling here
-                    }
-                    if (destino != null) {
-                        navController.navigate(destino) {
-                            popUpTo(Routes.LOGIN) { inclusive = true }
+
+    CompositionLocalProvider(LocalGuia provides guia) {
+        Box(Modifier.fillMaxSize()) {
+            // Con la guía abierta, la app se achica sobre el teclado para que la tarjeta no tape el campo resaltado.
+            Column(Modifier.fillMaxSize().then(if (guia.activa) Modifier.imePadding() else Modifier)) {
+                Box(Modifier.weight(1f).onGloballyPositioned { guia.fijarArea(it.boundsInRoot()) }) {
+                    NavHost(navController = navController, startDestination = Routes.LOGIN) {
+
+                        composable(Routes.LOGIN) {
+                            LaunchedEffect(Unit) { guia.salir() }
+                            LoginScreen(
+                                onLoginExitoso = { usuario ->
+                                    nombreUsuario = usuario.fullName.ifBlank { usuario.email }
+                                    val destino = when (usuario.rol) {
+                                        Rol.DOCENTE -> Routes.TEACHER_HOME
+                                        Rol.ADMINISTRADOR -> Routes.ADMIN_HOME
+                                        Rol.VOLUNTARIO -> Routes.FOUNDATION_REPORTS
+                                        else -> null // AuthViewModel already filters this out before calling here
+                                    }
+                                    if (destino != null) {
+                                        navController.navigate(destino) {
+                                            popUpTo(Routes.LOGIN) { inclusive = true }
+                                        }
+                                    }
+                                }
+                            )
+                        }
+
+                        composable(Routes.TEACHER_HOME) {
+                            RegistrarAperturaEffect()
+                            TeacherHomeScreen(
+                                profesorNombre = nombreUsuario,
+                                tabSeleccionado = teacherTabSeleccionado,
+                                onTabSeleccionadoChange = { teacherTabSeleccionado = it },
+                                onCambiarUsuario = { volverALogin(navController) },
+                                onGestionarEstudiantes = { navController.navigate(Routes.ESTUDIANTES) },
+                                onTabClick = { tab ->
+                                    if (tab.label == "Asistencia") {
+                                        navController.navigate(Routes.ASISTENCIA)
+                                    }
+                                },
+                                onProgresoClick = { item ->
+                                    when (item.title) {
+                                        "Lectura" -> navController.navigate(Routes.CLASIFICACION_LECTURA)
+                                        "Matemáticas" -> navController.navigate(Routes.CLASIFICACION_MATEMATICAS)
+                                    }
+                                },
+                                onAccionClick = { item ->
+                                    when (item.title) {
+                                        ACCION_ASISTENCIA -> navController.navigate(Routes.ASISTENCIA)
+                                        ACCION_EVALUACION -> navController.navigate(Routes.EVALUACION)
+                                    }
+                                }
+                            )
+                        }
+
+                        composable(Routes.EVALUACION) {
+                            EvaluacionMenuScreen(
+                                onBack = { navController.popBackStack() },
+                                onMateria = { titulo ->
+                                    when (titulo) {
+                                        "Lectura" -> navController.navigate(Routes.CLASIFICACION_LECTURA)
+                                        "Matemáticas" -> navController.navigate(Routes.CLASIFICACION_MATEMATICAS)
+                                    }
+                                }
+                            )
+                        }
+
+                        composable(Routes.CLASIFICACION_LECTURA) {
+                            ClasificacionScreen(
+                                materia = MATERIA_LECTURA,
+                                onBack = { navController.popBackStack() },
+                                onVerPerfil = { navController.navigate(Routes.perfil(it)) }
+                            )
+                        }
+
+                        composable(Routes.CLASIFICACION_MATEMATICAS) {
+                            ClasificacionScreen(
+                                materia = MATERIA_MATEMATICAS,
+                                onBack = { navController.popBackStack() },
+                                onVerPerfil = { navController.navigate(Routes.perfil(it)) }
+                            )
+                        }
+
+                        composable(Routes.ASISTENCIA) {
+                            AsistenciaScreen(
+                                profesorNombre = nombreUsuario,
+                                onCambiarUsuario = { volverALogin(navController) },
+                                onAbrirEstudiante = { navController.navigate(Routes.perfil(it)) },
+                                onGestionarEstudiantes = { navController.navigate(Routes.ESTUDIANTES_INESPERADO) },
+                                onTabClick = { label ->
+                                    // "Asistencia" es esta misma pantalla, no hace nada. Grupos y Horas
+                                    // viven como tabs dentro de TeacherHomeScreen, así que antes de
+                                    // regresar le decimos a cuál pestaña saltar.
+                                    when (label) {
+                                        "Asistencia" -> {}
+                                        "Grupos" -> {
+                                            teacherTabSeleccionado = TeacherTabs.GRUPOS
+                                            navController.popBackStack()
+                                        }
+                                        "Horas" -> {
+                                            teacherTabSeleccionado = TeacherTabs.HORAS
+                                            navController.popBackStack()
+                                        }
+                                        "Mis datos" -> {
+                                            teacherTabSeleccionado = TeacherTabs.MIS_DATOS
+                                            navController.popBackStack()
+                                        }
+                                        else -> {
+                                            teacherTabSeleccionado = TeacherTabs.HOY
+                                            navController.popBackStack()
+                                        }
+                                    }
+                                }
+                            )
+                        }
+
+                        composable(Routes.ESTUDIANTES) {
+                            GestionarEstudiantesScreen(onBack = { navController.popBackStack() })
+                        }
+
+                        composable(Routes.ESTUDIANTES_INESPERADO) {
+                            GestionarEstudiantesScreen(onBack = { navController.popBackStack() }, inesperado = true)
+                        }
+
+                        composable(Routes.PERFIL_ESTUDIANTE) { entry ->
+                            val id = entry.arguments?.getString("id").orEmpty()
+                            PerfilEstudianteScreen(
+                                estudianteId = id,
+                                onBack = { navController.popBackStack() },
+                                onVerHistorial = { navController.navigate(Routes.historial(id)) }
+                            )
+                        }
+
+                        composable(Routes.HISTORIAL_ESTUDIANTE) { entry ->
+                            HistorialEstudianteScreen(
+                                estudianteId = entry.arguments?.getString("id").orEmpty(),
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+
+                        composable(Routes.ADMIN_HOME) {
+                            AdminHomeScreen(
+                                nombreUsuario = nombreUsuario,
+                                onCambiarUsuario = { volverALogin(navController) }
+                            )
+                        }
+
+                        composable(Routes.FOUNDATION_REPORTS) {
+                            FoundationReportsScreen(
+                                onCambiarUsuario = { volverALogin(navController) }
+                            )
                         }
                     }
                 }
-            )
-        }
-
-        composable(Routes.TEACHER_HOME) {
-            RegistrarAperturaEffect()
-            TeacherHomeScreen(
-                profesorNombre = nombreUsuario,
-                tabSeleccionado = teacherTabSeleccionado,
-                onTabSeleccionadoChange = { teacherTabSeleccionado = it },
-                onCambiarUsuario = { volverALogin(navController) },
-                onGestionarEstudiantes = { navController.navigate(Routes.ESTUDIANTES) },
-                onTabClick = { tab ->
-                    if (tab.label == "Asistencia") {
-                        navController.navigate(Routes.ASISTENCIA)
+                if (guia.activa) {
+                    // Alto real de la tarjeta (más sus márgenes); antes de medirla se usa un valor aproximado.
+                    val reservada = if (guia.alturaTarjeta > 0) {
+                        with(LocalDensity.current) { guia.alturaTarjeta.toDp() } + 32.dp
+                    } else {
+                        alturaReservadaGuia(compacta)
                     }
-                },
-                onProgresoClick = { item ->
-                    when (item.title) {
-                        "Lectura" -> navController.navigate(Routes.CLASIFICACION_LECTURA)
-                        "Matemáticas" -> navController.navigate(Routes.CLASIFICACION_MATEMATICAS)
-                    }
-                },
-                onAccionClick = { item ->
-                    when (item.title) {
-                        ACCION_ASISTENCIA -> navController.navigate(Routes.ASISTENCIA)
-                        ACCION_EVALUACION -> navController.navigate(Routes.EVALUACION)
-                    }
+                    Spacer(Modifier.navigationBarsPadding().height(reservada))
                 }
-            )
-        }
+            }
 
-        composable(Routes.EVALUACION) {
-            EvaluacionMenuScreen(
-                onBack = { navController.popBackStack() },
-                onMateria = { titulo ->
-                    when (titulo) {
-                        "Lectura" -> navController.navigate(Routes.CLASIFICACION_LECTURA)
-                        "Matemáticas" -> navController.navigate(Routes.CLASIFICACION_MATEMATICAS)
-                    }
-                }
-            )
-        }
-
-        composable(Routes.CLASIFICACION_LECTURA) {
-            ClasificacionScreen(
-                materia = MATERIA_LECTURA,
-                onBack = { navController.popBackStack() },
-                onVerPerfil = { navController.navigate(Routes.perfil(it)) }
-            )
-        }
-
-        composable(Routes.CLASIFICACION_MATEMATICAS) {
-            ClasificacionScreen(
-                materia = MATERIA_MATEMATICAS,
-                onBack = { navController.popBackStack() },
-                onVerPerfil = { navController.navigate(Routes.perfil(it)) }
-            )
-        }
-
-        composable(Routes.ASISTENCIA) {
-            AsistenciaScreen(
-                profesorNombre = nombreUsuario,
-                onCambiarUsuario = { volverALogin(navController) },
-                onAbrirEstudiante = { navController.navigate(Routes.perfil(it)) },
-                onGestionarEstudiantes = { navController.navigate(Routes.ESTUDIANTES_INESPERADO) },
-                onTabClick = { label ->
-                    // "Asistencia" es esta misma pantalla, no hace nada. Grupos y Horas
-                    // viven como tabs dentro de TeacherHomeScreen, así que antes de
-                    // regresar le decimos a cuál pestaña saltar.
-                    when (label) {
-                        "Asistencia" -> {}
-                        "Grupos" -> {
-                            teacherTabSeleccionado = TeacherTabs.GRUPOS
-                            navController.popBackStack()
-                        }
-                        "Horas" -> {
-                            teacherTabSeleccionado = TeacherTabs.HORAS
-                            navController.popBackStack()
-                        }
-                        "Mis datos" -> {
-                            teacherTabSeleccionado = TeacherTabs.MIS_DATOS
-                            navController.popBackStack()
-                        }
-                        else -> {
-                            teacherTabSeleccionado = TeacherTabs.HOY
-                            navController.popBackStack()
-                        }
-                    }
-                }
-            )
-        }
-
-        composable(Routes.ESTUDIANTES) {
-            GestionarEstudiantesScreen(onBack = { navController.popBackStack() })
-        }
-
-        composable(Routes.ESTUDIANTES_INESPERADO) {
-            GestionarEstudiantesScreen(onBack = { navController.popBackStack() }, inesperado = true)
-        }
-
-        composable(Routes.PERFIL_ESTUDIANTE) { entry ->
-            val id = entry.arguments?.getString("id").orEmpty()
-            PerfilEstudianteScreen(
-                estudianteId = id,
-                onBack = { navController.popBackStack() },
-                onVerHistorial = { navController.navigate(Routes.historial(id)) }
-            )
-        }
-
-        composable(Routes.HISTORIAL_ESTUDIANTE) { entry ->
-            HistorialEstudianteScreen(
-                estudianteId = entry.arguments?.getString("id").orEmpty(),
-                onBack = { navController.popBackStack() }
-            )
-        }
-
-        composable(Routes.ADMIN_HOME) {
-            AdminHomeScreen(
-                nombreUsuario = nombreUsuario,
-                onCambiarUsuario = { volverALogin(navController) }
-            )
-        }
-
-        composable(Routes.FOUNDATION_REPORTS) {
-            FoundationReportsScreen(
-                onCambiarUsuario = { volverALogin(navController) }
-            )
+            // Va después del NavHost para que su "atrás" tenga prioridad: sale de la guía antes de cambiar de pantalla.
+            BackHandler(enabled = guia.activa) { guia.salir() }
+            GuiaOverlay(guia, compacta)
         }
     }
 }
