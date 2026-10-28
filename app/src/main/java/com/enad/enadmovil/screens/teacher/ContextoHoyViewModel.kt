@@ -63,8 +63,12 @@ class ContextoHoyViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun refrescarMomento() {
         viewModelScope.launch {
-            val estado = _uiState.value
-            val resumen = repo.resumenDelDia(estado.confirmado ?: estado.sugerencia) ?: return@launch
+            val grupoHoy = _uiState.value.let { it.confirmado ?: it.sugerencia }
+            var resumen = repo.resumenDelDia(grupoHoy) ?: return@launch
+            // Primer uso sin internet: se reintenta la descarga cada vez que Hoy vuelve a verse
+            if (!resumen.horarioDescargado && repo.descargarCatalogo()) {
+                resumen = repo.resumenDelDia(grupoHoy) ?: return@launch
+            }
             _uiState.update { it.copy(resumen = resumen, momento = MomentoDelDia.de(resumen, LocalTime.now())) }
         }
     }

@@ -35,6 +35,10 @@ private fun textosDe(momento: MomentoDelDia, resumen: ResumenDelDia): TextosMome
     val grupo = resumen.grupo ?: "tu grupo"
     val planeadas = "${formatearHoras(resumen.horasPlaneadas)} h planeadas hoy"
     return when (momento) {
+        MomentoDelDia.SIN_HORARIO -> TextosMomento(
+            "Sin horario", "Todavía no tenemos tu horario",
+            "Conéctate a internet una vez para descargarlo. Después la app funciona sin señal.", null
+        )
         MomentoDelDia.SIN_CLASE -> TextosMomento(
             "Sin clase hoy", "Hoy no tienes clase en tu horario",
             "Aprovecha para planear las actividades de la semana.", "Planear actividades"

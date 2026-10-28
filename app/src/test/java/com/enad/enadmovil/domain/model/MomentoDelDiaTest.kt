@@ -17,6 +17,12 @@ class MomentoDelDiaTest {
     ) = ResumenDelDia("Lectura 3A", planeadas, marcas, horas, enSede)
 
     @Test
+    fun sinHorarioDescargadoNoDiceQueNoHayClase() {
+        val sinHorario = ResumenDelDia(null, 0.0, 0, false, null, horarioDescargado = false)
+        assertEquals(MomentoDelDia.SIN_HORARIO, MomentoDelDia.de(sinHorario, manana))
+    }
+
+    @Test
     fun sinHorasEnElHorarioNoHayClase() {
         assertEquals(MomentoDelDia.SIN_CLASE, MomentoDelDia.de(resumen(planeadas = 0.0), manana))
     }
