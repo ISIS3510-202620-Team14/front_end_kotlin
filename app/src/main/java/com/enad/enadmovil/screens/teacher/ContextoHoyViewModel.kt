@@ -5,19 +5,25 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.enad.enadmovil.data.repository.ContextoRepository
 import com.enad.enadmovil.domain.model.GrupoDelDia
+import com.enad.enadmovil.domain.model.MomentoDelDia
+import com.enad.enadmovil.domain.model.ResumenDelDia
 import com.enad.enadmovil.domain.model.OrigenValor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalTime
 
 data class ContextoHoyUiState(
     val cargando: Boolean = false,
     val confirmado: GrupoDelDia? = null,
     val sugerencia: GrupoDelDia? = null,
     val grupos: List<GrupoDelDia> = emptyList(),
-    val eligiendo: Boolean = false
+    val eligiendo: Boolean = false,
+    // Tarjeta del momento del día: qué le toca hacer ahora al docente
+    val resumen: ResumenDelDia? = null,
+    val momento: MomentoDelDia? = null
 )
 
 /** "Hoy": sugiere el grupo del día según la institución donde está el docente. Nunca decide por él. */
@@ -47,6 +53,23 @@ class ContextoHoyViewModel(app: Application) : AndroidViewModel(app) {
                 grupos = grupos,
                 eligiendo = confirmado == null && sugerencia == null && grupos.isNotEmpty()
             )
+            refrescarMomento()
+        }
+    }
+
+    /**
+     * Vuelve a calcular el momento del día. La pantalla lo llama cada vez que Hoy vuelve a verse,
+     * porque al regresar de Asistencia u Horas lo hecho cambia, y con la hora también cambia el momento.
+     */
+    fun refrescarMomento() {
+        viewModelScope.launch {
+            val grupoHoy = _uiState.value.let { it.confirmado ?: it.sugerencia }
+            var resumen = repo.resumenDelDia(grupoHoy) ?: return@launch
+            // Primer uso sin internet: se reintenta la descarga cada vez que Hoy vuelve a verse
+            if (!resumen.horarioDescargado && repo.descargarCatalogo()) {
+                resumen = repo.resumenDelDia(grupoHoy) ?: return@launch
+            }
+            _uiState.update { it.copy(resumen = resumen, momento = MomentoDelDia.de(resumen, LocalTime.now())) }
         }
     }
 
@@ -63,6 +86,7 @@ class ContextoHoyViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             repo.confirmar(grupo.id, origen)
             _uiState.update { it.copy(confirmado = grupo, sugerencia = null, eligiendo = false) }
+            refrescarMomento()
         }
     }
 }

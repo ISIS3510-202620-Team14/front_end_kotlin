@@ -12,6 +12,7 @@ import com.enad.enadmovil.data.location.LocationDataSource
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.domain.model.GrupoDelDia
 import com.enad.enadmovil.domain.model.Horario
+import com.enad.enadmovil.domain.model.ResumenDelDia
 import java.time.LocalDate
 
 /**
@@ -25,10 +26,14 @@ class ContextoRepository(context: Context) {
     private val dao = db.contextoDao()
     private val ubicacion = LocationDataSource(appContext)
     private val auth = AuthRepository()
+    private val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     companion object {
         const val RADIO_SEDE_M = 150f
         private const val MAX_IMPRECISION_M = 200f
+        private const val MS_POR_HORA = 3_600_000.0
+        private const val PREFS = "enad_contexto"
+        private fun claveCatalogo(uid: String) = "catalogo_descargado_$uid"
     }
 
     fun tienePermisoUbicacion(): Boolean = ubicacion.tienePermiso()
@@ -61,6 +66,8 @@ class ContextoRepository(context: Context) {
                     GrupoHorarioEntity(id = grupo.id, docenteUid = uid, nombre = grupo.nombre, materia = grupo.materia, schoolId = grupo.schoolId, campusId = grupo.campusId, horario = Horario.codificar(grupo.horario))
                 })
             }
+            // Un docente sin grupos también descargó su horario: ya se puede decir que hoy no tiene clase
+            prefs.edit().putBoolean(claveCatalogo(uid), true).apply()
             true
         } catch (e: Exception) {
             false
@@ -117,6 +124,28 @@ class ContextoRepository(context: Context) {
         val uid = auth.uidActual() ?: return emptyList()
         val hoy = LocalDate.now()
         return dao.grupos(uid).map { aGrupoDelDia(it, hoy)}
+    }
+
+    /**
+     * Lo que el docente lleva hecho hoy, para la tarjeta del momento del día: horas del horario,
+     * asistencia, horas reportadas y tiempo en la sede. Todo sale de Room, así que funciona sin señal.
+     * [grupoHoy]: el grupo confirmado o sugerido; si no hay, el primero que tenga clase hoy.
+     */
+    suspend fun resumenDelDia(grupoHoy: GrupoDelDia?, hoy: LocalDate = LocalDate.now()): ResumenDelDia? {
+        val uid = auth.uidActual() ?: return null
+        val fecha = hoy.toString()
+        val grupos = dao.grupos(uid)
+        val deHoy = grupos.mapNotNull { grupo ->
+            Horario.horasDelDia(grupo.horario, hoy.dayOfWeek)?.let { horas -> grupo to horas }
+        }
+        return ResumenDelDia(
+            grupo = grupoHoy?.nombre ?: deHoy.firstOrNull()?.first?.nombre,
+            horasPlaneadas = deHoy.sumOf { (_, horas) -> horas },
+            marcasAsistencia = dao.asistenciasDelDia(uid, fecha),
+            horasReportadas = dao.reporte(uid, fecha) != null,
+            horasEnSede = dao.presenciasDelDia(uid, fecha).maxOfOrNull { (it.ultimaVez - it.primeraVez) / MS_POR_HORA },
+            horarioDescargado = grupos.isNotEmpty() || prefs.getBoolean(claveCatalogo(uid), false)
+        )
     }
 
     suspend fun confirmar(grupoId: String, origen: String) {
