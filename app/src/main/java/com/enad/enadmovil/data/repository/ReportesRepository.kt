@@ -40,6 +40,10 @@ class ReportesRepository(
     suspend fun topActividades(forzar: Boolean = false): CloudFunctionsApi.TopActividades =
         cache.obtenerOCargar("actividades", forzar) { CloudFunctionsApi.topActividades(token()) }
 
+    /** BQ #10: calidad del escaneo según las condiciones de la foto (últimas 8 semanas). */
+    suspend fun calidadEscaneo(forzar: Boolean = false): CloudFunctionsApi.CalidadEscaneo =
+        cache.obtenerOCargar("escaneo", forzar) { CloudFunctionsApi.calidadEscaneo(token()) }
+
     /** BQ Sprint 3 tipo 1: marcas de asistencia que otro celular ya había registrado (semana lunes yyyy-MM-dd). */
     suspend fun conflictosAsistencia(semana: String?, forzar: Boolean = false): CloudFunctionsApi.ReporteConflictos =
         cache.obtenerOCargar(clave = "conflictos:${semana ?: "actual"}",

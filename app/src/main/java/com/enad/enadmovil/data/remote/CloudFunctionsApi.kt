@@ -608,6 +608,53 @@ object CloudFunctionsApi {
         )
     }
 
+    /** Un grupo del reporte de escaneo. avgRows y failureRate vienen en null si el grupo no tiene páginas. */
+    data class GrupoEscaneo(val clave: String, val paginas: Int, val filasPromedio: Double?, val porcentajeFallas: Double?)
+
+    data class CalidadEscaneo(
+        val semanas: Int,
+        val paginas: Int,
+        val docentes: Int,
+        val listas: List<GrupoEscaneo>,    // ready / not_ready
+        val luz: List<GrupoEscaneo>,       // dark, low, good, glare, unknown
+        val quietud: List<GrupoEscaneo>,   // steady, moving, unknown
+        val linterna: List<GrupoEscaneo>,  // on, off
+        val disparo: List<GrupoEscaneo>,   // auto, manual
+        val porcentajePaginasAutomaticas: Double?,
+        val docentesConAutomatica: Int,
+        val porcentajeDocentesConAutomatica: Double?
+    )
+
+    /**
+     * GET /analytics/scan-quality (solo admin), BQ #10: filas leídas y fallas del OCR según las
+     * condiciones de la foto (luz, quietud, linterna, disparo automático).
+     */
+    suspend fun calidadEscaneo(token: String, semanas: Int = 8): CalidadEscaneo {
+        val json = solicitar("GET", "/scan-quality?weeks=$semanas", token, null, ANALYTICS_URL)
+        fun numero(o: JSONObject, campo: String) = if (o.isNull(campo)) null else o.optDouble(campo)
+        fun grupos(nombre: String): List<GrupoEscaneo> {
+            val arreglo = json.optJSONArray(nombre) ?: JSONArray()
+            return List(arreglo.length()) {
+                val o = arreglo.getJSONObject(it)
+                GrupoEscaneo(o.getString("key"), o.optInt("pages"), numero(o, "avgRows"), numero(o, "failureRate"))
+            }
+        }
+        val automatica = json.optJSONObject("autoCapture") ?: JSONObject()
+        return CalidadEscaneo(
+            semanas = json.optInt("weeks", semanas),
+            paginas = json.optInt("pages"),
+            docentes = json.optInt("teachers"),
+            listas = grupos("ready"),
+            luz = grupos("light"),
+            quietud = grupos("steadiness"),
+            linterna = grupos("torch"),
+            disparo = grupos("capture"),
+            porcentajePaginasAutomaticas = numero(automatica, "pagesShare"),
+            docentesConAutomatica = automatica.optInt("teachers"),
+            porcentajeDocentesConAutomatica = numero(automatica, "teachersShare")
+        )
+    }
+
     /** Una fila del reporte de conflictos de asistencia: una institución, una conectividad o una plataforma. */
     data class FilaConflictos(val etiqueta: String, val total: Int, val conflictos: Int, val porcentaje: Double?)
 
@@ -729,4 +776,4 @@ object CloudFunctionsApi {
                 conexion.disconnect()
             }
         }
-}
+}
