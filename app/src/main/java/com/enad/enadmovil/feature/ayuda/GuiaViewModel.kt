@@ -1,17 +1,21 @@
 package com.enad.enadmovil.feature.ayuda
 
+import android.app.Application
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
+import com.enad.enadmovil.data.remote.FirebaseModule
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.util.UUID
 
 internal fun claveObjetivo(flujo: Guia, paso: Int) = "${flujo.name}:$paso"
 
-class GuiaViewModel : ViewModel() {
+class GuiaViewModel(app: Application) : AndroidViewModel(app) {
     var flujo by mutableStateOf<Guia?>(null)
         private set
     var paso by mutableIntStateOf(-1)
@@ -49,6 +53,7 @@ class GuiaViewModel : ViewModel() {
         requisito = null
         corrida = UUID.randomUUID().toString()
         registrar(GuiaEventos.INICIADA)
+        uid()?.let { UsoGuias.registrarInicio(getApplication(), it, guia) }
     }
 
     fun avanzar(guia: Guia, esperado: Int) {
@@ -56,7 +61,10 @@ class GuiaViewModel : ViewModel() {
         registrar(GuiaEventos.PASO_COMPLETADO)
         paso++
         requisito = null
-        if (completa) registrar(GuiaEventos.COMPLETADA)
+        if (completa) {
+            registrar(GuiaEventos.COMPLETADA)
+            uid()?.let { UsoGuias.registrarFin(getApplication(), it, guia) }
+        }
     }
 
     fun siguiente() {
@@ -82,6 +90,14 @@ class GuiaViewModel : ViewModel() {
     fun fijarRequisito(texto: String?) {
         if (requisito != texto ) requisito = texto
     }
+
+    /** Uso de las guías de esta cuenta en este celular. Se lee fuera del hilo principal. */
+    suspend fun resumenUso(): ResumenUso? {
+        val uid = uid() ?: return null
+        return withContext(Dispatchers.IO) { UsoGuias.leer(getApplication(), uid) }
+    }
+
+    private fun uid(): String? = FirebaseModule.auth.currentUser?.uid
 
     private fun registrar(nombre: String) {
         flujo?.let {

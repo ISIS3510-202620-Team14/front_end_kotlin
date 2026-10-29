@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -70,6 +71,21 @@ private object Routes {
     fun historial(id: String) = "estudiante/${android.net.Uri.encode(id)}/historial"
 }
 
+// Un toque doble en "atrás" o en una pestaña llamaba popBackStack() dos veces mientras
+// corría la animación de salida. El segundo sacaba también la pantalla de inicio y el
+// NavHost quedaba sin destino, en blanco. Solo se navega desde la pantalla que está al
+// frente y ya terminó de entrar, así los toques repetidos se ignoran.
+private fun NavHostController.alFrente(): Boolean =
+    currentBackStackEntry?.lifecycle?.currentState == Lifecycle.State.RESUMED
+
+private fun NavHostController.volver() {
+    if (alFrente() && previousBackStackEntry != null) popBackStack()
+}
+
+private fun NavHostController.ir(ruta: String) {
+    if (alFrente()) navigate(ruta)
+}
+
 // "Cambiar usuario" limpia todo el back stack y regresa a Login, sin importar
 // desde qué pantalla se llame. Así no queda historial para volver con el botón
 // atrás a una sesión anterior.
@@ -126,22 +142,22 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                                 tabSeleccionado = teacherTabSeleccionado,
                                 onTabSeleccionadoChange = { teacherTabSeleccionado = it },
                                 onCambiarUsuario = { volverALogin(navController) },
-                                onGestionarEstudiantes = { navController.navigate(Routes.ESTUDIANTES) },
+                                onGestionarEstudiantes = { navController.ir(Routes.ESTUDIANTES) },
                                 onTabClick = { tab ->
                                     if (tab.label == "Asistencia") {
-                                        navController.navigate(Routes.ASISTENCIA)
+                                        navController.ir(Routes.ASISTENCIA)
                                     }
                                 },
                                 onProgresoClick = { item ->
                                     when (item.title) {
-                                        "Lectura" -> navController.navigate(Routes.CLASIFICACION_LECTURA)
-                                        "Matemáticas" -> navController.navigate(Routes.CLASIFICACION_MATEMATICAS)
+                                        "Lectura" -> navController.ir(Routes.CLASIFICACION_LECTURA)
+                                        "Matemáticas" -> navController.ir(Routes.CLASIFICACION_MATEMATICAS)
                                     }
                                 },
                                 onAccionClick = { item ->
                                     when (item.title) {
-                                        ACCION_ASISTENCIA -> navController.navigate(Routes.ASISTENCIA)
-                                        ACCION_EVALUACION -> navController.navigate(Routes.EVALUACION)
+                                        ACCION_ASISTENCIA -> navController.ir(Routes.ASISTENCIA)
+                                        ACCION_EVALUACION -> navController.ir(Routes.EVALUACION)
                                     }
                                 }
                             )
@@ -149,11 +165,11 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
 
                         composable(Routes.EVALUACION) {
                             EvaluacionMenuScreen(
-                                onBack = { navController.popBackStack() },
+                                onBack = { navController.volver() },
                                 onMateria = { titulo ->
                                     when (titulo) {
-                                        "Lectura" -> navController.navigate(Routes.CLASIFICACION_LECTURA)
-                                        "Matemáticas" -> navController.navigate(Routes.CLASIFICACION_MATEMATICAS)
+                                        "Lectura" -> navController.ir(Routes.CLASIFICACION_LECTURA)
+                                        "Matemáticas" -> navController.ir(Routes.CLASIFICACION_MATEMATICAS)
                                     }
                                 }
                             )
@@ -162,16 +178,16 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                         composable(Routes.CLASIFICACION_LECTURA) {
                             ClasificacionScreen(
                                 materia = MATERIA_LECTURA,
-                                onBack = { navController.popBackStack() },
-                                onVerPerfil = { navController.navigate(Routes.perfil(it)) }
+                                onBack = { navController.volver() },
+                                onVerPerfil = { navController.ir(Routes.perfil(it)) }
                             )
                         }
 
                         composable(Routes.CLASIFICACION_MATEMATICAS) {
                             ClasificacionScreen(
                                 materia = MATERIA_MATEMATICAS,
-                                onBack = { navController.popBackStack() },
-                                onVerPerfil = { navController.navigate(Routes.perfil(it)) }
+                                onBack = { navController.volver() },
+                                onVerPerfil = { navController.ir(Routes.perfil(it)) }
                             )
                         }
 
@@ -179,8 +195,8 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                             AsistenciaScreen(
                                 profesorNombre = nombreUsuario,
                                 onCambiarUsuario = { volverALogin(navController) },
-                                onAbrirEstudiante = { navController.navigate(Routes.perfil(it)) },
-                                onGestionarEstudiantes = { navController.navigate(Routes.ESTUDIANTES_INESPERADO) },
+                                onAbrirEstudiante = { navController.ir(Routes.perfil(it)) },
+                                onGestionarEstudiantes = { navController.ir(Routes.ESTUDIANTES_INESPERADO) },
                                 onTabClick = { label ->
                                     // "Asistencia" es esta misma pantalla, no hace nada. Grupos y Horas
                                     // viven como tabs dentro de TeacherHomeScreen, así que antes de
@@ -189,19 +205,19 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                                         "Asistencia" -> {}
                                         "Grupos" -> {
                                             teacherTabSeleccionado = TeacherTabs.GRUPOS
-                                            navController.popBackStack()
+                                            navController.volver()
                                         }
                                         "Horas" -> {
                                             teacherTabSeleccionado = TeacherTabs.HORAS
-                                            navController.popBackStack()
+                                            navController.volver()
                                         }
                                         "Mis datos" -> {
                                             teacherTabSeleccionado = TeacherTabs.MIS_DATOS
-                                            navController.popBackStack()
+                                            navController.volver()
                                         }
                                         else -> {
                                             teacherTabSeleccionado = TeacherTabs.HOY
-                                            navController.popBackStack()
+                                            navController.volver()
                                         }
                                     }
                                 }
@@ -209,26 +225,26 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                         }
 
                         composable(Routes.ESTUDIANTES) {
-                            GestionarEstudiantesScreen(onBack = { navController.popBackStack() })
+                            GestionarEstudiantesScreen(onBack = { navController.volver() })
                         }
 
                         composable(Routes.ESTUDIANTES_INESPERADO) {
-                            GestionarEstudiantesScreen(onBack = { navController.popBackStack() }, inesperado = true)
+                            GestionarEstudiantesScreen(onBack = { navController.volver() }, inesperado = true)
                         }
 
                         composable(Routes.PERFIL_ESTUDIANTE) { entry ->
                             val id = entry.arguments?.getString("id").orEmpty()
                             PerfilEstudianteScreen(
                                 estudianteId = id,
-                                onBack = { navController.popBackStack() },
-                                onVerHistorial = { navController.navigate(Routes.historial(id)) }
+                                onBack = { navController.volver() },
+                                onVerHistorial = { navController.ir(Routes.historial(id)) }
                             )
                         }
 
                         composable(Routes.HISTORIAL_ESTUDIANTE) { entry ->
                             HistorialEstudianteScreen(
                                 estudianteId = entry.arguments?.getString("id").orEmpty(),
-                                onBack = { navController.popBackStack() }
+                                onBack = { navController.volver() }
                             )
                         }
 
