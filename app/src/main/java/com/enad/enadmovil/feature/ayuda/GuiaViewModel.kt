@@ -9,6 +9,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import com.enad.enadmovil.data.remote.FirebaseModule
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.util.UUID
 
 internal fun claveObjetivo(flujo: Guia, paso: Int) = "${flujo.name}:$paso"
@@ -87,6 +89,12 @@ class GuiaViewModel(app: Application) : AndroidViewModel(app) {
 
     fun fijarRequisito(texto: String?) {
         if (requisito != texto ) requisito = texto
+    }
+
+    /** Uso de las guías de esta cuenta en este celular. Se lee fuera del hilo principal. */
+    suspend fun resumenUso(): ResumenUso? {
+        val uid = uid() ?: return null
+        return withContext(Dispatchers.IO) { UsoGuias.leer(getApplication(), uid) }
     }
 
     private fun uid(): String? = FirebaseModule.auth.currentUser?.uid
