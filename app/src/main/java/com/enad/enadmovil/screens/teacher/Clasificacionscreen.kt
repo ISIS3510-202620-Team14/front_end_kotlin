@@ -87,6 +87,11 @@ import kotlinx.coroutines.launch
 import com.enad.enadmovil.feature.ayuda.Guia
 import com.enad.enadmovil.feature.ayuda.LocalGuia
 import com.enad.enadmovil.feature.ayuda.objetivoGuia
+import com.enad.enadmovil.domain.model.UltimaEvaluacion
+import com.enad.enadmovil.ui.theme.EnadPendienteBg
+import com.enad.enadmovil.ui.theme.EnadPendienteText
+import java.time.LocalDate
+import java.time.ZoneId
 
 // "materia" parametriza la pantalla para que Lectura y Matemáticas la compartan
 // (título + niveles propios). Los colores de nivel son los de LevelPalette en Flutter.
@@ -138,7 +143,8 @@ data class EstudianteClasificacion(
     val sexo: String? = null,
     val edad: String = "",
     val muestra: Int? = null,
-    val nivelActual: String? = null
+    val nivelActual: String? = null,
+    val ultimaEvaluacion: String? = null
 )
 
 private fun edadValida(edad: String): Boolean = edad.toIntOrNull()?.let { it in 5..18 } == true
@@ -211,15 +217,18 @@ private fun ClasificacionContenido(
 
     val activos = estudiantes.filter { it.nivelActual != NIVEL_RETIRADO }
     val retirados = estudiantes.filter { it.nivelActual == NIVEL_RETIRADO }
+    val hoy = remember { LocalDate.now(ZoneId.of("America/Bogota"))}
+    val diasDesde = { e: EstudianteClasificacion -> UltimaEvaluacion.diasDesde(e.ultimaEvaluacion, hoy) }
     val grupos = buildList {
         add("Sin evaluar" to activos.filter { it.nivelActual == null })
-        materia.niveles.forEach { nivel -> add(nivel.nombre to activos.filter { it.nivelActual == nivel.nombre }) }
+        materia.niveles.forEach { nivel -> add(nivel.nombre to activos.filter { it.nivelActual == nivel.nombre }.sortedByDescending { diasDesde(it) ?: 0 }) }
     }.filter { it.second.isNotEmpty() }
 
     val tarjeta: @Composable (EstudianteClasificacion) -> Unit = { e ->
         FichaEvaluacion(
             estudiante = e,
             materia = materia,
+            dias = if (e.nivelActual == NIVEL_RETIRADO) null else diasDesde(e),
             expandida = expandidoId == e.id,
             onAlternar = { expandidoId = if (expandidoId == e.id) null else e.id },
             onVerPerfil = { if (guia?.activa != true) onVerPerfil(e.id) },
@@ -378,6 +387,7 @@ private fun ClasificacionContenido(
 private fun FichaEvaluacion(
     estudiante: EstudianteClasificacion,
     materia: MateriaConfig,
+    dias: Int?,
     expandida: Boolean,
     onAlternar: () -> Unit,
     onVerPerfil: () -> Unit,
@@ -423,6 +433,21 @@ private fun FichaEvaluacion(
             }
             estudiante.nivelActual?.let {
                 Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
+            }
+            // BQ tipo 2: cuántos días lleva sin evaluarse; si pasó el límite se resalta
+            dias?.let { d ->
+                val atrasado = UltimaEvaluacion.pendiente(d)
+                Text(
+                    text = if (d <= 1) UltimaEvaluacion.texto(d).replaceFirstChar { it.uppercase() }
+                    else "Última evaluación ${UltimaEvaluacion.texto(d)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (atrasado) EnadPendienteText else EnadSoftInk,
+                    modifier = if (atrasado) {
+                        Modifier.padding(top = 8.dp).background(EnadPendienteBg, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 4.dp)
+                    } else {
+                        Modifier.padding(top = 8.dp)
+                    }
+                )
             }
             TextButton(onClick = onVerPerfil) {
                 Icon(Icons.Outlined.History, contentDescription = null, tint = EnadPrimary, modifier = Modifier.size(18.dp))
