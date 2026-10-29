@@ -697,6 +697,61 @@ object CloudFunctionsApi {
         )
     }
 
+    /** Filas y su porcentaje sobre las filas leídas (null si no se leyó ninguna). */
+    data class ConteoRevision(val filas: Int, val porcentaje: Double?)
+
+    /** Totales de un conjunto de importaciones del escáner. */
+    data class TotalesRevision(
+        val importaciones: Int,
+        val leidas: Int,
+        val sinCambios: ConteoRevision,
+        val editadas: ConteoRevision,
+        val borradas: ConteoRevision,
+        val nombres: ConteoRevision,
+        val codigos: ConteoRevision
+    )
+
+    data class RevisionEscaneo(
+        val semanas: Int,
+        val docentes: Int,
+        val total: TotalesRevision,
+        val masCorregido: String?,                     // name | code | null (sin correcciones o empate)
+        val porOrigen: Map<String, TotalesRevision>     // attendance | manage_students
+    )
+
+    /**
+     * GET /analytics/scan-review (solo admin), BQ #11: de las filas que leyó el escáner, cuántas
+     * dejó el docente como estaban, cuántas corrigió (nombre o código) y cuántas borró.
+     */
+    suspend fun revisionEscaneo(token: String, semanas: Int = 8): RevisionEscaneo {
+        val json = solicitar("GET", "/scan-review?weeks=$semanas", token, null, ANALYTICS_URL)
+        fun conteo(o: JSONObject?) = ConteoRevision(
+            filas = o?.optInt("rows") ?: 0,
+            porcentaje = if (o == null || o.isNull("share")) null else o.optDouble("share")
+        )
+        fun totales(o: JSONObject): TotalesRevision {
+            val campos = o.optJSONArray("fields") ?: JSONArray()
+            val porCampo = List(campos.length()) { campos.getJSONObject(it) }.associateBy { it.optString("key") }
+            return TotalesRevision(
+                importaciones = o.optInt("imports"),
+                leidas = o.optInt("rowsRead"),
+                sinCambios = conteo(o.optJSONObject("unchanged")),
+                editadas = conteo(o.optJSONObject("edited")),
+                borradas = conteo(o.optJSONObject("deleted")),
+                nombres = conteo(porCampo["name"]),
+                codigos = conteo(porCampo["code"])
+            )
+        }
+        val origenes = json.optJSONArray("bySource") ?: JSONArray()
+        return RevisionEscaneo(
+            semanas = json.optInt("weeks", semanas),
+            docentes = json.optInt("teachers"),
+            total = totales(json),
+            masCorregido = if (json.isNull("mostCorrected")) null else json.optString("mostCorrected"),
+            porOrigen = List(origenes.length()) { origenes.getJSONObject(it) }.associate { it.optString("key") to totales(it) }
+        )
+    }
+
     /** Una fila del reporte de conflictos de asistencia: una institución, una conectividad o una plataforma. */
     data class FilaConflictos(val etiqueta: String, val total: Int, val conflictos: Int, val porcentaje: Double?)
 

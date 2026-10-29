@@ -48,6 +48,10 @@ class ReportesRepository(
     suspend fun calidadEscaneo(forzar: Boolean = false): CloudFunctionsApi.CalidadEscaneo =
         cache.obtenerOCargar("escaneo", forzar) { CloudFunctionsApi.calidadEscaneo(token()) }
 
+    /** BQ #11: qué corrige el docente en la revisión del escaneo (últimas 8 semanas). */
+    suspend fun revisionEscaneo(forzar: Boolean = false): CloudFunctionsApi.RevisionEscaneo =
+        cache.obtenerOCargar("revision-escaneo", forzar) { CloudFunctionsApi.revisionEscaneo(token()) }
+
     /** BQ Sprint 3 tipo 1: marcas de asistencia que otro celular ya había registrado (semana lunes yyyy-MM-dd). */
     suspend fun conflictosAsistencia(semana: String?, forzar: Boolean = false): CloudFunctionsApi.ReporteConflictos =
         cache.obtenerOCargar(clave = "conflictos:${semana ?: "actual"}",
