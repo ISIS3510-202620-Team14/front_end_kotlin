@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
@@ -92,7 +93,8 @@ fun AdminResumenSection(estado: AdminUiState, onAbrirReporte: (Int) -> Unit, onA
                 detalle = evaluaciones?.let { detalleMateriaAReforzar(it.general) } ?: "",
                 carga = estado.evaluaciones,
                 onClick = { onAbrirReporte(REPORTE_EVALUACIONES) },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                valorEsTexto = true
             )
         }
         EnadPanel(onClick = { onAbrirReporte(REPORTE_SINCRONIZACION) }) {
@@ -116,7 +118,8 @@ private fun Indicador(
     detalle: String,
     carga: Carga<*>,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    valorEsTexto: Boolean = false
 ) {
     EnadPanel(modifier = modifier, onClick = onClick) {
         Text(etiqueta, style = MaterialTheme.typography.bodyMedium)
@@ -124,7 +127,13 @@ private fun Indicador(
         when {
             carga is Carga.Cargando -> CircularProgressIndicator(color = EnadInk, strokeWidth = 2.dp, modifier = Modifier.height(28.dp).width(28.dp))
             carga is Carga.Fallo -> Text("Sin datos", style = MaterialTheme.typography.titleMedium, color = EnadSoftInk)
-            else -> Text(valor ?: "—", style = MaterialTheme.typography.headlineSmall, color = EnadPrimary)
+            // Un nombre como "Matemáticas" no cabe a 22 sp en media pantalla y se partía a la mitad
+            else -> Text(
+                valor ?: "—",
+                style = if (valorEsTexto) MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold) else MaterialTheme.typography.headlineSmall,
+                color = EnadPrimary,
+                maxLines = 1
+            )
         }
         Spacer(Modifier.height(4.dp))
         Text(detalle, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
