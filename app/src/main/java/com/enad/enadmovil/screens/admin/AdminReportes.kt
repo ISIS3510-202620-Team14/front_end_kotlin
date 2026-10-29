@@ -27,7 +27,8 @@ import com.enad.enadmovil.ui.theme.EnadSoftInk
 import com.enad.enadmovil.ui.theme.EnadSuccessBg
 import com.enad.enadmovil.ui.theme.EnadSuccessText
 import java.time.LocalDate
-
+import com.enad.enadmovil.ui.theme.EnadPendienteBg
+import com.enad.enadmovil.ui.theme.EnadPendienteText
 /** Flechas para moverse entre semanas; la semana en curso es el tope. */
 @Composable
 private fun SelectorSemana(semana: LocalDate, onCambiarSemana: (Long) -> Unit) {
@@ -177,6 +178,65 @@ private fun FilaActividad(puesto: Int, a: CloudFunctionsApi.ActividadUso) {
     }
     Spacer(Modifier.height(6.dp))
     EnadProgress(((a.porcentaje ?: 0.0) / 100).toFloat(), color = if (puesto == 1) EnadPrimary else EnadInk)
+}
+
+/**
+ * Reporte "Evaluaciones" (BQ #12, tipo 4): qué materia concentra más evaluaciones en cada grado.
+ * La materia menos usada es la que la fundación puede priorizar con contenido.
+ */
+@Composable
+fun ReporteEvaluacionesSection(estado: AdminUiState, onActualizar: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        EncabezadoReporte(
+            titulo = "Evaluaciones por materia",
+            descripcion = "Cuántas evaluaciones tiene cada materia en cada grado. La menos usada es la que conviene reforzar con contenido.",
+            cargando = estado.evaluaciones is Carga.Cargando,
+            onActualizar = onActualizar
+        )
+        ContenidoCarga(
+            estado.evaluaciones,
+            vacio = { it.total == 0 },
+            textoVacio = "Todavía no hay evaluaciones registradas."
+        ) { r ->
+            TarjetaEvaluaciones("Todos los grados", r.general)
+            r.grados.forEach { TarjetaEvaluaciones("Grado ${it.grado}", it) }
+        }
+    }
+}
+
+@Composable
+private fun TarjetaEvaluaciones(titulo: String, r: CloudFunctionsApi.ResumenEvaluaciones) {
+    EnadPanel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(titulo, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    if (r.total == 0) "Sin evaluaciones" else "${r.total} ${if (r.total == 1) "evaluación" else "evaluaciones"}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            if (r.total > 0 && r.menosUsada == null) Etiqueta("Mismo número", EnadSuccessBg, EnadSuccessText)
+        }
+        if (r.total > 0) {
+            FilaMateria("matematicas", r.matematicas, r.porcentajeMatematicas, r.menosUsada == "matematicas")
+            FilaMateria("lectura", r.lectura, r.porcentajeLectura, r.menosUsada == "lectura")
+        }
+    }
+}
+
+@Composable
+private fun FilaMateria(materia: String, cantidad: Int, porcentaje: Double?, menosUsada: Boolean) {
+    Spacer(Modifier.height(12.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(materiaLegible(materia).orEmpty(), style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
+        if (menosUsada) {
+            Etiqueta("Menos usada", EnadPendienteBg, EnadPendienteText)
+            Spacer(Modifier.width(8.dp))
+        }
+        Text("$cantidad · ${porcentajeTexto(porcentaje)}", style = MaterialTheme.typography.labelLarge)
+    }
+    Spacer(Modifier.height(6.dp))
+    EnadProgress(((porcentaje ?: 0.0) / 100).toFloat(), color = if (menosUsada) EnadPrimary else EnadInk)
 }
 
 /**

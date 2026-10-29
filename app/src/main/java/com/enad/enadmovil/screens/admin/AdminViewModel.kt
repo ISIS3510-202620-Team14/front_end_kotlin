@@ -30,6 +30,7 @@ data class AdminUiState(
     val aperturas: Carga<CloudFunctionsApi.ReporteAperturas> = Carga.Cargando,
     val horas: Carga<List<CloudFunctionsApi.SemanaHoras>> = Carga.Cargando,
     val actividades: Carga<CloudFunctionsApi.TopActividades> = Carga.Cargando,
+    val evaluaciones: Carga<CloudFunctionsApi.EvaluacionesPorGrado> = Carga.Cargando,
     val semanaConflictos: LocalDate = lunesActual(),
     val conflictos: Carga<CloudFunctionsApi.ReporteConflictos> = Carga.Cargando,
     val busqueda: String = "",
@@ -58,6 +59,7 @@ class AdminViewModel(
         cargarAperturas()
         cargarHoras()
         cargarActividades()
+        cargarEvaluaciones()
         cargarConflictos()
         cargarInstituciones()
     }
@@ -111,6 +113,15 @@ class AdminViewModel(
         }
     }
 
+    /** BQ #12: evaluaciones por materia y por grado. */
+    fun cargarEvaluaciones(forzar: Boolean = false) {
+        _uiState.update { it.copy(evaluaciones = Carga.Cargando) }
+        viewModelScope.launch {
+            val resultado = consultar { repo.evaluacionesPorGrado(forzar)}
+            _uiState.update { it.copy(evaluaciones = resultado)}
+        }
+    }
+
     fun buscar(texto: String) {
         _uiState.update { it.copy(busqueda = texto) }
         busquedaJob?.cancel()
@@ -148,6 +159,7 @@ class AdminViewModel(
     fun actualizarHoras() = cargarHoras(forzar = true)
     fun actualizarActividades() = cargarActividades(forzar = true)
     fun actualizarConflictos() = cargarConflictos(forzar = true)
+    fun actualizarEvaluaciones() = cargarEvaluaciones(forzar = true)
 
     private suspend fun <T> consultar(bloque: suspend () -> T): Carga<T> =
         try {

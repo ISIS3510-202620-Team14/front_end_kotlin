@@ -40,6 +40,10 @@ class ReportesRepository(
     suspend fun topActividades(forzar: Boolean = false): CloudFunctionsApi.TopActividades =
         cache.obtenerOCargar("actividades", forzar) { CloudFunctionsApi.topActividades(token()) }
 
+    /** BQ #12: evaluaciones por materia y por grado; la materia menos usada es la que conviene reforzar. */
+    suspend fun evaluacionesPorGrado(forzar: Boolean = false): CloudFunctionsApi.EvaluacionesPorGrado =
+        cache.obtenerOCargar("evaluaciones", forzar) { CloudFunctionsApi.evaluacionesPorGrado(token()) }
+
     /** BQ #10: calidad del escaneo según las condiciones de la foto (últimas 8 semanas). */
     suspend fun calidadEscaneo(forzar: Boolean = false): CloudFunctionsApi.CalidadEscaneo =
         cache.obtenerOCargar("escaneo", forzar) { CloudFunctionsApi.calidadEscaneo(token()) }
