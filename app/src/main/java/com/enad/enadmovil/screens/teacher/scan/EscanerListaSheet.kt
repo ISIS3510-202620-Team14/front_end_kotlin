@@ -136,7 +136,8 @@ fun EscanerListaSheet(
                         "Toca uno para corregirlo. Puedes escanear otra página."
                     filas.isNotEmpty() -> "Revisa los nombres antes de importar; los que no tengan código quedan con uno provisional. " +
                         "Los que no tienen grado aparecen en rojo. Puedes escanear otra página."
-                    else -> "Toma una foto de la lista impresa o escrita a mano (un estudiante por renglón: nombre y apellido)."
+                    else -> "Toma una foto de la lista impresa o escrita a mano (un estudiante por renglón: nombre y apellido). " +
+                        "Se lee en el teléfono, sin internet."
                 },
                 style = MaterialTheme.typography.bodyLarge.copy(fontSize = 14.sp),
                 color = if (estado.error != null) EnadPrimary else EnadSoftInk
