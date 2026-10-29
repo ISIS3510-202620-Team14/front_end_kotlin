@@ -608,6 +608,40 @@ object CloudFunctionsApi {
         )
     }
 
+    data class ResumenEvaluaciones(val grado: Int?, val total: Int, val matematicas: Int, val lectura: Int, val porcentajeMatematicas: Double?, val porcentajeLectura: Double?, val masUsada: String?, val menosUsada: String?)
+    data class EvaluacionesPorGrado(val total: Int, val general: ResumenEvaluaciones, val grados: List<ResumenEvaluaciones>)
+
+    /** GET /analytics/assessments-by-grade (solo admin), BQ #12: evaluaciones por materia y por grado. */
+    suspend fun evaluacionesPorGrado(token: String): EvaluacionesPorGrado {
+        val json = solicitar("GET", "/assessments-by-grade", token, null, ANALYTICS_URL)
+        val grados = json.optJSONArray("grades") ?: JSONArray()
+        return EvaluacionesPorGrado(
+            total = json.optInt("total"),
+            general = resumenEvaluaciones(json.getJSONObject("overall"), null),
+            grados = List(grados.length()) {
+                val o = grados.getJSONObject(it)
+                resumenEvaluaciones(o, o.getInt("grade"))
+            }
+        )
+    }
+
+    private fun resumenEvaluaciones(o: JSONObject, grado: Int?): ResumenEvaluaciones {
+        val cuentas = o.getJSONObject("counts")
+        val porcentajes = o.getJSONObject("percentages")
+        fun porcentaje(materia: String) = if (porcentajes.isNull(materia)) null else porcentajes.optDouble(materia)
+        fun texto(campo: String) = if (o.isNull(campo)) null else o.optString(campo)
+        return ResumenEvaluaciones(
+            grado = grado,
+            total = o.optInt("total"),
+            matematicas = cuentas.optInt("matematicas"),
+            lectura = cuentas.optInt("lectura"),
+            porcentajeMatematicas = porcentaje("matematicas"),
+            porcentajeLectura = porcentaje("lectura"),
+            masUsada = texto("mostUsed"),
+            menosUsada = texto("leastUsed")
+        )
+    }
+
     /** Una fila del reporte de conflictos de asistencia: una institución, una conectividad o una plataforma. */
     data class FilaConflictos(val etiqueta: String, val total: Int, val conflictos: Int, val porcentaje: Double?)
 

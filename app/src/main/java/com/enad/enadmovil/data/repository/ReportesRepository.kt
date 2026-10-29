@@ -40,6 +40,10 @@ class ReportesRepository(
     suspend fun topActividades(forzar: Boolean = false): CloudFunctionsApi.TopActividades =
         cache.obtenerOCargar("actividades", forzar) { CloudFunctionsApi.topActividades(token()) }
 
+    /** BQ #12: evaluaciones por materia y por grado; la materia menos usada es la que conviene reforzar. */
+    suspend fun evaluacionesPorGrado(forzar: Boolean = false): CloudFunctionsApi.EvaluacionesPorGrado =
+        cache.obtenerOCargar("evaluaciones", forzar) { CloudFunctionsApi.evaluacionesPorGrado(token()) }
+
     /** BQ Sprint 3 tipo 1: marcas de asistencia que otro celular ya había registrado (semana lunes yyyy-MM-dd). */
     suspend fun conflictosAsistencia(semana: String?, forzar: Boolean = false): CloudFunctionsApi.ReporteConflictos =
         cache.obtenerOCargar(clave = "conflictos:${semana ?: "actual"}",
