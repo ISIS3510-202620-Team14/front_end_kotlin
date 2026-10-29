@@ -25,7 +25,7 @@ fun AvisoDatosGuardados(guardadoEn: Long, onActualizar: () -> Unit, modifier:  M
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "Sin conexión. Mostrando la lista guardada ${DatosGuardados.cuando(guardadoEn)}.",
+            text = "Sin conexión. Lista guardada ${DatosGuardados.cuando(guardadoEn)}",
             style = MaterialTheme.typography.bodySmall,
             color = EnadPendienteText,
             modifier = Modifier.weight(1f)
