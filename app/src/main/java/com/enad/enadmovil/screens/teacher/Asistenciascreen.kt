@@ -318,6 +318,10 @@ fun AsistenciaScreen(
                     ResumenAsistencia(total = total, fecha = fechaSeleccionada, porcentaje = porcentaje)
                 }
 
+                if (total > 0) {
+                    item { EstadoEnvio(pendientes = ui.pendientesSync) }
+                }
+
                 if (ui.reemplazadas.isNotEmpty()) {
                     item {
                         PanelMarcasReemplazadas(
@@ -517,6 +521,21 @@ private fun ResumenAsistencia(total: Int, fecha: LocalDate, porcentaje: Int) {
         }
     }
 }
+/** Lo que sigue en el teléfono sin subir. Sin internet el docente sabe que no se perdió nada. */
+@Composable
+private fun EstadoEnvio(pendientes: Int) {
+    Text(
+        text = if (pendientes > 0) {
+            "$pendientes cambios guardados en el teléfono, pendientes de subir. Se enviarán cuando haya internet."
+        } else {
+            "Todo está sincronizado."
+        },
+        style = MaterialTheme.typography.bodySmall,
+        color = if (pendientes > 0) EnadPrimary else EnadSoftInk,
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
 private fun requisitoAsistencia(paso: Int, cargando: Boolean, faltan: Int): String? = when {
     paso !in 1..4 -> null
     cargando -> "Espera a que termine de cargar la sesión."
