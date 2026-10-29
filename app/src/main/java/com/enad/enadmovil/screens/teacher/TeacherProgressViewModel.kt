@@ -25,7 +25,8 @@ data class MateriaProgreso(
 data class TeacherProgressUiState(
     val materias: List<MateriaProgreso> = emptyList(),
     val cargando: Boolean = false,
-    val cargado: Boolean = false
+    val cargado: Boolean = false,
+    val guardadoEn: Long? = null
 )
 
 class TeacherProgressViewModel(
@@ -48,9 +49,9 @@ class TeacherProgressViewModel(
             )
 
             runCatching {
-                repository.todosLosEstudiantes()
-            }.onSuccess { estudiantes ->
-
+                repository.todosLosEstudiantesConRespaldo()
+            }.onSuccess { lectura ->
+                val estudiantes = lectura.datos
                 val lecturaEvaluados =
                     estudiantes.count {
                         it.niveles["lectura"] != null
@@ -75,7 +76,8 @@ class TeacherProgressViewModel(
                         )
                     ),
                     cargando = false,
-                    cargado = true
+                    cargado = true,
+                    guardadoEn = lectura.guardadoEn
                 )
 
             }.onFailure {

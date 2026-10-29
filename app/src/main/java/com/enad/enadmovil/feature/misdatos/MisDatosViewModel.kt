@@ -24,7 +24,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-
+import com.enad.enadmovil.data.local.ArchivoRespuestas
 /** Una institución del docente con las sedes que tiene asignadas. */
 data class InstitucionDocente(val nombre: String, val municipio: String?, val sedes: List<String>)
 
@@ -157,7 +157,10 @@ class MisDatosViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun cerrarSesion() = auth.cerrarSesion()
+    fun cerrarSesion() {
+        ArchivoRespuestas(getApplication<Application>()).borrarTodo()
+        auth.cerrarSesion()
+    }
 
     companion object {
         fun enviado(r: ReporteHorasEntity) = r.syncStatus == SyncStatus.SYNCED
