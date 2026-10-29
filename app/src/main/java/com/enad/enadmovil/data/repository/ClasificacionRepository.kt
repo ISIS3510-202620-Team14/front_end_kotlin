@@ -1,6 +1,8 @@
 package com.enad.enadmovil.data.repository
 
 import android.content.Context
+import com.enad.enadmovil.data.local.ArchivoRespuestas
+import com.enad.enadmovil.data.local.Lectura
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.data.sync.EnviarClasificacionWorker
 import kotlinx.coroutines.tasks.await
@@ -15,6 +17,7 @@ class ClasificacionRepository(
     private val auth: AuthRepository = AuthRepository()
 ) {
     private val appContext = context.applicationContext
+    private val archivo = ArchivoRespuestas(appContext)
 
     /** GET /schools: al docente solo le llegan sus instituciones. */
     suspend fun misInstituciones(): List<CloudFunctionsApi.Institucion> =
@@ -36,6 +39,24 @@ class ClasificacionRepository(
             token(),
             null,
             null
+        )
+
+    suspend fun misInstitucionesConRespaldo(): Lectura<List<CloudFunctionsApi.Institucion>> =
+        conRespaldo("instituciones", { CloudFunctionsApi.misInstitucionesJson(token()) }, CloudFunctionsApi::institucionesDeJson)
+
+    suspend fun estudiantesConRespaldo(schoolId: String): Lectura<List<CloudFunctionsApi.EstudianteRemoto>> =
+        conRespaldo("estudiantes_$schoolId", { CloudFunctionsApi.listarEstudiantesJson(token(), schoolId, null) }, CloudFunctionsApi::estudiantesDeJson)
+
+    suspend fun todosLosEstudiantesConRespaldo(): Lectura<List<CloudFunctionsApi.EstudianteRemoto>> =
+        conRespaldo("estudiantes", { CloudFunctionsApi.listarEstudiantesJson(token(), null, null) }, CloudFunctionsApi::estudiantesDeJson)
+
+    private suspend fun <T> conRespaldo(nombre: String, pedir: suspend () -> JSONObject, convertir: (JSONObject) -> T): Lectura<T> =
+        archivo.conRespaldo(
+            uid = auth.uidActual(),
+            nombre = nombre,
+            esRechazo = { it is CloudFunctionsApi.ApiException && it.status in 400..499 },
+            pedir = { pedir().toString() },
+            convertir = { convertir(JSONObject(it)) }
         )
 
     /**
