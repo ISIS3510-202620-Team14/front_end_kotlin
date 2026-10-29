@@ -234,7 +234,7 @@ fun AsistenciaScreen(
                         habilitado = faltan == 0 && !guardando,
                         onGuardar = {
                             guardando = true
-                            viewModel.guardar()
+                            viewModel.guardar(alQuedarPendiente = { guardando = false })
                         },
                         modifier = Modifier.objetivoGuia(Guia.ASISTENCIA, 5)
                     )

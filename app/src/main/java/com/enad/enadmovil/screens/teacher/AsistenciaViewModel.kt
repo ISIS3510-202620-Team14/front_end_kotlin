@@ -155,18 +155,26 @@ class AsistenciaViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * Todo ya está guardado en el teléfono; esto intenta subirlo ya. Si otra sincronización de este
      * celular tiene el turno (semáforo), o si otro celular registró primero, se le avisa al docente.
+     * [alQuedarPendiente] se llama cuando no se pudo subir todo, para que la pantalla deje de mostrar "Guardando…".
      */
-    fun guardar() {
+    fun guardar(alQuedarPendiente: () -> Unit = {}) {
         viewModelScope.launch {
             when (val r = repo.sincronizarAhora()) {
                 AsistenciaRepository.ResultadoSync.Ocupado -> {
                     avisar("Este celular ya está enviando la asistencia. Se terminará de enviar sola en un momento.")
                     SyncScheduler.programar(contexto)
+                    alQuedarPendiente()
                 }
                 is AsistenciaRepository.ResultadoSync.Terminado -> {
                     releerReemplazadas()
-                    r.aviso?.let { avisar(it) }
-                    if (r.quedanPendientes) SyncScheduler.programar(contexto) // sin internet: queda en cola
+                    if (r.quedanPendientes) {
+                        // Sin internet: la asistencia queda en el teléfono y WorkManager la sube cuando vuelva la red
+                        avisar(r.aviso ?: "No hay internet. La asistencia quedó guardada en el teléfono y se enviará sola cuando vuelva la conexión.")
+                        SyncScheduler.programar(contexto)
+                        alQuedarPendiente()
+                    } else {
+                        r.aviso?.let { avisar(it) }
+                    }
                 }
             }
         }
