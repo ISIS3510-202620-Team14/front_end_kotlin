@@ -16,6 +16,7 @@ import com.enad.enadmovil.data.ocr.TextRecognizerDataSource
 import com.enad.enadmovil.data.repository.AuthRepository
 import com.enad.enadmovil.data.telemetria.EventosEscaneo
 import com.enad.enadmovil.domain.model.CondicionesCaptura
+import com.enad.enadmovil.domain.model.ResumenRevision
 import com.enad.enadmovil.domain.model.EstudianteEscaneado
 import com.enad.enadmovil.domain.parser.ListaAsistenciaParser
 import kotlinx.coroutines.CancellationException
@@ -87,6 +88,11 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         } ?: return null
         CacheMiniaturas.guardar(clave, leida)
         return leida
+    }
+
+    /** BQ #11: lo que corrigió el docente en la revisión. [exigirCodigo] = vino de Gestionar estudiantes. */
+    fun registrarRevision(resumen: ResumenRevision, exigirCodigo: Boolean) {
+        auth.uidActual()?.let { EventosEscaneo.registrarRevision(it, resumen, if (exigirCodigo) "manage_students" else "attendance") }
     }
 
     /** El sheet ya copió las filas nuevas a su lista: se vacían para no sumarlas dos veces. */
