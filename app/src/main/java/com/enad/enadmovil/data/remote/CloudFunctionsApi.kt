@@ -65,6 +65,7 @@ object CloudFunctionsApi {
         val attendance: String?,   // solo viene si se pidió ?date=
         val gender: String? = null,
         val niveles: Map<String, String> = emptyMap(),   // materia -> etiqueta del nivel actual
+        val fechasNivel: Map<String, String> = emptyMap(),
         val sample: Int? = null,
         val retired: Boolean = false,
         val campus: String? = null
@@ -345,7 +346,14 @@ object CloudFunctionsApi {
             levels.keys().forEach { materia ->
                 levels.optJSONObject(materia)?.optString("etiqueta")?.ifBlank { null }?.let { put(materia, it) }
             }
+        },
+        fechasNivel = buildMap {
+            val levels = o.optJSONObject("levels") ?: return@buildMap
+            levels.keys().forEach { materia ->
+                levels.optJSONObject(materia)?.optString("date")?.ifBlank { null }?.let { put(materia, it)}
+            }
         }
+
     )
 
     suspend fun enviarSesionAgrupacion(token: String, s: SesionAgrupacionEntity, intento: Int) {

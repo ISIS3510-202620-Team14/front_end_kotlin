@@ -37,6 +37,11 @@ import com.enad.enadmovil.ui.theme.EnadInk
 import com.enad.enadmovil.feature.ayuda.Guia
 import com.enad.enadmovil.feature.ayuda.LocalGuia
 import com.enad.enadmovil.feature.ayuda.objetivoGuia
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.enad.enadmovil.domain.model.UltimaEvaluacion
+import com.enad.enadmovil.ui.theme.EnadPendienteBg
+import com.enad.enadmovil.ui.theme.EnadPendienteText
 /**
  * Entrada a la evaluación formativa (evaluation_menu_view en Flutter): una tarjeta por
  * materia con el porcentaje de estudiantes evaluados y el acceso a la lista.
@@ -93,6 +98,10 @@ fun EvaluacionMenuScreen(
                             "${materia.evaluados} de ${materia.total} estudiantes evaluados",
                             style = MaterialTheme.typography.bodyMedium
                         )
+                        if (materia.atrasados > 0) {
+                            Spacer(Modifier.height(10.dp))
+                            AvisoAtrasados(materia.atrasados)
+                        }
                         Spacer(Modifier.height(16.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("Ver estudiantes", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
@@ -104,6 +113,20 @@ fun EvaluacionMenuScreen(
 
         }
     }
+}
+
+/** BQ: cuántos estudiantes llevan más de DIAS_LIMITE días sin evaluarse en la materia. */
+@Composable
+private fun AvisoAtrasados(cantidad: Int) {
+    Text(
+        text = if (cantidad == 1) "1 estudiante lleva más de ${UltimaEvaluacion.DIAS_LIMITE} días sin evaluarse"
+        else "$cantidad estudiantes llevan más de ${UltimaEvaluacion.DIAS_LIMITE} días sin evaluarse",
+        style = MaterialTheme.typography.labelSmall,
+        color = EnadPendienteText,
+        modifier = Modifier
+            .background(EnadPendienteBg, RoundedCornerShape(50))
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    )
 }
 
 /** Barra de pantalla secundaria: flecha atrás y título en Lexend sobre el fondo cálido. */
