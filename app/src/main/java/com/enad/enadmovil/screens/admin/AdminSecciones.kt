@@ -38,6 +38,7 @@ fun AdminResumenSection(estado: AdminUiState, onAbrirReporte: (Int) -> Unit, onA
     val top = estado.actividades.datos?.actividades?.firstOrNull()
     val conflictos = estado.conflictos.datos
     val instituciones = estado.instituciones.datos
+    val evaluaciones = estado.evaluaciones.datos
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -85,13 +86,27 @@ fun AdminResumenSection(estado: AdminUiState, onAbrirReporte: (Int) -> Unit, onA
                 onClick = { onAbrirReporte(REPORTE_CONFLICTOS) },
                 modifier = Modifier.weight(1f)
             )
-            Spacer(Modifier.weight(1f))
+            Indicador(
+                etiqueta = "Materia a reforzar",
+                valor = evaluaciones?.general?.menosUsada?.let { materiaLegible(it) } ?: if (evaluaciones != null) "—" else null,
+                detalle = evaluaciones?.let { detalleMateriaAReforzar(it.general) } ?: "",
+                carga = estado.evaluaciones,
+                onClick = { onAbrirReporte(REPORTE_EVALUACIONES) },
+                modifier = Modifier.weight(1f)
+            )
         }
         EnadPanel(onClick = { onAbrirReporte(REPORTE_SINCRONIZACION) }) {
             Text("Sincronización y clasificación", style = MaterialTheme.typography.titleMedium)
             Text("Revisa las sesiones que no llegaron a tiempo y cuánto tarda cada docente en clasificar.", style = MaterialTheme.typography.bodyMedium)
         }
     }
+}
+
+/** Debajo de la materia a reforzar: cuántas evaluaciones tiene de todas las que hay. */
+private fun detalleMateriaAReforzar(general: CloudFunctionsApi.ResumenEvaluaciones): String = when {
+    general.total == 0 -> "sin evaluaciones"
+    general.menosUsada == null -> "mismo número en las dos"
+    else -> "${if (general.menosUsada == "matematicas") general.matematicas else general.lectura} de ${general.total} evaluaciones"
 }
 
 @Composable
