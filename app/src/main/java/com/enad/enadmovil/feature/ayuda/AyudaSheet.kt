@@ -67,13 +67,18 @@ fun BotonAyuda(onClick: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
+/** [resumen] es null mientras se lee o si no hay sesión: en ese caso no se muestra el bloque de uso. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AyudaSheet(onElegir: (Guia) -> Unit, onCerrar: () -> Unit) {
+fun AyudaSheet(onElegir: (Guia) -> Unit, onCerrar: () -> Unit, resumen: ResumenUso? = null) {
     ModalBottomSheet(onDismissRequest = onCerrar, containerColor = EnadSurface) {
         Column(Modifier.navigationBarsPadding().padding(start=24.dp, end=24.dp, bottom = 24.dp)) {
             Text("¿Qué puedes hacer?", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(12.dp))
+            resumen?.let {
+                UsoDeGuias(it)
+                Spacer(Modifier.height(12.dp))
+            }
             Guia.entries.forEach { guia ->
                 ListItem(
                     headlineContent = { Text(guia.titulo)},
@@ -84,6 +89,27 @@ fun AyudaSheet(onElegir: (Guia) -> Unit, onCerrar: () -> Unit) {
                 )
 
             }
+        }
+    }
+}
+
+/** BQ 9 (tipo 2): qué guía usa más este docente en este celular y cuántas terminó. */
+@Composable
+private fun UsoDeGuias(resumen: ResumenUso) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("Tus guías en este dispositivo", style = MaterialTheme.typography.titleSmall)
+        if (resumen.iniciadas == 0) {
+            Text("Todavía no has iniciado ninguna.", style = MaterialTheme.typography.bodyMedium)
+        } else {
+            Text(
+                (if (resumen.masUsadas.size == 1) "Más usada: " else "Más usadas: ") +
+                    resumen.masUsadas.joinToString(", ") { it.titulo },
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                "${resumen.completadas} completadas de ${resumen.iniciadas} iniciadas.",
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
     }
 }
