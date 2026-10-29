@@ -27,6 +27,7 @@ data class ClasificacionUiState(
     val grado: Int? = null,   // null = "Todos"
     // Momento de evaluación (clave del back). Sin momento no se puede registrar.
     val momento: String? = null,
+    val guardadoEn: Long? = null,
     val estudiantes: List<EstudianteClasificacion> = emptyList()   // todos los de la institución elegida
 ) {
     val visibles: List<EstudianteClasificacion>
@@ -219,7 +220,7 @@ class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _uiState.update { it.copy(cargando = true, mensaje = null) }
             try {
-                val instituciones = repo.misInstituciones()
+                val instituciones = repo.misInstitucionesConRespaldo().datos
                 val primera = instituciones.firstOrNull()?.id
                 _uiState.update {
                     it.copy(
@@ -241,8 +242,8 @@ class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
         cargaEstudiantes = viewModelScope.launch {
             _uiState.update { it.copy(cargando = true, mensaje = null) }
             try {
-                val remotos = repo.estudiantes(schoolId)
-                val estudiantes = remotos.mapIndexed { i, r ->
+                val lectura = repo.estudiantesConRespaldo(schoolId)
+                val estudiantes = lectura.datos.mapIndexed { i, r ->
                     ediciones[r.id] ?: EstudianteClasificacion(
                         id = r.id,
                         numero = i + 1,
@@ -255,7 +256,7 @@ class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
                         ultimaEvaluacion = r.fechasNivel[materiaClave]
                     )
                 }
-                _uiState.update { it.copy(cargando = false, estudiantes = estudiantes) }
+                _uiState.update { it.copy(cargando = false, estudiantes = estudiantes, guardadoEn = lectura.guardadoEn) }
                 // Un reintento de la misma institución sigue la sesión que ya iba corriendo
                 if (sesion?.schoolId != schoolId) abrirSesion(schoolId, estudiantes.size)
             } catch (e: CancellationException) {

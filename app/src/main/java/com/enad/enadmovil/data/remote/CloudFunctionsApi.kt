@@ -150,8 +150,13 @@ object CloudFunctionsApi {
         llamar("login", JSONObject().put("email", email).put("password", password))
 
     /** GET /schools: al docente solo le llegan sus instituciones; al admin, todas. */
-    suspend fun misInstituciones(token: String): List<Institucion> {
-        val arreglo = solicitar("GET", "", token, null, SCHOOLS_URL).getJSONArray("schools")
+    suspend fun misInstituciones(token: String): List<Institucion> = institucionesDeJson(misInstitucionesJson(token))
+
+    /** La respuesta de GET /schools tal como llega, para guardarla en el teléfono. */
+    suspend fun misInstitucionesJson(token: String): JSONObject = solicitar("GET", "", token, null, SCHOOLS_URL)
+
+    fun institucionesDeJson(json: JSONObject): List<Institucion> {
+        val arreglo = json.getJSONArray("schools")
         return List(arreglo.length()) { aInstitucion(arreglo.getJSONObject(it)) }
     }
 
@@ -245,13 +250,21 @@ object CloudFunctionsApi {
     }
 
     /** GET /students (del colegio del docente). Con fecha, cada estudiante trae su asistencia de ese día. */
-    suspend fun listarEstudiantes(token: String, schoolId: String?, fecha: String?): List<EstudianteRemoto> {
+    suspend fun listarEstudiantes(token: String, schoolId: String?, fecha: String?): List<EstudianteRemoto> =
+        estudiantesDeJson(listarEstudiantesJson(token, schoolId, fecha))
+
+    /** La respuesta de GET /students tal como llega, para guardarla en el teléfono. */
+    suspend fun listarEstudiantesJson(token: String, schoolId: String?, fecha: String?): JSONObject {
         val params = listOfNotNull(
             schoolId?.let { "schoolId=${URLEncoder.encode(it, "UTF-8")}" },
             fecha?.let { "date=$it" }
         )
         val ruta = if (params.isEmpty()) "" else "?" + params.joinToString("&")
-        val arreglo = solicitar("GET", ruta, token, null).getJSONArray("students")
+        return solicitar("GET", ruta, token, null)
+    }
+
+    fun estudiantesDeJson(json: JSONObject): List<EstudianteRemoto> {
+        val arreglo = json.getJSONArray("students")
         return List(arreglo.length()) { aEstudiante(arreglo.getJSONObject(it)) }
     }
 
