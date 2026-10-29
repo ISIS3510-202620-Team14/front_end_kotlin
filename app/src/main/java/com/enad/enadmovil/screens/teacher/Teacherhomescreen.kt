@@ -38,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -72,6 +73,7 @@ import com.enad.enadmovil.feature.ayuda.AyudaSheet
 import com.enad.enadmovil.feature.ayuda.BotonAyuda
 import com.enad.enadmovil.feature.ayuda.Guia
 import com.enad.enadmovil.feature.ayuda.LocalGuia
+import com.enad.enadmovil.feature.ayuda.ResumenUso
 import com.enad.enadmovil.feature.ayuda.objetivoGuia
 import com.enad.enadmovil.ui.theme.EnadInk
 import com.enad.enadmovil.ui.theme.EnadSurface
@@ -547,7 +549,10 @@ fun TeacherHomeScreen(
     }
 
     if (mostrarAyuda) {
+        // Se vuelve a leer cada vez que se abre Ayuda, así cuenta la guía que se acaba de terminar
+        val resumen by produceState<ResumenUso?>(null) { value = guia?.resumenUso() }
         AyudaSheet(
+            resumen = resumen,
             onElegir = { elegida ->
                 mostrarAyuda = false
                 guia?.iniciar(elegida)

@@ -126,7 +126,7 @@ class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
                     tipo = momento
                 )
                 actualizar(id) {
-                    it.copy(sexo = sexo, edad = edad.toString(), muestra = muestra, nivelActual = nivel)
+                    it.copy(sexo = sexo, edad = edad.toString(), muestra = muestra, nivelActual = nivel, ultimaEvaluacion = Instant.now().toString())
                 }
                 sesion?.registrarClasificacion(id)
                 guardarAvance()
@@ -252,7 +252,8 @@ class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
                         sexo = r.gender,
                         edad = r.age?.toString().orEmpty(),
                         muestra = r.sample,
-                        nivelActual = if (r.retired) NIVEL_RETIRADO else r.niveles[materiaClave]
+                        nivelActual = if (r.retired) NIVEL_RETIRADO else r.niveles[materiaClave],
+                        ultimaEvaluacion = r.fechasNivel[materiaClave]
                     )
                 }
                 _uiState.update { it.copy(cargando = false, estudiantes = estudiantes, guardadoEn = lectura.guardadoEn) }
