@@ -87,6 +87,7 @@ import kotlinx.coroutines.launch
 import com.enad.enadmovil.feature.ayuda.Guia
 import com.enad.enadmovil.feature.ayuda.LocalGuia
 import com.enad.enadmovil.feature.ayuda.objetivoGuia
+import com.enad.enadmovil.screens.teacher.AvisoDatosGuardados
 
 // "materia" parametriza la pantalla para que Lectura y Matemáticas la compartan
 // (título + niveles propios). Los colores de nivel son los de LevelPalette en Flutter.
@@ -248,6 +249,10 @@ private fun ClasificacionContenido(
                 .verticalScroll(rememberScrollState())
                 .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 32.dp)
         ) {
+            estado.guardadoEn?.let {
+                AvisoDatosGuardados(it, onActualizar = onReintentar)
+                Spacer(Modifier.height(12.dp))
+            }
             EnadPanel {
                 Desplegable(
                     etiqueta = "Momento de evaluación *",

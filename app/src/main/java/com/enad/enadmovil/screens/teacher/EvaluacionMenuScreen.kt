@@ -37,6 +37,8 @@ import com.enad.enadmovil.ui.theme.EnadInk
 import com.enad.enadmovil.feature.ayuda.Guia
 import com.enad.enadmovil.feature.ayuda.LocalGuia
 import com.enad.enadmovil.feature.ayuda.objetivoGuia
+import com.enad.enadmovil.screens.teacher.AvisoDatosGuardados
+
 /**
  * Entrada a la evaluación formativa (evaluation_menu_view en Flutter): una tarjeta por
  * materia con el porcentaje de estudiantes evaluados y el acceso a la lista.
@@ -77,6 +79,7 @@ fun EvaluacionMenuScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(bottom = 4.dp)
             )
+            estado.guardadoEn?.let { AvisoDatosGuardados(it, onActualizar = viewModel::refrescar) }
             Column(Modifier.objetivoGuia(Guia.EVALUACION, 1), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 materias.forEach { materia ->
                     EnadPanel(onClick = { guia?.avanzar(Guia.EVALUACION, 1)
