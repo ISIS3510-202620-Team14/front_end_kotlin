@@ -23,6 +23,8 @@ object UltimaEvaluacion  {
     }
 
     fun pendiente(dias: Int?, limite: Int = DIAS_LIMITE): Boolean = dias == null || dias > limite
+    fun atrasados(fechasIso: List<String?>, hoy: LocalDate, limite: Int = DIAS_LIMITE): Int =
+        fechasIso.count { fecha -> diasDesde(fecha, hoy)?.let { it > limite} == true}
 
     fun texto(dias: Int): String = when (dias) {
         0 -> "evaluado hoy"

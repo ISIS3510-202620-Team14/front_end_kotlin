@@ -8,11 +8,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.enad.enadmovil.domain.model.UltimaEvaluacion
+import java.time.LocalDate
+import java.time.ZoneId
 
 data class MateriaProgreso(
     val titulo: String,
     val evaluados: Int,
-    val total: Int
+    val total: Int,
+    val atrasados: Int = 0
 ) {
     val porcentaje: Int
         get() = if (total == 0) {
@@ -60,18 +64,24 @@ class TeacherProgressViewModel(
                     estudiantes.count {
                         it.niveles["matematicas"] != null
                     }
+                val hoy = LocalDate.now(ZoneId.of("America/Bogota"))
+                val activos = estudiantes.filter { !it.retired}
+                val lecturaAtrasados = UltimaEvaluacion.atrasados(activos.map { it.fechasNivel["lectura"]}, hoy)
+                val matematicasAtrasados = UltimaEvaluacion.atrasados(activos.map { it.fechasNivel["matematicas"]}, hoy)
 
                 _uiState.value = TeacherProgressUiState(
                     materias = listOf(
                         MateriaProgreso(
                             titulo = "Lectura",
                             evaluados = lecturaEvaluados,
-                            total = estudiantes.size
+                            total = estudiantes.size,
+                            atrasados = lecturaAtrasados
                         ),
                         MateriaProgreso(
                             titulo = "Matemáticas",
                             evaluados = matematicasEvaluados,
-                            total = estudiantes.size
+                            total = estudiantes.size,
+                            atrasados = matematicasAtrasados
                         )
                     ),
                     cargando = false,

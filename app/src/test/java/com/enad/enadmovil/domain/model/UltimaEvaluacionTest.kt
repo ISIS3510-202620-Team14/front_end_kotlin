@@ -46,4 +46,21 @@ class UltimaEvaluacionTest {
         assertEquals("evaluado ayer", UltimaEvaluacion.texto(1))
         assertEquals("hace 45 días", UltimaEvaluacion.texto(45))
     }
+
+    @Test
+    fun `cuenta solo a quien lleva mas dias que el limite`() {
+        val fechas = listOf(
+            "2026-08-01T10:00:00.000Z",   // 88 días: atrasado
+            "2026-09-28T10:00:00.000Z",   // 30 días: justo en el límite, no cuenta
+            "2026-10-20T10:00:00.000Z",   // 8 días: al día
+            "2026-09-01T10:00:00.000Z"    // 57 días: atrasado
+        )
+        assertEquals(2, UltimaEvaluacion.atrasados(fechas, hoy))
+    }
+
+    @Test
+    fun `quien nunca se evaluo o tiene una fecha invalida no cuenta como atrasado`() {
+        assertEquals(0, UltimaEvaluacion.atrasados(listOf(null, "", "no es fecha"), hoy))
+        assertEquals(0, UltimaEvaluacion.atrasados(emptyList(), hoy))
+    }
 }
