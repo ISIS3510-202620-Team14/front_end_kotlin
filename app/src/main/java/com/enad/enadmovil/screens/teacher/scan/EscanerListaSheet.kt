@@ -42,6 +42,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -62,6 +63,8 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.enad.enadmovil.domain.model.EstudianteEscaneado
+import com.enad.enadmovil.domain.model.FilaRevisada
+import com.enad.enadmovil.domain.model.ResumenRevision
 import com.enad.enadmovil.domain.parser.FusionFilas
 import com.enad.enadmovil.ui.components.enadFieldColors
 import com.enad.enadmovil.ui.theme.ControlShape
@@ -87,12 +90,15 @@ fun EscanerListaSheet(
     scanViewModel: ScanViewModel = viewModel()
 ) {
     val estado by scanViewModel.uiState.collectAsStateWithLifecycle()
-    val filas = remember { mutableStateListOf<EstudianteEscaneado>() }
+    // BQ #11: cada fila recuerda lo que leyó el OCR para saber qué corrigió el docente al importar
+    val revision = remember { mutableStateListOf<FilaRevisada>() }
+    var borradas by remember { mutableIntStateOf(0) }
+    val filas = revision.map { it.actual }
     var mostrarCamara by remember { mutableStateOf(false) }
 
     LaunchedEffect(estado.filas) {
         if (estado.filas.isNotEmpty()) {
-            filas.addAll(FusionFilas.nuevas(filas, estado.filas))
+            revision.addAll(FusionFilas.nuevas(revision.map { it.actual }, estado.filas).map { FilaRevisada(it) })
             scanViewModel.tomarFilas()
         }
     }
@@ -152,9 +158,12 @@ fun EscanerListaSheet(
                     filas.forEachIndexed { i, fila ->
                         FilaEscaneada(
                             fila = fila,
-                            onNombre = { filas[i] = fila.copy(nombre = it) },
-                            onCodigo = { filas[i] = fila.copy(codigo = it) },
-                            onQuitar = { filas.removeAt(i) }
+                            onNombre = { revision[i] = revision[i].copy(actual = fila.copy(nombre = it)) },
+                            onCodigo = { revision[i] = revision[i].copy(actual = fila.copy(codigo = it)) },
+                            onQuitar = {
+                                revision.removeAt(i)
+                                borradas++
+                            }
                         )
                         if (i != filas.lastIndex) HorizontalDivider(color = EnadLine)
                     }
@@ -164,6 +173,7 @@ fun EscanerListaSheet(
             Button(
                 onClick = {
                     onImportar(validas.map { it.copy(nombre = it.nombre.trim(), codigo = it.codigo?.trim()?.ifBlank { null }) })
+                    scanViewModel.registrarRevision(ResumenRevision.de(revision.toList(), borradas), exigirCodigo)
                     scanViewModel.limpiar()
                 },
                 enabled = validas.isNotEmpty() && validas.size == filas.size,
