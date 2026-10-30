@@ -1,7 +1,9 @@
 package com.enad.enadmovil.ui.screens.admin
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.enad.enadmovil.data.local.ArchivoRespuestas
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.data.repository.ReportesRepository
 import kotlinx.coroutines.Job
@@ -43,9 +45,9 @@ data class AdminUiState(
  * aperturas (BQ #6), horas y actividades más usadas (BQ #11). Clasificación y sincronización
  * tienen su propio ViewModel.
  */
-class AdminViewModel(
-    private val repo: ReportesRepository = ReportesRepository()
-) : ViewModel() {
+class AdminViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val repo = ReportesRepository(archivo = ArchivoRespuestas(application))
 
     private val _uiState = MutableStateFlow(AdminUiState())
     val uiState: StateFlow<AdminUiState> = _uiState.asStateFlow()
@@ -117,7 +119,7 @@ class AdminViewModel(
     fun cargarEvaluaciones(forzar: Boolean = false) {
         _uiState.update { it.copy(evaluaciones = Carga.Cargando) }
         viewModelScope.launch {
-            val resultado = consultar { repo.evaluacionesPorGrado(forzar)}
+            val resultado = consultar { repo.evaluacionesPorGrado(forzar).datos }
             _uiState.update { it.copy(evaluaciones = resultado)}
         }
     }
