@@ -680,8 +680,13 @@ object CloudFunctionsApi {
     data class EvaluacionesPorGrado(val total: Int, val general: ResumenEvaluaciones, val grados: List<ResumenEvaluaciones>)
 
     /** GET /analytics/assessments-by-grade (solo admin), BQ #12: evaluaciones por materia y por grado. */
-    suspend fun evaluacionesPorGrado(token: String): EvaluacionesPorGrado {
-        val json = solicitar("GET", "/assessments-by-grade", token, null, ANALYTICS_URL)
+    suspend fun evaluacionesPorGrado(token: String): EvaluacionesPorGrado =
+        evaluacionesDeJson(evaluacionesPorGradoJson(token))
+
+    suspend fun evaluacionesPorGradoJson(token: String): JSONObject =
+        solicitar("GET", "/assessments-by-grade", token, null, ANALYTICS_URL)
+
+    fun evaluacionesDeJson(json: JSONObject): EvaluacionesPorGrado {
         val grados = json.optJSONArray("grades") ?: JSONArray()
         return EvaluacionesPorGrado(
             total = json.optInt("total"),
