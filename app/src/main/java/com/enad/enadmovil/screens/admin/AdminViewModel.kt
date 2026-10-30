@@ -1,7 +1,9 @@
 package com.enad.enadmovil.ui.screens.admin
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.enad.enadmovil.data.local.ArchivoRespuestas
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.data.repository.ReportesRepository
 import kotlinx.coroutines.Job
@@ -11,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.json.JSONException
 import java.io.IOException
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -31,6 +34,7 @@ data class AdminUiState(
     val horas: Carga<List<CloudFunctionsApi.SemanaHoras>> = Carga.Cargando,
     val actividades: Carga<CloudFunctionsApi.TopActividades> = Carga.Cargando,
     val evaluaciones: Carga<CloudFunctionsApi.EvaluacionesPorGrado> = Carga.Cargando,
+    val evaluacionesGuardadoEn: Long? = null,
     val semanaConflictos: LocalDate = lunesActual(),
     val conflictos: Carga<CloudFunctionsApi.ReporteConflictos> = Carga.Cargando,
     val busqueda: String = "",
@@ -43,9 +47,9 @@ data class AdminUiState(
  * aperturas (BQ #6), horas y actividades más usadas (BQ #11). Clasificación y sincronización
  * tienen su propio ViewModel.
  */
-class AdminViewModel(
-    private val repo: ReportesRepository = ReportesRepository()
-) : ViewModel() {
+class AdminViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val repo = ReportesRepository(archivo = ArchivoRespuestas(application))
 
     private val _uiState = MutableStateFlow(AdminUiState())
     val uiState: StateFlow<AdminUiState> = _uiState.asStateFlow()
@@ -117,8 +121,13 @@ class AdminViewModel(
     fun cargarEvaluaciones(forzar: Boolean = false) {
         _uiState.update { it.copy(evaluaciones = Carga.Cargando) }
         viewModelScope.launch {
-            val resultado = consultar { repo.evaluacionesPorGrado(forzar)}
-            _uiState.update { it.copy(evaluaciones = resultado)}
+            var guardadoEn: Long? = null
+            val resultado = consultar {
+                val lectura = repo.evaluacionesPorGrado(forzar)
+                guardadoEn = lectura.guardadoEn
+                lectura.datos
+            }
+            _uiState.update { it.copy(evaluaciones = resultado, evaluacionesGuardadoEn = guardadoEn) }
         }
     }
 
@@ -168,10 +177,13 @@ class AdminViewModel(
             Carga.Fallo(mensajeError(e))
         } catch (e: IOException) {
             Carga.Fallo(SIN_CONEXION)
+        } catch (e: JSONException) {
+            Carga.Fallo(RESPUESTA_ILEGIBLE)
         }
 }
 
 private const val SIN_CONEXION = "No se pudo cargar. Revisa tu conexión e intenta de nuevo."
+private const val RESPUESTA_ILEGIBLE = "No se pudo leer la respuesta. Revisa tu conexión e intenta de nuevo."
 
 internal fun mensajeError(e: CloudFunctionsApi.ApiException): String = when (e.status) {
     403 -> "Solo un administrador puede ver este reporte."

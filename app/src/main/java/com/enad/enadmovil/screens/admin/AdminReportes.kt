@@ -29,6 +29,7 @@ import com.enad.enadmovil.ui.theme.EnadSuccessText
 import java.time.LocalDate
 import com.enad.enadmovil.ui.theme.EnadPendienteBg
 import com.enad.enadmovil.ui.theme.EnadPendienteText
+import com.enad.enadmovil.screens.teacher.AvisoDatosGuardados
 /** Flechas para moverse entre semanas; la semana en curso es el tope. */
 @Composable
 private fun SelectorSemana(semana: LocalDate, onCambiarSemana: (Long) -> Unit) {
@@ -193,6 +194,10 @@ fun ReporteEvaluacionesSection(estado: AdminUiState, onActualizar: () -> Unit) {
             cargando = estado.evaluaciones is Carga.Cargando,
             onActualizar = onActualizar
         )
+        val guardadoEn = estado.evaluacionesGuardadoEn
+        if (guardadoEn != null && estado.evaluaciones is Carga.Lista) {
+            AvisoDatosGuardados(guardadoEn, onActualizar = onActualizar, titulo = "Guardado")
+        }
         ContenidoCarga(
             estado.evaluaciones,
             vacio = { it.total == 0 },

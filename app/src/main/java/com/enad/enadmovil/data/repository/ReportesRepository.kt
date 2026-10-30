@@ -2,13 +2,17 @@ package com.enad.enadmovil.data.repository
 
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.data.cache.CacheMemoria
+import com.enad.enadmovil.data.local.ArchivoRespuestas
+import com.enad.enadmovil.data.local.Lectura
+import org.json.JSONObject
 
 /**
  * Repository de los reportes del admin (pestaña Reportes). Los endpoints exigen rol admin:
  * si el usuario no lo es, el backend responde 403 y la ApiException llega al ViewModel.
  */
 class ReportesRepository(
-    private val auth: AuthRepository = AuthRepository()
+    private val auth: AuthRepository = AuthRepository(),
+    private val archivo: ArchivoRespuestas? = null
 ) {
 
     companion object {
@@ -41,8 +45,23 @@ class ReportesRepository(
         cache.obtenerOCargar("actividades", forzar) { CloudFunctionsApi.topActividades(token()) }
 
     /** BQ #12: evaluaciones por materia y por grado; la materia menos usada es la que conviene reforzar. */
-    suspend fun evaluacionesPorGrado(forzar: Boolean = false): CloudFunctionsApi.EvaluacionesPorGrado =
-        cache.obtenerOCargar("evaluaciones", forzar) { CloudFunctionsApi.evaluacionesPorGrado(token()) }
+    suspend fun evaluacionesPorGrado(forzar: Boolean = false): Lectura<CloudFunctionsApi.EvaluacionesPorGrado> {
+        val lectura = cache.obtenerOCargar("evaluaciones", forzar) { leerEvaluacionesPorGrado() }
+        if (lectura.guardadoEn != null) cache.invalidar("evaluaciones")
+        return lectura
+    }
+
+    private suspend fun leerEvaluacionesPorGrado(): Lectura<CloudFunctionsApi.EvaluacionesPorGrado> {
+        val pedir: suspend () -> JSONObject = { CloudFunctionsApi.evaluacionesPorGradoJson(token()) }
+        val almacen = archivo ?: return Lectura(CloudFunctionsApi.evaluacionesDeJson(pedir()))
+        return almacen.conRespaldo(
+            uid = auth.uidActual(),
+            nombre = "evaluaciones",
+            esRechazo = { it is CloudFunctionsApi.ApiException && it.status in 400..499 },
+            pedir = { pedir().toString() },
+            convertir = { CloudFunctionsApi.evaluacionesDeJson(JSONObject(it)) }
+        )
+    }
 
     /** BQ #10: calidad del escaneo según las condiciones de la foto (últimas 8 semanas). */
     suspend fun calidadEscaneo(forzar: Boolean = false): CloudFunctionsApi.CalidadEscaneo =

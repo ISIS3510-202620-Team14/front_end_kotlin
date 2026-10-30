@@ -17,7 +17,7 @@ import com.enad.enadmovil.ui.theme.EnadPendienteBg
 import com.enad.enadmovil.ui.theme.EnadPendienteText
 
 @Composable
-fun AvisoDatosGuardados(guardadoEn: Long, onActualizar: () -> Unit, modifier:  Modifier = Modifier){
+fun AvisoDatosGuardados(guardadoEn: Long, onActualizar: () -> Unit, modifier:  Modifier = Modifier, titulo: String = "Lista guardada"){
     Row(
         modifier = modifier.fillMaxWidth()
             .background(EnadPendienteBg, RoundedCornerShape(12.dp))
@@ -25,7 +25,7 @@ fun AvisoDatosGuardados(guardadoEn: Long, onActualizar: () -> Unit, modifier:  M
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "Sin conexión. Lista guardada ${DatosGuardados.cuando(guardadoEn)}",
+            text = "Sin conexión. $titulo ${DatosGuardados.cuando(guardadoEn)}",
             style = MaterialTheme.typography.bodySmall,
             color = EnadPendienteText,
             modifier = Modifier.weight(1f)
