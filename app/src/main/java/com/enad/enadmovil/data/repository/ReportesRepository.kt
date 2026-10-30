@@ -52,6 +52,10 @@ class ReportesRepository(
     suspend fun revisionEscaneo(forzar: Boolean = false): CloudFunctionsApi.RevisionEscaneo =
         cache.obtenerOCargar("revision-escaneo", forzar) { CloudFunctionsApi.revisionEscaneo(token()) }
 
+    /** BQ tipo 3: en qué paso de cada guía abandonan y qué pasos se saltan (últimas 8 semanas). */
+    suspend fun pasosGuias(forzar: Boolean = false): CloudFunctionsApi.PasosGuias =
+        cache.obtenerOCargar("guias", forzar) { CloudFunctionsApi.pasosGuias(token()) }
+
     /** BQ Sprint 3 tipo 1: marcas de asistencia que otro celular ya había registrado (semana lunes yyyy-MM-dd). */
     suspend fun conflictosAsistencia(semana: String?, forzar: Boolean = false): CloudFunctionsApi.ReporteConflictos =
         cache.obtenerOCargar(clave = "conflictos:${semana ?: "actual"}",
