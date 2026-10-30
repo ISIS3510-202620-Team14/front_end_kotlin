@@ -14,6 +14,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalTime
+import android.util.Log
+import com.enad.enadmovil.data.concurrencia.medir
+import com.enad.enadmovil.data.concurrencia.resumenTiempos
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 
 data class ContextoHoyUiState(
     val cargando: Boolean = false,
@@ -25,7 +31,7 @@ data class ContextoHoyUiState(
     val resumen: ResumenDelDia? = null,
     val momento: MomentoDelDia? = null
 )
-
+private const val TAG = "ContextoHoyViewModel"
 /** "Hoy": sugiere el grupo del día según la institución donde está el docente. Nunca decide por él. */
 class ContextoHoyViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -42,8 +48,14 @@ class ContextoHoyViewModel(app: Application) : AndroidViewModel(app) {
         iniciado = true
         _uiState.update { it.copy(cargando = true) }
         viewModelScope.launch {
-            repo.descargarCatalogo()
-            val schoolId = repo.registrarPresencia()
+            val inicio = System.nanoTime()
+            val (catalogo, ubicacion) = coroutineScope {
+                val catalogoEnCurso = async(Dispatchers.IO) { medir("catalogo") { repo.descargarCatalogo()} }
+                val ubicacionEnCurso = async(Dispatchers.IO) { medir("GPS") { repo.leerUbicacion()} }
+                catalogoEnCurso.await() to ubicacionEnCurso.await()
+            }
+            val schoolId = repo.registrarPresenciaEn(ubicacion.resultado.getOrNull())
+            Log.d(TAG, resumenTiempos("Hoy", listOf(catalogo, ubicacion), (System.nanoTime() - inicio) / 1_000_000))
             val confirmado = repo.contextoDeHoy()
             val sugerencia = if (confirmado == null) repo.sugerir(schoolId) else null
             val grupos = repo.gruposDelDocente()

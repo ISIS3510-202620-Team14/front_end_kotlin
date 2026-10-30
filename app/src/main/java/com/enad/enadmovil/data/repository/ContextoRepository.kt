@@ -2,7 +2,10 @@ package com.enad.enadmovil.data.repository
 
 import android.content.Context
 import android.location.Location
+import android.util.Log
 import androidx.room.withTransaction
+import com.enad.enadmovil.data.concurrencia.medir
+import com.enad.enadmovil.data.concurrencia.resumenTiempos
 import com.enad.enadmovil.data.local.AppDatabase
 import com.enad.enadmovil.data.local.entity.ContextoDiaEntity
 import com.enad.enadmovil.data.local.entity.GrupoHorarioEntity
@@ -13,6 +16,9 @@ import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.domain.model.GrupoDelDia
 import com.enad.enadmovil.domain.model.Horario
 import com.enad.enadmovil.domain.model.ResumenDelDia
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import java.time.LocalDate
 
 /**
@@ -33,6 +39,7 @@ class ContextoRepository(context: Context) {
         private const val MAX_IMPRECISION_M = 200f
         private const val MS_POR_HORA = 3_600_000.0
         private const val PREFS = "enad_contexto"
+        private const val TAG = "ContextoRepository"
         private fun claveCatalogo(uid: String) = "catalogo_descargado_$uid"
     }
 
@@ -43,8 +50,15 @@ class ContextoRepository(context: Context) {
         val uid = auth.uidActual() ?: return false
         val token = runCatching { auth.obtenerToken() }.getOrNull() ?: return false
         return try {
-            val escuelas = CloudFunctionsApi.listarEscuelas(token)
-            val grupos = CloudFunctionsApi.listarGruposDelDocente(token, uid)
+            val inicio = System.nanoTime()
+            val (medidaEscuelas, medidaGrupos) = coroutineScope {
+                val escuelasEnCurso = async(Dispatchers.IO) { medir("escuelas") { CloudFunctionsApi.listarEscuelas(token) } }
+                val gruposEnCurso = async(Dispatchers.IO) { medir("grupos") { CloudFunctionsApi.listarGruposDelDocente(token, uid) } }
+                escuelasEnCurso.await() to gruposEnCurso.await()
+            }
+            Log.d(TAG, resumenTiempos("Catálogo", listOf(medidaEscuelas, medidaGrupos), (System.nanoTime() - inicio) / 1_000_000))
+            val escuelas = medidaEscuelas.resultado.getOrThrow()
+            val grupos = medidaGrupos.resultado.getOrThrow()
             val sedes = escuelas.flatMap { escuela ->
                 escuela.sedes.map { sede ->
                     SedeEntity(
@@ -78,8 +92,15 @@ class ContextoRepository(context: Context) {
      * (primera y última) para esa institución y devuelve su id. La posición se usa solo para comparar y no se guarda.
      */
     suspend fun registrarPresencia(ahora: Long = System.currentTimeMillis()): String? {
+        if (auth.uidActual() == null) return null
+        return registrarPresenciaEn(ubicacion.ubicacionActual(), ahora)
+    }
+
+    suspend fun leerUbicacion(): Location? = ubicacion.ubicacionActual()
+
+    suspend fun registrarPresenciaEn(posicion: Location?, ahora: Long = System.currentTimeMillis()): String? {
         val uid = auth.uidActual() ?: return null
-        val posicion = ubicacion.ubicacionActual() ?: return null
+        posicion ?: return null
         if (posicion.hasAccuracy() && posicion.accuracy > MAX_IMPRECISION_M) return null
         val schoolId = escuelaCercana(posicion.latitude, posicion.longitude) ?: return null
         val fecha = LocalDate.now().toString()
