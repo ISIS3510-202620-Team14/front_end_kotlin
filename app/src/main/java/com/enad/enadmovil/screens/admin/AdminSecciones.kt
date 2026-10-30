@@ -90,7 +90,7 @@ fun AdminResumenSection(estado: AdminUiState, onAbrirReporte: (Int) -> Unit, onA
             Indicador(
                 etiqueta = "Materia a reforzar",
                 valor = evaluaciones?.general?.menosUsada?.let { materiaLegible(it) } ?: if (evaluaciones != null) "—" else null,
-                detalle = evaluaciones?.let { detalleMateriaAReforzar(it.general) } ?: "",
+                detalle = evaluaciones?.let { detalleMateriaAReforzar(it.general) } ?: if (estado.evaluaciones is Carga.Fallo) "Toca para ver el motivo" else "",
                 carga = estado.evaluaciones,
                 onClick = { onAbrirReporte(REPORTE_EVALUACIONES) },
                 modifier = Modifier.weight(1f),
