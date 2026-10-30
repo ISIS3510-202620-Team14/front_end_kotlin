@@ -280,13 +280,15 @@ object CloudFunctionsApi {
         subject: String,
         type: String,
         level: String,
-        clientId: String
+        clientId: String,
+        // Una evaluación hecha sin conexión se manda con la fecha en que se hizo, no con la del envío
+        fecha: String = java.time.Instant.now().toString()
     ) {
         val cuerpo = JSONObject()
             .put("subject", subject)
             .put("type", type)
             .put("level", level)
-            .put("date", java.time.Instant.now().toString())
+            .put("date", fecha)
             .put("clientId", clientId)
 
         solicitar(
