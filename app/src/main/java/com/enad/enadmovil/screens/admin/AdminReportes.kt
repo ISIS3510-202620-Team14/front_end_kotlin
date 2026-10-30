@@ -196,7 +196,7 @@ fun ReporteEvaluacionesSection(estado: AdminUiState, onActualizar: () -> Unit) {
         )
         val guardadoEn = estado.evaluacionesGuardadoEn
         if (guardadoEn != null && estado.evaluaciones is Carga.Lista) {
-            AvisoDatosGuardados(guardadoEn, onActualizar = onActualizar, titulo = "Reporte guardado")
+            AvisoDatosGuardados(guardadoEn, onActualizar = onActualizar, titulo = "Guardado")
         }
         ContenidoCarga(
             estado.evaluaciones,
