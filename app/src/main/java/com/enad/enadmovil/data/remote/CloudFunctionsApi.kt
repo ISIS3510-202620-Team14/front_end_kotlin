@@ -35,6 +35,7 @@ object CloudFunctionsApi {
     private val ANALYTICS_URL = "$BASE_URL/analytics"
     private val TEACHERS_URL = "$BASE_URL/teachers"
     private val CONFLICTS_URL = "$BASE_URL/attendanceConflicts"
+    private val TUTORIALS_URL = "$BASE_URL/tutorials"
 
 
     data class RespuestaAuth(
@@ -279,13 +280,15 @@ object CloudFunctionsApi {
         subject: String,
         type: String,
         level: String,
-        clientId: String
+        clientId: String,
+        // Una evaluación hecha sin conexión se manda con la fecha en que se hizo, no con la del envío
+        fecha: String = java.time.Instant.now().toString()
     ) {
         val cuerpo = JSONObject()
             .put("subject", subject)
             .put("type", type)
             .put("level", level)
-            .put("date", java.time.Instant.now().toString())
+            .put("date", fecha)
             .put("clientId", clientId)
 
         solicitar(
@@ -767,6 +770,51 @@ object CloudFunctionsApi {
             total = totales(json),
             masCorregido = if (json.isNull("mostCorrected")) null else json.optString("mostCorrected"),
             porOrigen = List(origenes.length()) { origenes.getJSONObject(it) }.associate { it.optString("key") to totales(it) }
+        )
+    }
+
+    /** Cuántas corridas de una guía salieron o se saltaron en un paso (el paso empieza en 0). */
+    data class PasoGuiaConteo(val paso: Int, val corridas: Int)
+
+    data class ResumenGuia(
+        val id: String,                       // hours | attendance | evaluation | activities
+        val corridas: Int,
+        val completadas: Int,
+        val porcentajeCompletadas: Double?,   // null si nadie la empezó
+        val abandonadas: Int,
+        val abandonoPorPaso: List<PasoGuiaConteo>, // de mayor a menor
+        val pasosOmitidos: List<PasoGuiaConteo>,   // de mayor a menor
+        val porPlataforma: Map<String, Int>
+    )
+
+    data class PasosGuias(val semanas: Int, val guias: List<ResumenGuia>)
+
+    /**
+     * GET /tutorials/report (solo admin), BQ tipo 3: en qué paso de cada guía abandonan los
+     * docentes y qué pasos opcionales se saltan más. Junta los eventos de Kotlin y Flutter.
+     */
+    suspend fun pasosGuias(token: String, semanas: Int = 8): PasosGuias {
+        val json = solicitar("GET", "/report?weeks=$semanas", token, null, TUTORIALS_URL)
+        fun pasos(arreglo: JSONArray?): List<PasoGuiaConteo> {
+            val a = arreglo ?: JSONArray()
+            return List(a.length()) { a.getJSONObject(it) }.map { PasoGuiaConteo(it.optInt("step"), it.optInt("runs")) }
+        }
+        val guias = json.optJSONArray("tutorials") ?: JSONArray()
+        return PasosGuias(
+            semanas = json.optInt("weeks", semanas),
+            guias = List(guias.length()) { guias.getJSONObject(it) }.map { g ->
+                val plataformas = g.optJSONObject("byPlatform")
+                ResumenGuia(
+                    id = g.optString("id"),
+                    corridas = g.optInt("runs"),
+                    completadas = g.optInt("completed"),
+                    porcentajeCompletadas = if (g.isNull("completionRate")) null else g.optDouble("completionRate"),
+                    abandonadas = g.optInt("abandoned"),
+                    abandonoPorPaso = pasos(g.optJSONArray("abandonedAtStep")),
+                    pasosOmitidos = pasos(g.optJSONArray("skippedSteps")),
+                    porPlataforma = listOf("kotlin", "flutter").associateWith { plataformas?.optInt(it) ?: 0 }
+                )
+            }
         )
     }
 

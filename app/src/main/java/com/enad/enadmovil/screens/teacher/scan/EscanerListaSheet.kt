@@ -65,6 +65,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.enad.enadmovil.domain.model.EstudianteEscaneado
 import com.enad.enadmovil.domain.model.FilaRevisada
 import com.enad.enadmovil.domain.model.ResumenRevision
+import com.enad.enadmovil.domain.parser.Coincidencia
+import com.enad.enadmovil.domain.parser.CoincidenciaEstudiante
+import com.enad.enadmovil.domain.parser.EstudianteConocido
 import com.enad.enadmovil.domain.parser.FusionFilas
 import com.enad.enadmovil.ui.components.enadFieldColors
 import com.enad.enadmovil.ui.theme.ControlShape
@@ -87,6 +90,9 @@ fun EscanerListaSheet(
     onCancelar: () -> Unit,
     // Desde Asistencia (SF #3) una fila sin código entra como provisional; Gestionar estudiantes sí lo exige.
     exigirCodigo: Boolean = false,
+    // Los que ya están en el colegio: cada fila avisa si es uno de ellos o se le parece
+    conocidos: List<EstudianteConocido> = emptyList(),
+    gradoPorDefecto: Int? = null,
     scanViewModel: ScanViewModel = viewModel()
 ) {
     val estado by scanViewModel.uiState.collectAsStateWithLifecycle()
@@ -156,8 +162,12 @@ fun EscanerListaSheet(
                         .verticalScroll(rememberScrollState())
                 ) {
                     filas.forEachIndexed { i, fila ->
+                        val coincidencia = remember(fila, conocidos, gradoPorDefecto) {
+                            CoincidenciaEstudiante.buscar(fila, conocidos, gradoPorDefecto)
+                        }
                         FilaEscaneada(
                             fila = fila,
+                            coincidencia = coincidencia,
                             onNombre = { revision[i] = revision[i].copy(actual = fila.copy(nombre = it)) },
                             onCodigo = { revision[i] = revision[i].copy(actual = fila.copy(codigo = it)) },
                             onQuitar = {
@@ -298,6 +308,7 @@ internal fun MiniaturaPagina(pagina: PaginaEscaneada, miniatura: suspend (Pagina
 @Composable
 private fun FilaEscaneada(
     fila: EstudianteEscaneado,
+    coincidencia: Coincidencia?,
     onNombre: (String) -> Unit,
     onCodigo: (String) -> Unit,
     onQuitar: () -> Unit
@@ -336,6 +347,21 @@ private fun FilaEscaneada(
                 style = MaterialTheme.typography.bodySmall,
                 color = if (fila.grado == null) EnadPrimary else EnadSoftInk
             )
+            when (coincidencia) {
+                is Coincidencia.Igual -> Text(
+                    text = "Ya está en la lista como ${coincidencia.con.nombre}. No se va a repetir.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = EnadSoftInk
+                )
+                is Coincidencia.Parecido -> Text(
+                    text = "Se parece a ${coincidencia.con.nombre}" +
+                        (coincidencia.con.grado?.let { " (Grado $it)" } ?: "") +
+                        ". Si es la misma persona, quítala de esta lista.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = EnadPrimary
+                )
+                null -> {}
+            }
         }
         IconButton(onClick = onQuitar) {
             Icon(Icons.Outlined.Close, contentDescription = "Quitar", tint = EnadSoftInk)

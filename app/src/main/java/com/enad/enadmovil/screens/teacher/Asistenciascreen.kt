@@ -445,7 +445,9 @@ fun AsistenciaScreen(
                 viewModel.importar(filas) // guarda en Room y programa la subida
                 mostrarEscaner = false
             },
-            onCancelar = { mostrarEscaner = false }
+            onCancelar = { mostrarEscaner = false },
+            conocidos = ui.conocidos,
+            gradoPorDefecto = cursoSeleccionado.removePrefix("Grado ").toIntOrNull()
         )
     }
 

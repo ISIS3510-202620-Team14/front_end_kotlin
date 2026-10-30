@@ -4,6 +4,7 @@ import android.app.Application
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.enad.enadmovil.data.local.EvaluacionPendiente
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.data.remote.CloudFunctionsApi.Institucion
 import com.enad.enadmovil.data.repository.ClasificacionRepository
@@ -36,6 +37,33 @@ data class ClasificacionUiState(
 
 /** Nivel especial que saca al estudiante del programa: no cuenta como clasificación para la BQ 9. */
 internal const val NIVEL_RETIRADO = "Retirado"
+
+/** Lo que ve el docente cuando la evaluación se guardó en el celular por falta de conexión. */
+internal const val MENSAJE_SIN_CONEXION =
+    "Sin conexión: la evaluación quedó guardada en el celular y se envía cuando vuelva la red."
+
+/**
+ * Un error que se arregla solo con volver a intentar más tarde (sin red, servidor caído).
+ * Un rechazo del backend (datos inválidos, sin permiso, sesión vencida) no se guarda para después.
+ */
+internal fun esFallaDeConexion(e: Throwable): Boolean =
+    e !is CloudFunctionsApi.ApiException || e.status >= 500 || e.status == 408 || e.status == 429
+
+/**
+ * Pone encima de la lista (que puede venir del respaldo guardado) las evaluaciones que todavía
+ * no llegan al backend, para que el docente vea el nivel que acaba de poner aunque no haya red.
+ * Si un estudiante tiene varias, gana la más reciente.
+ */
+internal fun aplicarPendientes(
+    estudiantes: List<EstudianteClasificacion>,
+    pendientes: List<EvaluacionPendiente>
+): List<EstudianteClasificacion> {
+    val ultima = pendientes.groupBy { it.estudianteId }.mapValues { (_, lista) -> lista.maxBy { it.fecha } }
+    return estudiantes.map { e ->
+        val p = ultima[e.id] ?: return@map e
+        e.copy(sexo = p.sexo, edad = p.edad.toString(), muestra = p.muestra, nivelActual = p.etiqueta, ultimaEvaluacion = p.fecha)
+    }
+}
 
 /** Momentos de evaluación del back con su nombre en pantalla (igual que en Flutter). */
 internal val MOMENTOS_EVALUACION = linkedMapOf(
@@ -109,11 +137,23 @@ class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
 
     /**
      * Guarda la ficha (sexo, edad, muestra) y registra el nivel en el momento elegido.
+     * Sin conexión, la evaluación queda en el celular y se manda cuando vuelva la red.
      * [alTerminar] recibe el mensaje para el snackbar.
      */
     fun evaluar(id: String, nivel: String, sexo: String, edad: Int, muestra: Int, alTerminar: (String) -> Unit) {
         val momento = _uiState.value.momento ?: return alTerminar("Selecciona el momento de evaluación.")
         val nivelBackend = nivelBackend(nivel) ?: return
+
+        // Mismo clientId y fecha si termina guardada para después: el reintento no la duplica
+        val clientId = UUID.randomUUID().toString()
+        val fecha = Instant.now().toString()
+        val registrada = {
+            actualizar(id) {
+                it.copy(sexo = sexo, edad = edad.toString(), muestra = muestra, nivelActual = nivel, ultimaEvaluacion = fecha)
+            }
+            sesion?.registrarClasificacion(id)
+            guardarAvance()
+        }
 
         viewModelScope.launch {
             try {
@@ -122,20 +162,25 @@ class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
                     estudianteId = id,
                     materia = materiaClave,
                     nivel = nivelBackend,
-                    clientId = UUID.randomUUID().toString(),
+                    clientId = clientId,
                     tipo = momento
                 )
-                actualizar(id) {
-                    it.copy(sexo = sexo, edad = edad.toString(), muestra = muestra, nivelActual = nivel, ultimaEvaluacion = Instant.now().toString())
-                }
-                sesion?.registrarClasificacion(id)
-                guardarAvance()
+                registrada()
                 alTerminar("Evaluación guardada.")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                // No actualizamos la UI si el backend no confirmó la evaluación.
-                // Así la pantalla sigue representando el estado persistido.
-                android.util.Log.e("ClasificacionViewModel", "No se pudo guardar la evaluación", e)
-                alTerminar(mensajeGuardado(e))
+                if (esFallaDeConexion(e)) {
+                    repo.guardarPendiente(
+                        EvaluacionPendiente(clientId, id, materiaClave, nivelBackend, nivel, momento, fecha, sexo, edad, muestra)
+                    )
+                    registrada()
+                    alTerminar(MENSAJE_SIN_CONEXION)
+                } else {
+                    // Un rechazo del backend no se aplica: la pantalla sigue mostrando lo guardado
+                    android.util.Log.e("ClasificacionViewModel", "No se pudo guardar la evaluación", e)
+                    alTerminar(mensajeGuardado(e))
+                }
             }
         }
     }
@@ -243,7 +288,7 @@ class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
             _uiState.update { it.copy(cargando = true, mensaje = null) }
             try {
                 val lectura = repo.estudiantesConRespaldo(schoolId)
-                val estudiantes = lectura.datos.mapIndexed { i, r ->
+                val leidos = lectura.datos.mapIndexed { i, r ->
                     ediciones[r.id] ?: EstudianteClasificacion(
                         id = r.id,
                         numero = i + 1,
@@ -256,6 +301,8 @@ class ClasificacionViewModel(app: Application) : AndroidViewModel(app) {
                         ultimaEvaluacion = r.fechasNivel[materiaClave]
                     )
                 }
+                // Las evaluaciones hechas sin conexión siguen viéndose aunque la lista venga del respaldo
+                val estudiantes = aplicarPendientes(leidos, repo.pendientes(materiaClave))
                 _uiState.update { it.copy(cargando = false, estudiantes = estudiantes, guardadoEn = lectura.guardadoEn) }
                 // Un reintento de la misma institución sigue la sesión que ya iba corriendo
                 if (sesion?.schoolId != schoolId) abrirSesion(schoolId, estudiantes.size)

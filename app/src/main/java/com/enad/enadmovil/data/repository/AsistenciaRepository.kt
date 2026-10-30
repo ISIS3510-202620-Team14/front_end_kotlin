@@ -13,10 +13,14 @@ import com.enad.enadmovil.data.sync.SyncScheduler
 import com.enad.enadmovil.data.telemetria.EventosSincronizacion
 import com.enad.enadmovil.data.telemetria.InfoDispositivo
 import com.enad.enadmovil.domain.model.EstudianteEscaneado
+import com.enad.enadmovil.domain.parser.Coincidencia
+import com.enad.enadmovil.domain.parser.CoincidenciaEstudiante
+import com.enad.enadmovil.domain.parser.EstudianteConocido
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.withPermit
 import java.io.IOException
 import java.util.UUID
@@ -84,6 +88,8 @@ class AsistenciaRepository(context: Context) {
     /**
      * Guarda la lista escaneada. Sin código → provisional (el servidor asigna PROV-XXXX).
      * Sin grado en la fila se usa el del filtro de curso; si tampoco hay, se omite y se avisa.
+     * Si la fila es un estudiante que ya existe (mismo código, o mismo nombre sin tildes ni
+     * mayúsculas en el mismo grado) no se crea otra vez.
      */
     suspend fun guardarLista(
         schoolId: String,
@@ -94,32 +100,33 @@ class AsistenciaRepository(context: Context) {
         var nuevos = 0
         var existentes = 0
         var sinGrado = 0
+        val conocidos = estudiantes.observar(schoolId).first()
+            .map { EstudianteConocido(it.id, it.fullName, it.code, it.grade) }
+            .toMutableList()
 
         for (fila in filas) {
             val grado = fila.grado ?: gradoPorDefecto
             if (grado == null) { sinGrado++; continue }
 
-            val codigo = fila.codigo?.trim()
-            val previo = if (codigo != null) {
-                estudiantes.porCodigo(schoolId, codigo)
-            } else {
-                estudiantes.porNombre(schoolId, fila.nombre.trim(), grado)
+            if (CoincidenciaEstudiante.buscar(fila, conocidos, gradoPorDefecto) is Coincidencia.Igual) {
+                existentes++
+                continue
             }
-            if (previo != null) { existentes++; continue }
 
-            estudiantes.upsert(
-                EstudianteEntity(
-                    id = UUID.randomUUID().toString(),
-                    schoolId = schoolId,
-                    docenteUid = uid,
-                    fullName = fila.nombre.trim(),
-                    code = codigo,
-                    grade = grado,
-                    age = fila.edad,
-                    provisional = codigo == null,
-                    syncStatus = SyncStatus.PENDING
-                )
+            val codigo = fila.codigo?.trim()?.ifBlank { null }
+            val nuevo = EstudianteEntity(
+                id = UUID.randomUUID().toString(),
+                schoolId = schoolId,
+                docenteUid = uid,
+                fullName = fila.nombre.trim(),
+                code = codigo,
+                grade = grado,
+                age = fila.edad,
+                provisional = codigo == null,
+                syncStatus = SyncStatus.PENDING
             )
+            estudiantes.upsert(nuevo)
+            conocidos += EstudianteConocido(nuevo.id, nuevo.fullName, nuevo.code, nuevo.grade)
             nuevos++
         }
         if (nuevos > 0) SyncScheduler.programar(appContext)
