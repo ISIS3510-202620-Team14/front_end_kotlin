@@ -1,10 +1,14 @@
 package com.enad.enadmovil.data.repository
 
 import android.content.Context
+import android.util.Log
 import com.enad.enadmovil.data.local.ArchivoRespuestas
+import com.enad.enadmovil.data.local.EvaluacionPendiente
+import com.enad.enadmovil.data.local.EvaluacionesPendientes
 import com.enad.enadmovil.data.local.Lectura
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.data.sync.EnviarClasificacionWorker
+import com.enad.enadmovil.data.sync.EnviarEvaluacionesWorker
 import kotlinx.coroutines.tasks.await
 import org.json.JSONObject
 
@@ -101,6 +105,42 @@ class ClasificacionRepository(
     /** Grupos (nombre, materia) en los que está el estudiante. */
     suspend fun gruposDe(schoolId: String, estudianteId: String): List<Pair<String, String>> =
         CloudFunctionsApi.gruposDeEstudiante(token(), schoolId, estudianteId)
+
+    /** Guarda en el celular una evaluación que no se pudo mandar y programa su envío. */
+    fun guardarPendiente(evaluacion: EvaluacionPendiente) {
+        val uid = auth.uidActual() ?: return
+        EvaluacionesPendientes.agregar(appContext, uid, evaluacion)
+        EnviarEvaluacionesWorker.programar(appContext)
+    }
+
+    /** Evaluaciones que siguen sin llegar al backend, para mostrarlas en la lista. */
+    fun pendientes(materia: String): List<EvaluacionPendiente> {
+        val uid = auth.uidActual() ?: return emptyList()
+        return EvaluacionesPendientes.todas(appContext, uid).filter { it.materia == materia }
+    }
+
+    /**
+     * Manda las evaluaciones pendientes en el orden en que se hicieron (ficha y luego nivel).
+     * Devuelve false si quedó alguna por reintentar (sin conexión o error del servidor). Una que
+     * el backend rechaza (400, 403, 404) sale de la cola: reintentarla no la arregla.
+     */
+    suspend fun enviarPendientes(): Boolean {
+        val uid = auth.uidActual() ?: return true
+        for (e in EvaluacionesPendientes.todas(appContext, uid)) {
+            try {
+                actualizarFicha(e.estudianteId, e.sexo, e.edad, e.muestra)
+                CloudFunctionsApi.registrarEvaluacion(token(), e.estudianteId, e.materia, e.tipo, e.nivel, e.clientId, e.fecha)
+                EvaluacionesPendientes.quitar(appContext, uid, e.clientId)
+            } catch (ex: CloudFunctionsApi.ApiException) {
+                if (ex.esTransitorio) return false
+                Log.w("ClasificacionRepository", "El backend rechazó la evaluación ${e.clientId}: ${ex.status} ${ex.code}")
+                EvaluacionesPendientes.quitar(appContext, uid, e.clientId)
+            } catch (ex: Exception) {
+                return false // sin conexión: se reintenta con lo que falta
+            }
+        }
+        return true
+    }
 
     /** Deja la sesión en cola: WorkManager la manda cuando haya internet, sin duplicarla. */
     fun enviarSesion(sesion: JSONObject) {
