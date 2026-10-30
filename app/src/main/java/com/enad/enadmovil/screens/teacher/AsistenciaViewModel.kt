@@ -10,6 +10,7 @@ import com.enad.enadmovil.data.repository.AuthRepository
 import com.enad.enadmovil.data.sync.ControlSincronizacion
 import com.enad.enadmovil.data.sync.SyncScheduler
 import com.enad.enadmovil.domain.model.EstudianteEscaneado
+import com.enad.enadmovil.domain.parser.EstudianteConocido
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -31,6 +32,8 @@ data class AsistenciaUiState(
     val sinColegio: Boolean = false,
     val estudiantes: List<EstudianteAsistencia> = emptyList(),
     val roster: List<EstudianteSalon> = emptyList(),
+    /** Todos los del colegio, para avisar en el escáner si una fila ya existe. */
+    val conocidos: List<EstudianteConocido> = emptyList(),
     val pendientesSync: Int = 0,
     /** Marcas que no se aplicaron porque otro celular registró primero (BQ tipo 2). */
     val reemplazadas: List<ControlSincronizacion.MarcaReemplazada> = emptyList(),
@@ -105,6 +108,7 @@ class AsistenciaViewModel(app: Application) : AndroidViewModel(app) {
                 )
             },
             roster = alumnos.map { EstudianteSalon(it.id, it.fullName, it.grade?.let { g -> "Grado $g" } ?: "—") },
+            conocidos = alumnos.map { EstudianteConocido(it.id, it.fullName, it.code, it.grade) },
             pendientesSync = pendientes,
             reemplazadas = m.reemplazadas,
             mensaje = m.mensaje
