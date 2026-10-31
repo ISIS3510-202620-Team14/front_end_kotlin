@@ -51,6 +51,11 @@ class AperturasRepository(context: Context) {
         return aperturas.observarDeLaSemana(uid, Semana.id())
     }
 
+    suspend fun semanasCompletas(cantidad: Int): List<Int> {
+        val uid = auth.uidActual() ?: return emptyList()
+        return Semana.anteriores(cantidad).map { aperturas.contarDeLaSemana(uid, it) }
+    }
+
     /** Returns true when there is nothing left to retry. */
     suspend fun sincronizarPendientes(): Boolean {
         val uid = auth.uidActual() ?: return true

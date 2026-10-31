@@ -15,6 +15,9 @@ interface AperturaDao {
     @Query("SELECT COUNT(*) FROM aperturas WHERE docenteUid = :uid AND semana = :semana")
     fun observarDeLaSemana(uid: String, semana: String): Flow<Int>
 
+    @Query("SELECT COUNT(*) FROM aperturas WHERE docenteUid = :uid AND semana = :semana")
+    suspend fun contarDeLaSemana(uid: String, semana: String): Int
+
     @Query("SELECT MAX(abiertaEn) FROM aperturas WHERE docenteUid = :uid")
     suspend fun ultimaApertura(uid: String): Long?
 
