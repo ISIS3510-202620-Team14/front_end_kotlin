@@ -245,48 +245,6 @@ fun TeacherHomeScreen(
     }
 
     when (val actual = subPantallaGrupos) {
-        is SubPantallaGrupos.Crear -> {
-            BackHandler {
-                subPantallaGrupos =
-                    SubPantallaGrupos.Lista
-            }
-
-            CrearGrupoScreen(
-                materia = gruposUiState
-                    .subjectAreas[gruposUiState.selectedTabIndex],
-                recomendacion = recomendacionAgrupacion,
-                sinGrupo = gruposUiState.sinGrupo,
-                onPedirRecomendacion =
-                    gruposViewModel::pedirRecomendacion,
-                onBack = {
-                    subPantallaGrupos =
-                        SubPantallaGrupos.Lista
-                },
-                onGuardar = {
-                        nombre,
-                        ninos,
-                        docente,
-                        cantidadNinos,
-                        cantidadDocentes,
-                        metodo
-                    ->
-                    gruposViewModel.agregarGrupo(
-                        nombre,
-                        ninos,
-                        docente,
-                        cantidadNinos,
-                        cantidadDocentes,
-                        metodo
-                    )
-
-                    subPantallaGrupos =
-                        SubPantallaGrupos.Lista
-                }
-            )
-
-            return
-        }
-
         is SubPantallaGrupos.Ver -> {
             val grupo =
                 gruposUiState.grupos.find {
@@ -378,7 +336,7 @@ fun TeacherHomeScreen(
             }
         }
 
-        SubPantallaGrupos.Lista -> Unit
+        SubPantallaGrupos.Lista, SubPantallaGrupos.Crear -> Unit
     }
 
     val tabsConSeleccion =
@@ -546,6 +504,41 @@ fun TeacherHomeScreen(
                 }, modifier = Modifier.objetivoGuia(Guia.ACTIVIDADES, 0))
             }
         }
+    }
+
+    if (subPantallaGrupos == SubPantallaGrupos.Crear) {
+        CrearGrupoScreen(
+            materia = gruposUiState
+                .subjectAreas[gruposUiState.selectedTabIndex],
+            recomendacion = recomendacionAgrupacion,
+            sinGrupo = gruposUiState.sinGrupo,
+            onPedirRecomendacion =
+                gruposViewModel::pedirRecomendacion,
+            onBack = {
+                subPantallaGrupos =
+                    SubPantallaGrupos.Lista
+            },
+            onGuardar = {
+                    nombre,
+                    ninos,
+                    docente,
+                    cantidadNinos,
+                    cantidadDocentes,
+                    metodo
+                ->
+                gruposViewModel.agregarGrupo(
+                    nombre,
+                    ninos,
+                    docente,
+                    cantidadNinos,
+                    cantidadDocentes,
+                    metodo
+                )
+
+                subPantallaGrupos =
+                    SubPantallaGrupos.Lista
+            }
+        )
     }
 
     if (mostrarAyuda) {

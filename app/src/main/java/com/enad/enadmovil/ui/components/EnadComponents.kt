@@ -347,11 +347,11 @@ fun EnadTextField(
 }
 
 @Composable
-fun enadFieldColors() = OutlinedTextFieldDefaults.colors(
+fun enadFieldColors(bordeSinFoco: Color = EnadSoftInk) = OutlinedTextFieldDefaults.colors(
     focusedContainerColor = EnadSurface,
     unfocusedContainerColor = EnadSurface,
     disabledContainerColor = EnadSurface,
-    unfocusedBorderColor = EnadSoftInk,
+    unfocusedBorderColor = bordeSinFoco,
     focusedBorderColor = EnadInk,
     errorBorderColor = EnadPrimary,
     focusedLabelColor = EnadSoftInk,
