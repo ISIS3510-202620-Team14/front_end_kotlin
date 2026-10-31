@@ -8,4 +8,7 @@ object Semana {
     // Week key = Monday of that week (yyyy-MM-dd), same format as the groupings report
     fun id(fecha: LocalDate = LocalDate.now()): String =
         fecha.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).toString()
+
+    fun anteriores(cantidad: Int, hoy: LocalDate = LocalDate.now()): List<String> =
+        (cantidad downTo 1).map { id(hoy.minusWeeks(it.toLong())) }
 }

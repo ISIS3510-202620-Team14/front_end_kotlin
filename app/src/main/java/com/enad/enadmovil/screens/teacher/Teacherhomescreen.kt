@@ -521,6 +521,14 @@ fun TeacherHomeScreen(
                     onCambiar = contextoViewModel::cambiar,
                     onElegir = contextoViewModel::elegir
                 )
+                ReengancheCard(
+                    estado = aperturasState,
+                    onReportarAsistencia = {
+                        aperturasViewModel.aceptarRiesgo()
+                        onAccionClick(ActionItem(ACCION_ASISTENCIA, ""))
+                    },
+                    onAhoraNo = aperturasViewModel::descartarRiesgo
+                )
                 // BQ #6: aperturas de la app en la semana.
                 AperturasSemanaCard(aperturasState)
                 EnadActionCard(
