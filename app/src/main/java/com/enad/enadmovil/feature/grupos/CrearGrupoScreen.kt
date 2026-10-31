@@ -168,7 +168,7 @@ private fun CampoNombreGrupo(valor: String, onCambiar: (String) -> Unit, error: 
                 interactionSource = interaccion,
                 isError = error != null,
                 placeholder = { Text("Ej: Grupo Mariposas", style = estilo) },
-                supportingText = error?.let { { Text(it) } },
+                supportingText = error?.let { { Text(it, color = EnadPrimary) } },
                 colors = colores,
                 contentPadding = PaddingValues(12.dp),
                 container = {
