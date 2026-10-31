@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -101,7 +102,8 @@ private fun OpcionMetodo(
                     )
                     if (confianza != null) InsigniaRecomendado(confianza)
                 }
-                Text(text = descripcion, style = typography.bodySmall.copy(fontSize = 12.sp))
+                Spacer(Modifier.height(2.dp))
+                Text(text = descripcion, style = typography.bodyLarge.copy(fontSize = 12.sp))
             }
             Icon(
                 if (seleccionada) Icons.Outlined.RadioButtonChecked else Icons.Outlined.RadioButtonUnchecked,
