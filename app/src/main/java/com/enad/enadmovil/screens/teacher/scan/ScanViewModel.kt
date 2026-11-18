@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 /**
  * Escáner de varias páginas. La cámara deja cada foto en una cola y un lector por hilo del
@@ -76,6 +77,7 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         app.registerComponentCallbacks(avisosDeMemoria)
+        CacheMiniaturas.usarCarpeta(File(app.filesDir, CARPETA_MINIATURAS))
     }
 
     fun onFotoCapturada(uri: Uri, condiciones: CondicionesCaptura = CondicionesCaptura.SIN_SENSORES) {
@@ -87,21 +89,23 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Miniatura de una página. Si ya está en la caché sale de memoria al instante. Si no,
-     * se abre achicada desde el disco en un hilo de IO y se guarda para la próxima vez.
+     * Miniatura de una página. Primero se busca en memoria, que es instantáneo. Si no está, se
+     * busca la miniatura guardada en disco. Solo si tampoco está se abre la foto completa
+     * achicada y se guarda en los dos niveles para la próxima vez. Lo de disco va en un hilo de IO.
      */
     suspend fun miniatura(pagina: PaginaEscaneada): Bitmap? {
         val clave = pagina.foto.toString()
         CacheMiniaturas.obtener(clave)?.let { return it }
-        val leida = try {
-            withContext(Dispatchers.IO) { LectorMiniaturas.leer(pagina.foto) }
+        return try {
+            withContext(Dispatchers.IO) {
+                CacheMiniaturas.leerDeDisco(clave)
+                    ?: LectorMiniaturas.leer(pagina.foto)?.also { CacheMiniaturas.guardar(clave, it) }
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             null // sin miniatura la página se sigue leyendo igual
-        } ?: return null
-        CacheMiniaturas.guardar(clave, leida)
-        return leida
+        }
     }
 
     /** BQ #11: lo que corrigió el docente en la revisión. [exigirCodigo] = vino de Gestionar estudiantes. */
@@ -130,7 +134,9 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         revision.clear()
         borradas = 0
         // Las miniaturas eran de las fotos de este escaneo y no se vuelven a mostrar
+        val claves = _uiState.value.paginas.map { it.foto.toString() }
         CacheMiniaturas.limpiar()
+        viewModelScope.launch(Dispatchers.IO) { CacheMiniaturas.borrarDeDisco(claves) }
         _uiState.value = ScanUiState()
     }
 
@@ -209,5 +215,6 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         const val TAG = "ScanViewModel"
+        const val CARPETA_MINIATURAS = "miniaturas"
     }
 }
