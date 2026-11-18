@@ -42,8 +42,6 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -63,12 +61,10 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.enad.enadmovil.domain.model.EstudianteEscaneado
-import com.enad.enadmovil.domain.model.FilaRevisada
 import com.enad.enadmovil.domain.model.ResumenRevision
 import com.enad.enadmovil.domain.parser.Coincidencia
 import com.enad.enadmovil.domain.parser.CoincidenciaEstudiante
 import com.enad.enadmovil.domain.parser.EstudianteConocido
-import com.enad.enadmovil.domain.parser.FusionFilas
 import com.enad.enadmovil.ui.components.enadFieldColors
 import com.enad.enadmovil.ui.theme.ControlShape
 import com.enad.enadmovil.ui.theme.EnadBackground
@@ -93,30 +89,31 @@ fun EscanerListaSheet(
     // Los que ya están en el colegio: cada fila avisa si es uno de ellos o se le parece
     conocidos: List<EstudianteConocido> = emptyList(),
     gradoPorDefecto: Int? = null,
+    // Pantalla desde la que se abrió. Cada una guarda su propio escaneo sin terminar
+    origen: String = "asistencia",
     scanViewModel: ScanViewModel = viewModel()
 ) {
     val estado by scanViewModel.uiState.collectAsStateWithLifecycle()
     // BQ #11: cada fila recuerda lo que leyó el OCR para saber qué corrigió el docente al importar
-    val revision = remember { mutableStateListOf<FilaRevisada>() }
-    var borradas by remember { mutableIntStateOf(0) }
+    val revision = scanViewModel.revision
     val filas = revision.map { it.actual }
     var mostrarCamara by remember { mutableStateOf(false) }
 
-    LaunchedEffect(estado.filas) {
-        if (estado.filas.isNotEmpty()) {
-            revision.addAll(FusionFilas.nuevas(revision.map { it.actual }, estado.filas).map { FilaRevisada(it) })
-            scanViewModel.tomarFilas()
-        }
+    // Si había un escaneo sin terminar de esta cuenta en esta pantalla, vuelve
+    LaunchedEffect(origen) {
+        scanViewModel.abrir(origen)
     }
 
     val validas = filas.filter { it.nombre.isNotBlank() && (!exigirCodigo || !it.codigo.isNullOrBlank()) }
+    // Solo el botón Cancelar descarta el escaneo
     val cerrar = {
         scanViewModel.limpiar()
         onCancelar()
     }
 
     ModalBottomSheet(
-        onDismissRequest = cerrar,
+        // Deslizar hacia abajo, tocar fuera o el botón atrás solo esconden el sheet: el escaneo se conserva
+        onDismissRequest = onCancelar,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = EnadSurface
     ) {
@@ -168,12 +165,9 @@ fun EscanerListaSheet(
                         FilaEscaneada(
                             fila = fila,
                             coincidencia = coincidencia,
-                            onNombre = { revision[i] = revision[i].copy(actual = fila.copy(nombre = it)) },
-                            onCodigo = { revision[i] = revision[i].copy(actual = fila.copy(codigo = it)) },
-                            onQuitar = {
-                                revision.removeAt(i)
-                                borradas++
-                            }
+                            onNombre = { scanViewModel.editarFila(i, fila.copy(nombre = it)) },
+                            onCodigo = { scanViewModel.editarFila(i, fila.copy(codigo = it)) },
+                            onQuitar = { scanViewModel.quitarFila(i) }
                         )
                         if (i != filas.lastIndex) HorizontalDivider(color = EnadLine)
                     }
@@ -183,7 +177,7 @@ fun EscanerListaSheet(
             Button(
                 onClick = {
                     onImportar(validas.map { it.copy(nombre = it.nombre.trim(), codigo = it.codigo?.trim()?.ifBlank { null }) })
-                    scanViewModel.registrarRevision(ResumenRevision.de(revision.toList(), borradas), exigirCodigo)
+                    scanViewModel.registrarRevision(ResumenRevision.de(revision.toList(), scanViewModel.borradas), exigirCodigo)
                     scanViewModel.limpiar()
                 },
                 enabled = validas.isNotEmpty() && validas.size == filas.size,

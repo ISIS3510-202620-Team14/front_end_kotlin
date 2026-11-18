@@ -51,6 +51,11 @@ import com.enad.enadmovil.feature.ayuda.GuiaOverlay
 import com.enad.enadmovil.feature.ayuda.GuiaViewModel
 import com.enad.enadmovil.feature.ayuda.LocalGuia
 import com.enad.enadmovil.feature.ayuda.alturaReservadaGuia
+import android.content.Context
+import androidx.compose.ui.platform.LocalContext
+import com.enad.enadmovil.data.local.SesionGuardada
+import com.enad.enadmovil.data.remote.FirebaseModule
+import com.enad.enadmovil.domain.model.Usuario
 
 private object Routes {
     const val LOGIN = "login"
@@ -88,8 +93,9 @@ private fun NavHostController.ir(ruta: String) {
 
 // "Cambiar usuario" limpia todo el back stack y regresa a Login, sin importar
 // desde qué pantalla se llame. Así no queda historial para volver con el botón
-// atrás a una sesión anterior.
-private fun volverALogin(navController: NavHostController) {
+// atrás a una sesión anterior. También olvida la sesión guardada para que pida el login.
+private fun volverALogin(navController: NavHostController, context: Context) {
+    SesionGuardada.borrar(context)
     navController.navigate(Routes.LOGIN) {
         popUpTo(navController.graph.id) { inclusive = true }
     }
@@ -105,6 +111,23 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
     var teacherTabSeleccionado by rememberSaveable { mutableStateOf(TeacherTabs.HOY) }
 
     val guia: GuiaViewModel = viewModel()
+    val context = LocalContext.current
+
+    // Lleva a la pantalla de inicio del rol y saca Login del back stack
+    fun entrar(usuario: Usuario) {
+        nombreUsuario = usuario.fullName.ifBlank { usuario.email }
+        val destino = when (usuario.rol) {
+            Rol.DOCENTE -> Routes.TEACHER_HOME
+            Rol.ADMINISTRADOR -> Routes.ADMIN_HOME
+            Rol.VOLUNTARIO -> Routes.FOUNDATION_REPORTS
+            else -> null // AuthViewModel already filters this out before calling here
+        }
+        if (destino != null) {
+            navController.navigate(destino) {
+                popUpTo(Routes.LOGIN) { inclusive = true }
+            }
+        }
+    }
     val compacta = WindowInsets.isImeVisible
 
 
@@ -116,21 +139,21 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                     NavHost(navController = navController, startDestination = Routes.LOGIN) {
 
                         composable(Routes.LOGIN) {
-                            LaunchedEffect(Unit) { guia.salir() }
+                            LaunchedEffect(Unit) {
+                                guia.salir()
+                                // Si cerró la app sin cerrar sesión y no se ha vencido, entra directo. Solo si
+                                // Firebase sigue con la misma cuenta, así el token para el backend sigue sirviendo.
+                                val guardada = SesionGuardada.leer(context)
+                                if (guardada != null && FirebaseModule.auth.currentUser?.uid == guardada.uid) {
+                                    // Cada vez que entra se renueva el tiempo
+                                    SesionGuardada.guardar(context, guardada)
+                                    entrar(guardada)
+                                }
+                            }
                             LoginScreen(
                                 onLoginExitoso = { usuario ->
-                                    nombreUsuario = usuario.fullName.ifBlank { usuario.email }
-                                    val destino = when (usuario.rol) {
-                                        Rol.DOCENTE -> Routes.TEACHER_HOME
-                                        Rol.ADMINISTRADOR -> Routes.ADMIN_HOME
-                                        Rol.VOLUNTARIO -> Routes.FOUNDATION_REPORTS
-                                        else -> null // AuthViewModel already filters this out before calling here
-                                    }
-                                    if (destino != null) {
-                                        navController.navigate(destino) {
-                                            popUpTo(Routes.LOGIN) { inclusive = true }
-                                        }
-                                    }
+                                    SesionGuardada.guardar(context, usuario)
+                                    entrar(usuario)
                                 }
                             )
                         }
@@ -141,7 +164,7 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                                 profesorNombre = nombreUsuario,
                                 tabSeleccionado = teacherTabSeleccionado,
                                 onTabSeleccionadoChange = { teacherTabSeleccionado = it },
-                                onCambiarUsuario = { volverALogin(navController) },
+                                onCambiarUsuario = { volverALogin(navController, context) },
                                 onGestionarEstudiantes = { navController.ir(Routes.ESTUDIANTES) },
                                 onTabClick = { tab ->
                                     if (tab.label == "Asistencia") {
@@ -194,7 +217,7 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                         composable(Routes.ASISTENCIA) {
                             AsistenciaScreen(
                                 profesorNombre = nombreUsuario,
-                                onCambiarUsuario = { volverALogin(navController) },
+                                onCambiarUsuario = { volverALogin(navController, context) },
                                 onAbrirEstudiante = { navController.ir(Routes.perfil(it)) },
                                 onGestionarEstudiantes = { navController.ir(Routes.ESTUDIANTES_INESPERADO) },
                                 onTabClick = { label ->
@@ -251,13 +274,13 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
                         composable(Routes.ADMIN_HOME) {
                             AdminHomeScreen(
                                 nombreUsuario = nombreUsuario,
-                                onCambiarUsuario = { volverALogin(navController) }
+                                onCambiarUsuario = { volverALogin(navController, context) }
                             )
                         }
 
                         composable(Routes.FOUNDATION_REPORTS) {
                             FoundationReportsScreen(
-                                onCambiarUsuario = { volverALogin(navController) }
+                                onCambiarUsuario = { volverALogin(navController, context) }
                             )
                         }
                     }

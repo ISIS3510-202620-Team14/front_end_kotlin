@@ -7,17 +7,24 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.SystemClock
 import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.enad.enadmovil.data.cache.CacheMiniaturas
 import com.enad.enadmovil.data.imagen.LectorMiniaturas
+import com.enad.enadmovil.data.local.SesionEscaneo
 import com.enad.enadmovil.data.ocr.HilosOcr
 import com.enad.enadmovil.data.ocr.TextRecognizerDataSource
 import com.enad.enadmovil.data.repository.AuthRepository
 import com.enad.enadmovil.data.telemetria.EventosEscaneo
 import com.enad.enadmovil.domain.model.CondicionesCaptura
+import com.enad.enadmovil.domain.model.FilaRevisada
 import com.enad.enadmovil.domain.model.ResumenRevision
 import com.enad.enadmovil.domain.model.EstudianteEscaneado
+import com.enad.enadmovil.domain.parser.FusionFilas
 import com.enad.enadmovil.domain.parser.ListaAsistenciaParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +36,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 /**
  * Escáner de varias páginas. La cámara deja cada foto en una cola y un lector por hilo del
@@ -43,6 +51,14 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     val uiState: StateFlow<ScanUiState> = _uiState.asStateFlow()
     private var siguientePagina = 1
 
+    /**
+     * Filas que el docente está revisando, con sus correcciones. Viven aquí y no en el sheet:
+     * si el sheet se cierra sin querer, al volver a abrirlo siguen ahí.
+     */
+    val revision = mutableStateListOf<FilaRevisada>()
+    var borradas by mutableIntStateOf(0)
+        private set
+
     private var fotos = Channel<Foto>(Channel.UNLIMITED)
     // Filas de páginas que terminaron antes que una anterior: esperan para salir en orden
     private val terminadas = mutableMapOf<Int, List<EstudianteEscaneado>>()
@@ -51,7 +67,18 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
 
     private val auth = AuthRepository()
 
-    private data class Foto(val numero: Int, val uri: Uri, val condiciones: CondicionesCaptura)
+    // Escaneo sin terminar en disco, para que sobreviva a cerrar la app
+    private val sesion = SesionEscaneo(app)
+    private var claveSesion: String? = null
+    private val escrituras = Channel<Escritura>(Channel.CONFLATED)
+
+    private sealed interface Escritura {
+        data class Guardar(val clave: String, val datos: SesionEscaneo.Datos) : Escritura
+        data class Borrar(val clave: String) : Escritura
+    }
+
+    // [releida]: página que se vuelve a leer al restaurar un escaneo, no cuenta otra vez para la BQ
+    private data class Foto(val numero: Int, val uri: Uri, val condiciones: CondicionesCaptura, val releida: Boolean = false)
 
     private val avisosDeMemoria = object : ComponentCallbacks2 {
         override fun onTrimMemory(level: Int) = CacheMiniaturas.recortar(level)
@@ -62,6 +89,75 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         app.registerComponentCallbacks(avisosDeMemoria)
+        CacheMiniaturas.usarCarpeta(File(app.filesDir, CARPETA_MINIATURAS))
+        // Un solo escritor en IO. El canal se queda con el último cambio: si llegan varios
+        // seguidos (el docente escribiendo un nombre) solo se escribe el más nuevo.
+        viewModelScope.launch(Dispatchers.IO) {
+            for (e in escrituras) {
+                runCatching {
+                    when (e) {
+                        is Escritura.Guardar -> sesion.guardar(e.clave, e.datos)
+                        is Escritura.Borrar -> sesion.borrar(e.clave)
+                    }
+                }.onSuccess {
+                    Log.d(TAG, if (e is Escritura.Guardar) "Escaneo guardado en disco: ${e.datos.paginas.size} página(s), ${e.datos.filas.size} fila(s)" else "Escaneo borrado de disco")
+                }.onFailure { Log.e(TAG, "No se pudo escribir el escaneo", it) }
+            }
+        }
+    }
+
+    /**
+     * El sheet avisa desde qué pantalla se abrió. Si esta cuenta dejó un escaneo sin terminar
+     * ahí (por ejemplo cerró la app), se recupera con sus páginas y sus filas.
+     */
+    fun abrir(origen: String) {
+        if (claveSesion != null) return
+        // Sin uid igual se guarda, para no perder el escaneo si la sesión de Firebase aún no carga
+        val clave = "${auth.uidActual() ?: "local"}_$origen"
+        claveSesion = clave
+        viewModelScope.launch {
+            val datos = withContext(Dispatchers.IO) { sesion.leer(clave) }
+            if (datos == null) {
+                Log.d(TAG, "No hay escaneo guardado para $origen")
+                return@launch
+            }
+            // Si el docente ya empezó a escanear antes de que terminara de leer, gana lo nuevo
+            if (siguientePagina == 1 && revision.isEmpty()) restaurar(datos)
+        }
+    }
+
+    private fun restaurar(datos: SesionEscaneo.Datos) {
+        revision.addAll(datos.filas)
+        borradas = datos.borradas
+        siguientePagina = datos.siguientePagina
+        entregadas = datos.entregadas
+        // Las páginas que no alcanzaron a entregar sus filas se vuelven a leer
+        val paginas = datos.paginas.map { p ->
+            val estado = when {
+                p.numero > datos.entregadas -> EstadoPagina.EnCola
+                p.estado == "fallo" -> EstadoPagina.Fallo
+                else -> EstadoPagina.Lista(p.filas)
+            }
+            PaginaEscaneada(p.numero, estado, Uri.fromFile(File(p.ruta)))
+        }
+        _uiState.value = ScanUiState(procesando = paginas.any { it.estado == EstadoPagina.EnCola }, paginas = paginas)
+        paginas.filter { it.estado == EstadoPagina.EnCola }
+            .forEach { fotos.trySend(Foto(it.numero, it.foto, CondicionesCaptura.SIN_SENSORES, releida = true)) }
+        Log.d(TAG, "Escaneo recuperado: ${paginas.size} página(s), ${revision.size} fila(s)")
+    }
+
+    /** Toma una foto del estado actual y la manda al escritor de IO. */
+    private fun guardarSesion() {
+        val clave = claveSesion ?: return
+        val paginas = _uiState.value.paginas.mapNotNull { p ->
+            val ruta = p.foto.path ?: return@mapNotNull null
+            when (val e = p.estado) {
+                is EstadoPagina.Lista -> SesionEscaneo.Pagina(p.numero, ruta, "lista", e.filas)
+                EstadoPagina.Fallo -> SesionEscaneo.Pagina(p.numero, ruta, "fallo")
+                else -> SesionEscaneo.Pagina(p.numero, ruta, "pendiente")
+            }
+        }
+        escrituras.trySend(Escritura.Guardar(clave, SesionEscaneo.Datos(siguientePagina, entregadas, paginas, revision.toList(), borradas)))
     }
 
     fun onFotoCapturada(uri: Uri, condiciones: CondicionesCaptura = CondicionesCaptura.SIN_SENSORES) {
@@ -70,24 +166,27 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
             it.copy(procesando = true, error = null, paginas = it.paginas + PaginaEscaneada(numero, EstadoPagina.EnCola, uri))
         }
         fotos.trySend(Foto(numero, uri, condiciones))
+        guardarSesion()
     }
 
     /**
-     * Miniatura de una página. Si ya está en la caché sale de memoria al instante. Si no,
-     * se abre achicada desde el disco en un hilo de IO y se guarda para la próxima vez.
+     * Miniatura de una página. Primero se busca en memoria, que es instantáneo. Si no está, se
+     * busca la miniatura guardada en disco. Solo si tampoco está se abre la foto completa
+     * achicada y se guarda en los dos niveles para la próxima vez. Lo de disco va en un hilo de IO.
      */
     suspend fun miniatura(pagina: PaginaEscaneada): Bitmap? {
         val clave = pagina.foto.toString()
         CacheMiniaturas.obtener(clave)?.let { return it }
-        val leida = try {
-            withContext(Dispatchers.IO) { LectorMiniaturas.leer(pagina.foto) }
+        return try {
+            withContext(Dispatchers.IO) {
+                CacheMiniaturas.leerDeDisco(clave)
+                    ?: LectorMiniaturas.leer(pagina.foto)?.also { CacheMiniaturas.guardar(clave, it) }
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             null // sin miniatura la página se sigue leyendo igual
-        } ?: return null
-        CacheMiniaturas.guardar(clave, leida)
-        return leida
+        }
     }
 
     /** BQ #11: lo que corrigió el docente en la revisión. [exigirCodigo] = vino de Gestionar estudiantes. */
@@ -95,9 +194,15 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         auth.uidActual()?.let { EventosEscaneo.registrarRevision(it, resumen, if (exigirCodigo) "manage_students" else "attendance") }
     }
 
-    /** El sheet ya copió las filas nuevas a su lista: se vacían para no sumarlas dos veces. */
-    fun tomarFilas() {
-        _uiState.update { it.copy(filas = emptyList()) }
+    fun editarFila(indice: Int, fila: EstudianteEscaneado) {
+        revision[indice] = revision[indice].copy(actual = fila)
+        guardarSesion()
+    }
+
+    fun quitarFila(indice: Int) {
+        revision.removeAt(indice)
+        borradas++
+        guardarSesion()
     }
 
     fun limpiar() {
@@ -109,8 +214,17 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         siguientePagina = 1
         terminadas.clear()
         entregadas = 0
+        revision.clear()
+        borradas = 0
         // Las miniaturas eran de las fotos de este escaneo y no se vuelven a mostrar
+        val claves = _uiState.value.paginas.map { it.foto.toString() }
         CacheMiniaturas.limpiar()
+        viewModelScope.launch(Dispatchers.IO) { CacheMiniaturas.borrarDeDisco(claves) }
+        // Importado o cancelado: el escaneo guardado y sus fotos ya no se necesitan.
+        // Las fotos se borran aparte porque un escaneo nuevo puede reemplazar el borrado en el canal
+        val rutas = _uiState.value.paginas.mapNotNull { it.foto.path }
+        viewModelScope.launch(Dispatchers.IO) { sesion.borrarFotos(rutas) }
+        claveSesion?.let { escrituras.trySend(Escritura.Borrar(it)) }
         _uiState.value = ScanUiState()
     }
 
@@ -142,13 +256,16 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         } catch (e: Exception) {
             null // una foto que falla no detiene las demás
         }
-        auth.uidActual()?.let { EventosEscaneo.registrar(it, foto.condiciones, filas?.size, SystemClock.elapsedRealtime() - inicio) }
+        if (!foto.releida) {
+            auth.uidActual()?.let { EventosEscaneo.registrar(it, foto.condiciones, filas?.size, SystemClock.elapsedRealtime() - inicio) }
+        }
         val enOrden = enOrden(foto.numero, filas.orEmpty())
+        // Las filas nuevas se suman a la revisión sin repetir estudiantes de páginas anteriores
+        revision.addAll(FusionFilas.nuevas(revision.map { it.actual }, enOrden).map { FilaRevisada(it) })
         _uiState.update {
             val paginas = it.paginas.marcar(foto.numero, filas?.let { f -> EstadoPagina.Lista(f.size) } ?: EstadoPagina.Fallo)
             it.copy(
                 paginas = paginas,
-                filas = it.filas + enOrden,
                 procesando = paginas.any { p -> p.estado == EstadoPagina.EnCola || p.estado == EstadoPagina.Leyendo },
                 error = when {
                     filas == null -> "No se pudo leer la página ${foto.numero}."
@@ -157,6 +274,7 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
                 }
             )
         }
+        guardarSesion()
     }
 
     /**
@@ -188,5 +306,6 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         const val TAG = "ScanViewModel"
+        const val CARPETA_MINIATURAS = "miniaturas"
     }
 }
