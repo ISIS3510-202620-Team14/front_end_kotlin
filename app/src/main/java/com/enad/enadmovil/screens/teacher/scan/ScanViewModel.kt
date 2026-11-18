@@ -7,6 +7,10 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.SystemClock
 import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.enad.enadmovil.data.cache.CacheMiniaturas
@@ -16,8 +20,10 @@ import com.enad.enadmovil.data.ocr.TextRecognizerDataSource
 import com.enad.enadmovil.data.repository.AuthRepository
 import com.enad.enadmovil.data.telemetria.EventosEscaneo
 import com.enad.enadmovil.domain.model.CondicionesCaptura
+import com.enad.enadmovil.domain.model.FilaRevisada
 import com.enad.enadmovil.domain.model.ResumenRevision
 import com.enad.enadmovil.domain.model.EstudianteEscaneado
+import com.enad.enadmovil.domain.parser.FusionFilas
 import com.enad.enadmovil.domain.parser.ListaAsistenciaParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -42,6 +48,14 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     private val _uiState = MutableStateFlow(ScanUiState())
     val uiState: StateFlow<ScanUiState> = _uiState.asStateFlow()
     private var siguientePagina = 1
+
+    /**
+     * Filas que el docente está revisando, con sus correcciones. Viven aquí y no en el sheet:
+     * si el sheet se cierra sin querer, al volver a abrirlo siguen ahí.
+     */
+    val revision = mutableStateListOf<FilaRevisada>()
+    var borradas by mutableIntStateOf(0)
+        private set
 
     private var fotos = Channel<Foto>(Channel.UNLIMITED)
     // Filas de páginas que terminaron antes que una anterior: esperan para salir en orden
@@ -95,9 +109,13 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         auth.uidActual()?.let { EventosEscaneo.registrarRevision(it, resumen, if (exigirCodigo) "manage_students" else "attendance") }
     }
 
-    /** El sheet ya copió las filas nuevas a su lista: se vacían para no sumarlas dos veces. */
-    fun tomarFilas() {
-        _uiState.update { it.copy(filas = emptyList()) }
+    fun editarFila(indice: Int, fila: EstudianteEscaneado) {
+        revision[indice] = revision[indice].copy(actual = fila)
+    }
+
+    fun quitarFila(indice: Int) {
+        revision.removeAt(indice)
+        borradas++
     }
 
     fun limpiar() {
@@ -109,6 +127,8 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         siguientePagina = 1
         terminadas.clear()
         entregadas = 0
+        revision.clear()
+        borradas = 0
         // Las miniaturas eran de las fotos de este escaneo y no se vuelven a mostrar
         CacheMiniaturas.limpiar()
         _uiState.value = ScanUiState()
@@ -144,11 +164,12 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         }
         auth.uidActual()?.let { EventosEscaneo.registrar(it, foto.condiciones, filas?.size, SystemClock.elapsedRealtime() - inicio) }
         val enOrden = enOrden(foto.numero, filas.orEmpty())
+        // Las filas nuevas se suman a la revisión sin repetir estudiantes de páginas anteriores
+        revision.addAll(FusionFilas.nuevas(revision.map { it.actual }, enOrden).map { FilaRevisada(it) })
         _uiState.update {
             val paginas = it.paginas.marcar(foto.numero, filas?.let { f -> EstadoPagina.Lista(f.size) } ?: EstadoPagina.Fallo)
             it.copy(
                 paginas = paginas,
-                filas = it.filas + enOrden,
                 procesando = paginas.any { p -> p.estado == EstadoPagina.EnCola || p.estado == EstadoPagina.Leyendo },
                 error = when {
                     filas == null -> "No se pudo leer la página ${foto.numero}."
