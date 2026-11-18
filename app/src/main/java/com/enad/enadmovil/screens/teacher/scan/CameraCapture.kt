@@ -59,6 +59,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.enad.enadmovil.data.sensores.LecturaSensores
+import com.enad.enadmovil.data.local.SesionEscaneo
 import com.enad.enadmovil.data.sensores.SensoresCaptura
 import com.enad.enadmovil.domain.model.CondicionesCaptura
 import com.enad.enadmovil.domain.model.NivelLuz
@@ -79,7 +80,7 @@ private const val ESPERA_ENCUADRE_MS = 1_500L
 /**
  * Sensor: cámara del teléfono (CameraX). Antes de pedir el permiso muestra una
  * tarjeta blanca que explica para qué se usa; después muestra la vista previa y,
- * al tocar el botón, guarda una foto en cacheDir y devuelve su Uri.
+ * al tocar el botón, guarda una foto en filesDir/escaneo y devuelve su Uri.
  *
  * Configurada para leer texto: máxima calidad, mayor resolución disponible,
  * enfoque al tocar la pantalla y linterna.
@@ -183,7 +184,9 @@ fun CameraCapture(
         if (tomando) return
         tomando = true
         val condiciones = CondicionesCaptura(lectura.lux, nivelLuz, lectura.estable, linterna, automatica)
-        val archivo = File(context.cacheDir, "lista_${System.currentTimeMillis()}.jpg")
+        // En el almacenamiento privado de la app y no en cacheDir: Android puede vaciar cacheDir
+        // y el escaneo sin terminar tiene que seguir ahí si el docente cierra la app
+        val archivo = File(SesionEscaneo.carpetaDe(context).apply { mkdirs() }, "lista_${System.currentTimeMillis()}.jpg")
         val opciones = ImageCapture.OutputFileOptions.Builder(archivo).build()
         imageCapture.takePicture(
             opciones,

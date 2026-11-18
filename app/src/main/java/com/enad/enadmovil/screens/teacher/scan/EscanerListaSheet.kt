@@ -40,6 +40,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -88,6 +89,8 @@ fun EscanerListaSheet(
     // Los que ya están en el colegio: cada fila avisa si es uno de ellos o se le parece
     conocidos: List<EstudianteConocido> = emptyList(),
     gradoPorDefecto: Int? = null,
+    // Pantalla desde la que se abrió. Cada una guarda su propio escaneo sin terminar
+    origen: String = "asistencia",
     scanViewModel: ScanViewModel = viewModel()
 ) {
     val estado by scanViewModel.uiState.collectAsStateWithLifecycle()
@@ -95,6 +98,11 @@ fun EscanerListaSheet(
     val revision = scanViewModel.revision
     val filas = revision.map { it.actual }
     var mostrarCamara by remember { mutableStateOf(false) }
+
+    // Si había un escaneo sin terminar de esta cuenta en esta pantalla, vuelve
+    LaunchedEffect(origen) {
+        scanViewModel.abrir(origen)
+    }
 
     val validas = filas.filter { it.nombre.isNotBlank() && (!exigirCodigo || !it.codigo.isNullOrBlank()) }
     // Solo el botón Cancelar descarta el escaneo

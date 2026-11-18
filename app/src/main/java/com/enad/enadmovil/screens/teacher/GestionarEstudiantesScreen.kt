@@ -217,7 +217,8 @@ fun GestionarEstudiantesScreen(
                 viewModel.importar(filas)
             },
             onCancelar = { mostrarEscaner = false },
-            exigirCodigo = !inesperado
+            exigirCodigo = !inesperado,
+            origen = if (inesperado) "inesperado" else "gestionar"
         )
     }
 }
