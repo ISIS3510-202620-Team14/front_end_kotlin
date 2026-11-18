@@ -99,7 +99,9 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
                         is Escritura.Guardar -> sesion.guardar(e.clave, e.datos)
                         is Escritura.Borrar -> sesion.borrar(e.clave)
                     }
-                }
+                }.onSuccess {
+                    Log.d(TAG, if (e is Escritura.Guardar) "Escaneo guardado en disco: ${e.datos.paginas.size} página(s), ${e.datos.filas.size} fila(s)" else "Escaneo borrado de disco")
+                }.onFailure { Log.e(TAG, "No se pudo escribir el escaneo", it) }
             }
         }
     }
@@ -110,10 +112,15 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun abrir(origen: String) {
         if (claveSesion != null) return
-        val clave = "${auth.uidActual() ?: return}_$origen"
+        // Sin uid igual se guarda, para no perder el escaneo si la sesión de Firebase aún no carga
+        val clave = "${auth.uidActual() ?: "local"}_$origen"
         claveSesion = clave
         viewModelScope.launch {
-            val datos = withContext(Dispatchers.IO) { sesion.leer(clave) } ?: return@launch
+            val datos = withContext(Dispatchers.IO) { sesion.leer(clave) }
+            if (datos == null) {
+                Log.d(TAG, "No hay escaneo guardado para $origen")
+                return@launch
+            }
             // Si el docente ya empezó a escanear antes de que terminara de leer, gana lo nuevo
             if (siguientePagina == 1 && revision.isEmpty()) restaurar(datos)
         }
