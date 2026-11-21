@@ -170,10 +170,14 @@ class AsistenciaRepository(context: Context) {
                 filas += remotos.size
                 val entidades = mutableListOf<EstudianteEntity>()
                 val marcas = mutableListOf<AsistenciaEntity>()
+                // Lo pendiente se trae una vez por día y se revisa en un Set, no con una consulta por estudiante.
+                // Se lee cada día y no una sola vez porque el docente puede marcar mientras se descarga.
+                val estudiantesPendientes = estudiantes.idsPendientes().toHashSet()
+                val marcasPendientes = asistencias.idsPendientesDelDia(fecha).toHashSet()
+                consultas += 2
 
                 for (r in remotos) {
-                    consultas++
-                    if (estudiantes.porId(r.id)?.syncStatus != SyncStatus.PENDING) {
+                    if (r.id !in estudiantesPendientes) {
                         entidades += EstudianteEntity(
                             id = r.id, schoolId = r.schoolId, docenteUid = uid, fullName = r.fullName,
                             code = r.code, grade = r.grade, age = r.age, provisional = r.provisional,
@@ -181,7 +185,7 @@ class AsistenciaRepository(context: Context) {
                         )
                     }
                     if ((r.attendance == EstadoRemoto.VINO || r.attendance == EstadoRemoto.NO_VINO) &&
-                        asistencias.buscar(r.id, fecha).also { consultas++ }?.syncStatus != SyncStatus.PENDING
+                        r.id !in marcasPendientes
                     ) {
                         marcas += AsistenciaEntity(r.id, fecha, r.attendance, uid, SyncStatus.SYNCED)
                     }

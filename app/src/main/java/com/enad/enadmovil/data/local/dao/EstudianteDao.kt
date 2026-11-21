@@ -18,6 +18,10 @@ interface EstudianteDao {
     @Query("SELECT * FROM estudiantes WHERE id = :id")
     suspend fun porId(id: String): EstudianteEntity?
 
+    /** Ids con cambios sin subir. Una sola consulta en vez de una por estudiante al descargar. */
+    @Query("SELECT id FROM estudiantes WHERE syncStatus = 'PENDING'")
+    suspend fun idsPendientes(): List<String>
+
     @Query("SELECT * FROM estudiantes WHERE schoolId = :schoolId AND code = :code LIMIT 1")
     suspend fun porCodigo(schoolId: String, code: String): EstudianteEntity?
 
