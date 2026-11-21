@@ -35,6 +35,8 @@ android {
         }
         release {
             buildConfigField("boolean", "USAR_EMULADORES", "false")
+            // Firma con la llave de debug para poder instalar el release en el celular y medirlo.
+            signingConfig = signingConfigs.getByName("debug")
             optimization {
                 enable = false
             }
