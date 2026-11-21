@@ -25,6 +25,10 @@ interface AsistenciaDao {
     @Query("SELECT * FROM asistencias WHERE estudianteId = :id AND fecha = :fecha")
     suspend fun buscar(id: String, fecha: String): AsistenciaEntity?
 
+    /** Estudiantes con una marca sin subir ese día. Una sola consulta en vez de una por estudiante. */
+    @Query("SELECT estudianteId FROM asistencias WHERE fecha = :fecha AND syncStatus = 'PENDING'")
+    suspend fun idsPendientesDelDia(fecha: String): List<String>
+
     @Query("SELECT * FROM asistencias WHERE docenteUid = :uid AND syncStatus = 'PENDING'")
     suspend fun pendientes(uid: String): List<AsistenciaEntity>
 
