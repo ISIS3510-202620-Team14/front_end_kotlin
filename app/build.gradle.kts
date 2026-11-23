@@ -35,9 +35,15 @@ android {
         }
         release {
             buildConfigField("boolean", "USAR_EMULADORES", "false")
-            optimization {
-                enable = false
-            }
+            // Firma con la llave de debug para poder instalar el release en el celular y medirlo.
+            signingConfig = signingConfigs.getByName("debug")
+            // R8 quita el código y los recursos que no se usan y optimiza el resto.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
     compileOptions {

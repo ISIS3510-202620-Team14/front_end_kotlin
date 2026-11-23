@@ -1,6 +1,7 @@
 package com.enad.enadmovil.data.repository
 
 import android.content.Context
+import android.util.Log
 import androidx.room.withTransaction
 import com.enad.enadmovil.data.local.AppDatabase
 import com.enad.enadmovil.data.local.entity.AsistenciaEntity
@@ -158,14 +159,25 @@ class AsistenciaRepository(context: Context) {
     suspend fun descargarSemana(schoolId: String, uid: String, fechas: List<String>): Boolean {
         val token = runCatching { auth.obtenerToken() }.getOrNull() ?: return false
         var alguno = false
+        // Profiling: consultas a Room y tiempo del trabajo local, sin contar la red (Logcat, tag DescargaSemana)
+        var consultas = 0
+        var nanosLocal = 0L
+        var filas = 0
         for (fecha in fechas) {
             try {
                 val remotos = CloudFunctionsApi.listarEstudiantes(token, schoolId, fecha)
+                val inicioLocal = System.nanoTime()
+                filas += remotos.size
                 val entidades = mutableListOf<EstudianteEntity>()
                 val marcas = mutableListOf<AsistenciaEntity>()
+                // Lo pendiente se trae una vez por día y se revisa en un Set, no con una consulta por estudiante.
+                // Se lee cada día y no una sola vez porque el docente puede marcar mientras se descarga.
+                val estudiantesPendientes = estudiantes.idsPendientes().toHashSet()
+                val marcasPendientes = asistencias.idsPendientesDelDia(fecha).toHashSet()
+                consultas += 2
 
                 for (r in remotos) {
-                    if (estudiantes.porId(r.id)?.syncStatus != SyncStatus.PENDING) {
+                    if (r.id !in estudiantesPendientes) {
                         entidades += EstudianteEntity(
                             id = r.id, schoolId = r.schoolId, docenteUid = uid, fullName = r.fullName,
                             code = r.code, grade = r.grade, age = r.age, provisional = r.provisional,
@@ -173,7 +185,7 @@ class AsistenciaRepository(context: Context) {
                         )
                     }
                     if ((r.attendance == EstadoRemoto.VINO || r.attendance == EstadoRemoto.NO_VINO) &&
-                        asistencias.buscar(r.id, fecha)?.syncStatus != SyncStatus.PENDING
+                        r.id !in marcasPendientes
                     ) {
                         marcas += AsistenciaEntity(r.id, fecha, r.attendance, uid, SyncStatus.SYNCED)
                     }
@@ -182,11 +194,13 @@ class AsistenciaRepository(context: Context) {
                     estudiantes.upsertAll(entidades)
                     asistencias.upsertAll(marcas)
                 }
+                nanosLocal += System.nanoTime() - inicioLocal
                 alguno = true
             } catch (e: Exception) {
                 // sin internet o error del servidor ese día: se sigue con lo que hay en el teléfono
             }
         }
+        Log.d("DescargaSemana", "Semana procesada: $consultas consultas a Room en ${nanosLocal / 1_000_000} ms ($filas filas en ${fechas.size} días)")
         return alguno
     }
 
