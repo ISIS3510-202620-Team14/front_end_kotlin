@@ -35,14 +35,14 @@ object ControlSincronizacion {
      * Estado del servidor cuando el docente marcó por primera vez (no se pisa con marcas siguientes),
      * junto con la conectividad que tenía el celular en ese momento ("online" / "offline").
      */
-    fun recordarBase(context: Context, estudianteId: String, fecha: String, estado: String, conectividad: String) {
+    fun recordarBase(context: Context, estudianteId: String, fecha: String, estado: String, conectividad: String): Boolean {
         val prefs = context.getSharedPreferences(BASES, Context.MODE_PRIVATE)
-        if (!prefs.contains(clave(estudianteId, fecha))) {
-            prefs.edit()
-                .putString(clave(estudianteId, fecha), estado)
-                .putString(claveRed(estudianteId, fecha), conectividad)
-                .apply()
-        }
+        if (prefs.contains(clave(estudianteId, fecha))) return false
+        prefs.edit()
+            .putString(clave(estudianteId, fecha), estado)
+            .putString(claveRed(estudianteId, fecha), conectividad)
+            .apply()
+        return true
     }
 
     fun conectividadAlMarcar(context: Context, estudianteId: String, fecha: String): String? =

@@ -59,14 +59,15 @@ class AsistenciaRepository(context: Context) {
     // ---------- Escritura local (siempre funciona, con o sin internet) ----------
 
     /** Antes de la primera marca local se guarda lo que había en el servidor (ver ControlSincronizacion). */
-    private suspend fun recordarBase(estudianteId: String, fecha: String) {
+    private suspend fun recordarBase(estudianteId: String, fecha: String): Boolean {
         val previo = asistencias.buscar(estudianteId, fecha)
         if (previo == null || previo.syncStatus == SyncStatus.SYNCED) {
-            ControlSincronizacion.recordarBase(
+            return ControlSincronizacion.recordarBase(
                 appContext, estudianteId, fecha, previo?.estado ?: EstadoRemoto.SIN_REGISTRO,
                 InfoDispositivo.conectividad(appContext)
             )
         }
+        return false
     }
 
     suspend fun marcar(estudianteId: String, fecha: String, estado: String, uid: String) {
@@ -77,12 +78,19 @@ class AsistenciaRepository(context: Context) {
 
     /** "Limpiar": solo toca a quienes ya tienen una marca ese día. */
     suspend fun limpiarDia(ids: List<String>, fecha: String, uid: String) {
+        val inicio = System.nanoTime()
+        var consultas = 1
+        var escrituras = 0
         val conMarca = asistencias.delDia(fecha)
             .filter { it.estudianteId in ids && it.estado != EstadoRemoto.SIN_REGISTRO }
             .map { it.copy(estado = EstadoRemoto.SIN_REGISTRO, docenteUid = uid, syncStatus = SyncStatus.PENDING) }
         if (conMarca.isEmpty()) return
-        for (m in conMarca) recordarBase(m.estudianteId, m.fecha)
+        for (m in conMarca) {
+            consultas++
+            if (recordarBase(m.estudianteId, m.fecha)) escrituras++
+        }
         asistencias.upsertAll(conMarca)
+        Log.d("DescartarCambios", "Día descartado: ${conMarca.size} marcas de ${ids.size} estudiantes, $consultas consultas a Room, $escrituras escrituras a preferencias en ${(System.nanoTime() - inicio) / 1_000_000} ms")
         SyncScheduler.programar(appContext)
     }
 
