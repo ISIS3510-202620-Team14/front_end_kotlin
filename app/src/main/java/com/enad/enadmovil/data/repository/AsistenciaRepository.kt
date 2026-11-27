@@ -59,15 +59,14 @@ class AsistenciaRepository(context: Context) {
     // ---------- Escritura local (siempre funciona, con o sin internet) ----------
 
     /** Antes de la primera marca local se guarda lo que había en el servidor (ver ControlSincronizacion). */
-    private suspend fun recordarBase(estudianteId: String, fecha: String): Boolean {
+    private suspend fun recordarBase(estudianteId: String, fecha: String) {
         val previo = asistencias.buscar(estudianteId, fecha)
         if (previo == null || previo.syncStatus == SyncStatus.SYNCED) {
-            return ControlSincronizacion.recordarBase(
+            ControlSincronizacion.recordarBase(
                 appContext, estudianteId, fecha, previo?.estado ?: EstadoRemoto.SIN_REGISTRO,
                 InfoDispositivo.conectividad(appContext)
             )
         }
-        return false
     }
 
     suspend fun marcar(estudianteId: String, fecha: String, estado: String, uid: String) {
@@ -79,18 +78,17 @@ class AsistenciaRepository(context: Context) {
     /** "Limpiar": solo toca a quienes ya tienen una marca ese día. */
     suspend fun limpiarDia(ids: List<String>, fecha: String, uid: String) {
         val inicio = System.nanoTime()
-        var consultas = 1
-        var escrituras = 0
+        val consultas = 1
+        val seleccionados = ids.toSet()
         val conMarca = asistencias.delDia(fecha)
-            .filter { it.estudianteId in ids && it.estado != EstadoRemoto.SIN_REGISTRO }
-            .map { it.copy(estado = EstadoRemoto.SIN_REGISTRO, docenteUid = uid, syncStatus = SyncStatus.PENDING) }
+            .filter { it.estudianteId in seleccionados && it.estado != EstadoRemoto.SIN_REGISTRO }
         if (conMarca.isEmpty()) return
-        for (m in conMarca) {
-            consultas++
-            if (recordarBase(m.estudianteId, m.fecha)) escrituras++
-        }
-        asistencias.upsertAll(conMarca)
-        Log.d("DescartarCambios", "Día descartado: ${conMarca.size} marcas de ${ids.size} estudiantes, $consultas consultas a Room, $escrituras escrituras a preferencias en ${(System.nanoTime() - inicio) / 1_000_000} ms")
+        val bases = conMarca
+            .filter { it.syncStatus == SyncStatus.SYNCED }
+            .map { ControlSincronizacion.Base(it.estudianteId, it.fecha, it.estado) }
+        val escrituras = if (ControlSincronizacion.recordarBases(appContext, bases, InfoDispositivo.conectividad(appContext))) 1 else 0
+        asistencias.upsertAll(conMarca.map { it.copy(estado = EstadoRemoto.SIN_REGISTRO, docenteUid = uid, syncStatus = SyncStatus.PENDING) })
+        Log.d("DescartarCambios", "Día descartado: ${conMarca.size} marcas de ${ids.size} estudiantes, $consultas consultas a Room, $escrituras escrituras a preferencias (${bases.size} bases) en ${(System.nanoTime() - inicio) / 1_000_000} ms")
         SyncScheduler.programar(appContext)
     }
 

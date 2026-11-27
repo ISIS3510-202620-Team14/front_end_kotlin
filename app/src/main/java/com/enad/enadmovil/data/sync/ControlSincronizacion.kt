@@ -35,13 +35,28 @@ object ControlSincronizacion {
      * Estado del servidor cuando el docente marcó por primera vez (no se pisa con marcas siguientes),
      * junto con la conectividad que tenía el celular en ese momento ("online" / "offline").
      */
-    fun recordarBase(context: Context, estudianteId: String, fecha: String, estado: String, conectividad: String): Boolean {
+    fun recordarBase(context: Context, estudianteId: String, fecha: String, estado: String, conectividad: String) {
         val prefs = context.getSharedPreferences(BASES, Context.MODE_PRIVATE)
-        if (prefs.contains(clave(estudianteId, fecha))) return false
-        prefs.edit()
-            .putString(clave(estudianteId, fecha), estado)
-            .putString(claveRed(estudianteId, fecha), conectividad)
-            .apply()
+        if (!prefs.contains(clave(estudianteId, fecha))) {
+            prefs.edit()
+                .putString(clave(estudianteId, fecha), estado)
+                .putString(claveRed(estudianteId, fecha), conectividad)
+                .apply()
+        }
+    }
+
+    data class Base(val estudianteId: String, val fecha: String, val estado: String)
+
+    fun recordarBases(context: Context, bases: List<Base>, conectividad: String): Boolean {
+        val prefs = context.getSharedPreferences(BASES, Context.MODE_PRIVATE)
+        val nuevas = bases.filterNot { prefs.contains(clave(it.estudianteId, it.fecha)) }
+        if (nuevas.isEmpty()) return false
+        val editor = prefs.edit()
+        for (b in nuevas) {
+            editor.putString(clave(b.estudianteId, b.fecha), b.estado)
+                .putString(claveRed(b.estudianteId, b.fecha), conectividad)
+        }
+        editor.apply()
         return true
     }
 
