@@ -141,7 +141,7 @@ private fun PanelCsvHoras(csv: CsvGuardado, onExportar: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Reporte en CSV", style = MaterialTheme.typography.titleMedium)
-                Text("Actualizado ${DatosGuardados.cuando(csv.guardadoEn)}. Se guarda en este celular.", style = MaterialTheme.typography.bodySmall)
+                Text("Se guarda en este celular. Actualizado ${DatosGuardados.cuando(csv.guardadoEn)}", style = MaterialTheme.typography.bodySmall)
             }
             TextButton(onClick = onExportar) {
                 Icon(Icons.Outlined.SaveAlt, contentDescription = null, tint = EnadPrimary, modifier = Modifier.size(18.dp))
