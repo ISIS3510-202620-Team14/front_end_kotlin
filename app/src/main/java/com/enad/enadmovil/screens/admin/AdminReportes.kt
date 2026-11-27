@@ -1,5 +1,7 @@
 package com.enad.enadmovil.ui.screens.admin
 
+import android.content.Context
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import com.enad.enadmovil.data.local.CsvGuardado
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.domain.model.DatosGuardados
@@ -34,6 +37,7 @@ import com.enad.enadmovil.ui.theme.EnadPrimary
 import com.enad.enadmovil.ui.theme.EnadSoftInk
 import com.enad.enadmovil.ui.theme.EnadSuccessBg
 import com.enad.enadmovil.ui.theme.EnadSuccessText
+import java.io.File
 import java.time.LocalDate
 import com.enad.enadmovil.ui.theme.EnadPendienteBg
 import com.enad.enadmovil.ui.theme.EnadPendienteText
@@ -109,6 +113,7 @@ fun ReporteHorasSection(estado: AdminUiState, onActualizar: () -> Unit, onExport
     LaunchedEffect(estado.avisoCsv) {
         estado.avisoCsv?.let {
             Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            estado.csvExportado?.let { archivo -> compartirCsv(context, archivo) }
             onAvisoMostrado()
         }
     }
@@ -144,6 +149,18 @@ private fun PanelCsvHoras(csv: CsvGuardado, onExportar: () -> Unit) {
                 Text("Exportar", color = EnadPrimary)
             }
         }
+    }
+}
+
+private fun compartirCsv(context: Context, archivo: File) {
+    runCatching {
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.archivos", archivo)
+        val intent = Intent(Intent.ACTION_SEND)
+            .setType("text/csv")
+            .putExtra(Intent.EXTRA_STREAM, uri)
+            .putExtra(Intent.EXTRA_SUBJECT, archivo.name)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        context.startActivity(Intent.createChooser(intent, "Compartir reporte de horas"))
     }
 }
 

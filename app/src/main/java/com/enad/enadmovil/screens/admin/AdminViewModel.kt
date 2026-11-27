@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.json.JSONException
+import java.io.File
 import java.io.IOException
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -40,6 +41,7 @@ data class AdminUiState(
     val horas: Carga<List<CloudFunctionsApi.SemanaHoras>> = Carga.Cargando,
     val csvHoras: CsvGuardado? = null,
     val avisoCsv: String? = null,
+    val csvExportado: File? = null,
     val actividades: Carga<CloudFunctionsApi.TopActividades> = Carga.Cargando,
     val evaluaciones: Carga<CloudFunctionsApi.EvaluacionesPorGrado> = Carga.Cargando,
     val evaluacionesGuardadoEn: Long? = null,
@@ -138,11 +140,11 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                 exportado.externo -> "CSV exportado a Documentos: ${exportado.archivo.name}"
                 else -> "Sin almacenamiento externo, el CSV quedó guardado en la app"
             }
-            _uiState.update { it.copy(avisoCsv = aviso) }
+            _uiState.update { it.copy(avisoCsv = aviso, csvExportado = exportado?.archivo) }
         }
     }
 
-    fun avisoCsvMostrado() = _uiState.update { it.copy(avisoCsv = null) }
+    fun avisoCsvMostrado() = _uiState.update { it.copy(avisoCsv = null, csvExportado = null) }
 
     fun cargarActividades(forzar: Boolean = false) {
         _uiState.update { it.copy(actividades = Carga.Cargando) }
