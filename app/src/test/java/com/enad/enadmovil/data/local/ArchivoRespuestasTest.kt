@@ -56,6 +56,23 @@ class ArchivoRespuestasTest {
     fun `borrarTodo deja el telefono sin datos de estudiantes`() = runBlocking {
         archivo.guardar("docente1", "estudiantes", "{}")
         archivo.borrarTodo()
+        archivo.esperarEscrituras()
+        assertNull(archivo.leer("docente1", "estudiantes"))
+        assertFalse(File(raiz, ArchivoRespuestas.CARPETA).exists())
+    }
+
+    @Test
+    fun `el guardado en segundo plano queda escrito cuando termina el escritor`() = runBlocking {
+        archivo.guardarEnSegundoPlano("docente1", "estudiantes", """{"students":[1]}""")
+        archivo.esperarEscrituras()
+        assertEquals("""{"students":[1]}""", archivo.leer("docente1", "estudiantes")?.json)
+    }
+
+    @Test
+    fun `borrarTodo despues de un guardado pendiente no deja archivos`() = runBlocking {
+        archivo.guardarEnSegundoPlano("docente1", "estudiantes", "{}")
+        archivo.borrarTodo()
+        archivo.esperarEscrituras()
         assertNull(archivo.leer("docente1", "estudiantes"))
         assertFalse(File(raiz, ArchivoRespuestas.CARPETA).exists())
     }
@@ -70,6 +87,7 @@ class ArchivoRespuestasTest {
         val lectura = leerConRespaldo("docente1") { """{"a":1}""" }
         assertEquals(7, lectura.datos)
         assertNull(lectura.guardadoEn)
+        archivo.esperarEscrituras()
         assertEquals("""{"a":1}""", archivo.leer("docente1", "estudiantes")?.json)
     }
 

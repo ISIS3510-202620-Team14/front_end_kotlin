@@ -26,6 +26,8 @@ class ArchivoRespuestas(private val carpeta: File) {
         ESCRITOR.launch { escribir(uid, nombre, json) }
     }
 
+    internal suspend fun esperarEscrituras() = withContext(ESCRITURA) {}
+
     private fun escribir(uid: String, nombre: String, json: String) {
         carpeta.mkdirs()
         val destino = File(carpeta, nombreArchivo(uid, nombre))
