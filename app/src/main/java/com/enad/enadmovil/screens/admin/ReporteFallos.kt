@@ -23,15 +23,18 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.enad.enadmovil.data.local.ArchivoRespuestas
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.data.remote.CloudFunctionsApi.FilaFallos
 import com.enad.enadmovil.data.remote.CloudFunctionsApi.ReporteFallos
 import com.enad.enadmovil.data.remote.CloudFunctionsApi.SemanaFallos
 import com.enad.enadmovil.data.repository.ReportesRepository
+import com.enad.enadmovil.screens.teacher.AvisoDatosGuardados
 import com.enad.enadmovil.ui.components.EnadPanel
 import com.enad.enadmovil.ui.theme.EnadInk
 import com.enad.enadmovil.ui.theme.EnadLine
@@ -47,13 +50,15 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 data class ReporteFallosUiState(
-    val reporte: Carga<ReporteFallos> = Carga.Cargando
+    val reporte: Carga<ReporteFallos> = Carga.Cargando,
+    /** Cuándo se guardó la copia que se está mostrando, null si vino de la red. */
+    val guardadoEn: Long? = null
 )
 
 /** BQ tipo 1: sesiones de la app que terminan en un fallo y dónde se concentran. */
-class ReporteFallosViewModel(
-    private val repo: ReportesRepository = ReportesRepository()
-) : ViewModel() {
+class ReporteFallosViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val repo = ReportesRepository(archivo = ArchivoRespuestas(application))
 
     private val _uiState = MutableStateFlow(ReporteFallosUiState())
     val uiState: StateFlow<ReporteFallosUiState> = _uiState.asStateFlow()
@@ -65,8 +70,13 @@ class ReporteFallosViewModel(
     fun cargar(forzar: Boolean = false) {
         _uiState.update { it.copy(reporte = Carga.Cargando) }
         viewModelScope.launch {
-            val resultado = consultar { repo.fallos(forzar) }
-            _uiState.update { it.copy(reporte = resultado) }
+            var guardadoEn: Long? = null
+            val resultado = consultar {
+                val lectura = repo.fallos(forzar)
+                guardadoEn = lectura.guardadoEn
+                lectura.datos
+            }
+            _uiState.update { it.copy(reporte = resultado, guardadoEn = guardadoEn) }
         }
     }
 
@@ -97,6 +107,9 @@ fun ReporteFallosSection(viewModel: ReporteFallosViewModel = viewModel()) {
             cargando = estado.reporte is Carga.Cargando,
             onActualizar = viewModel::actualizar
         )
+        estado.guardadoEn?.let {
+            if (estado.reporte is Carga.Lista) AvisoDatosGuardados(it, onActualizar = viewModel::actualizar, titulo = "Reporte guardado")
+        }
         ContenidoCarga(estado.reporte, vacio = { it.sesiones == 0 }, textoVacio = "Todavía no hay sesiones registradas.") { r ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Cifra("Sesiones sin fallos", porcentajeTexto(r.porcentajeSinFallos), "${r.sesiones} sesiones", Modifier.weight(1f))

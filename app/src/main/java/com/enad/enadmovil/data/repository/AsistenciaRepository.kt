@@ -77,12 +77,18 @@ class AsistenciaRepository(context: Context) {
 
     /** "Limpiar": solo toca a quienes ya tienen una marca ese día. */
     suspend fun limpiarDia(ids: List<String>, fecha: String, uid: String) {
+        val inicio = System.nanoTime()
+        val consultas = 1
+        val seleccionados = ids.toSet()
         val conMarca = asistencias.delDia(fecha)
-            .filter { it.estudianteId in ids && it.estado != EstadoRemoto.SIN_REGISTRO }
-            .map { it.copy(estado = EstadoRemoto.SIN_REGISTRO, docenteUid = uid, syncStatus = SyncStatus.PENDING) }
+            .filter { it.estudianteId in seleccionados && it.estado != EstadoRemoto.SIN_REGISTRO }
         if (conMarca.isEmpty()) return
-        for (m in conMarca) recordarBase(m.estudianteId, m.fecha)
-        asistencias.upsertAll(conMarca)
+        val bases = conMarca
+            .filter { it.syncStatus == SyncStatus.SYNCED }
+            .map { ControlSincronizacion.Base(it.estudianteId, it.fecha, it.estado) }
+        val escrituras = if (ControlSincronizacion.recordarBases(appContext, bases, InfoDispositivo.conectividad(appContext))) 1 else 0
+        asistencias.upsertAll(conMarca.map { it.copy(estado = EstadoRemoto.SIN_REGISTRO, docenteUid = uid, syncStatus = SyncStatus.PENDING) })
+        Log.d("DescartarCambios", "Día descartado: ${conMarca.size} marcas de ${ids.size} estudiantes, $consultas consultas a Room, $escrituras escrituras a preferencias (${bases.size} bases) en ${(System.nanoTime() - inicio) / 1_000_000} ms")
         SyncScheduler.programar(appContext)
     }
 
@@ -103,13 +109,21 @@ class AsistenciaRepository(context: Context) {
         var sinGrado = 0
         val conocidos = estudiantes.observar(schoolId).first()
             .map { EstudianteConocido(it.id, it.fullName, it.code, it.grade) }
-            .toMutableList()
+        val roster = conocidos.size
+        CoincidenciaEstudiante.normalizaciones.set(0)
+        CoincidenciaEstudiante.regexCreados.set(0)
+        val inicioPadron = System.nanoTime()
+        val padron = CoincidenciaEstudiante.Padron(conocidos)
+        var nanosBusqueda = System.nanoTime() - inicioPadron
 
         for (fila in filas) {
             val grado = fila.grado ?: gradoPorDefecto
             if (grado == null) { sinGrado++; continue }
 
-            if (CoincidenciaEstudiante.buscar(fila, conocidos, gradoPorDefecto) is Coincidencia.Igual) {
+            val inicioBusqueda = System.nanoTime()
+            val coincidencia = padron.buscar(fila, gradoPorDefecto)
+            nanosBusqueda += System.nanoTime() - inicioBusqueda
+            if (coincidencia is Coincidencia.Igual) {
                 existentes++
                 continue
             }
@@ -127,9 +141,10 @@ class AsistenciaRepository(context: Context) {
                 syncStatus = SyncStatus.PENDING
             )
             estudiantes.upsert(nuevo)
-            conocidos += EstudianteConocido(nuevo.id, nuevo.fullName, nuevo.code, nuevo.grade)
+            padron.agregar(EstudianteConocido(nuevo.id, nuevo.fullName, nuevo.code, nuevo.grade))
             nuevos++
         }
+        Log.d("ImportarEscaneo", "Lista importada: ${filas.size} filas contra $roster conocidos ($existentes ya existían, $nuevos nuevos), ${CoincidenciaEstudiante.normalizaciones.get()} normalizaciones, ${CoincidenciaEstudiante.regexCreados.get()} Regex creados, búsqueda en ${nanosBusqueda / 100_000 / 10.0} ms")
         if (nuevos > 0) SyncScheduler.programar(appContext)
         return ResultadoImportacion(nuevos, existentes, sinGrado)
     }
