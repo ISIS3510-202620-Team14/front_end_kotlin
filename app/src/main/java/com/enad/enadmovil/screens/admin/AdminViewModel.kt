@@ -5,12 +5,15 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.enad.enadmovil.data.local.ArchivoRespuestas
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
+import com.enad.enadmovil.data.repository.MapaAsistenciaRepository
 import com.enad.enadmovil.data.repository.ReportesRepository
+import com.enad.enadmovil.domain.model.MapaAsistencia
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.json.JSONException
@@ -39,7 +42,8 @@ data class AdminUiState(
     val conflictos: Carga<CloudFunctionsApi.ReporteConflictos> = Carga.Cargando,
     val busqueda: String = "",
     val instituciones: Carga<List<CloudFunctionsApi.EscuelaAdmin>> = Carga.Cargando,
-    val docentes: Map<String, Carga<List<CloudFunctionsApi.DocenteAdmin>>> = emptyMap()
+    val docentes: Map<String, Carga<List<CloudFunctionsApi.DocenteAdmin>>> = emptyMap(),
+    val mapa: Carga<MapaAsistencia> = Carga.Cargando
 )
 
 /**
@@ -50,6 +54,7 @@ data class AdminUiState(
 class AdminViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repo = ReportesRepository(archivo = ArchivoRespuestas(application))
+    private val mapaRepo = MapaAsistenciaRepository(ArchivoRespuestas(application))
 
     private val _uiState = MutableStateFlow(AdminUiState())
     val uiState: StateFlow<AdminUiState> = _uiState.asStateFlow()
@@ -66,6 +71,7 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
         cargarEvaluaciones()
         cargarConflictos()
         cargarInstituciones()
+        cargarMapa()
     }
 
     fun cargarAperturas(forzar: Boolean = false) {
@@ -128,6 +134,15 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
                 lectura.datos
             }
             _uiState.update { it.copy(evaluaciones = resultado, evaluacionesGuardadoEn = guardadoEn) }
+        }
+    }
+
+    /** Asistencia de la semana para el Resumen: se queda con el último mapa (red o guardado). */
+    fun cargarMapa() {
+        _uiState.update { it.copy(mapa = Carga.Cargando) }
+        viewModelScope.launch {
+            val resultado = consultar { mapaRepo.cargar().last().mapa }
+            _uiState.update { it.copy(mapa = resultado) }
         }
     }
 
