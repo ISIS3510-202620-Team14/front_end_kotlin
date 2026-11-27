@@ -840,8 +840,13 @@ object CloudFunctionsApi {
      * GET /crashes/report (solo admin), BQ tipo 1: qué porcentaje de las sesiones terminan en un
      * fallo y en qué pantalla, versión, modelo y Android se concentran (últimas 8 semanas).
      */
-    suspend fun reporteFallos(token: String, semanas: Int = 8): ReporteFallos {
-        val json = solicitar("GET", "/report?weeks=$semanas", token, null, CRASHES_URL)
+    suspend fun reporteFallos(token: String, semanas: Int = 8): ReporteFallos =
+        fallosDeJson(reporteFallosJson(token, semanas))
+
+    suspend fun reporteFallosJson(token: String, semanas: Int = 8): JSONObject =
+        solicitar("GET", "/report?weeks=$semanas", token, null, CRASHES_URL)
+
+    fun fallosDeJson(json: JSONObject): ReporteFallos {
         fun decimal(o: JSONObject, campo: String) = if (o.isNull(campo)) null else o.optDouble(campo)
         fun filas(campo: String, etiqueta: String, porcentaje: String = "crashRate"): List<FilaFallos> {
             val a = json.optJSONArray(campo) ?: JSONArray()

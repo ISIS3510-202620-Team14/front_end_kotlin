@@ -90,6 +90,8 @@ data class MapaAsistenciaUiState(
     val mapa: MapaAsistencia? = null,
     val origen: Origen? = null,
     val actualizando: Boolean = true,
+    val cargadas: Int = 0,
+    val total: Int = 0,
     val error: String? = null,
     val reportes: List<ReporteGuardado> = emptyList(),
     val abierto: ReporteAbierto? = null,
@@ -131,10 +133,27 @@ class MapaAsistenciaViewModel(application: Application) : AndroidViewModel(appli
             repo.cargar()
                 .catch { e ->
                     val mensaje = if (e is CloudFunctionsApi.ApiException) mensajeError(e) else "Aún no hay ninguna asistencia cargada."
-                    _uiState.update { it.copy(actualizando = false, error = if (it.mapa == null) mensaje else null) }
+                    _uiState.update {
+                        // Una tabla a medio llenar no sirve como respaldo
+                        val sinMapa = it.mapa == null || it.origen == Origen.PARCIAL
+                        it.copy(
+                            mapa = if (sinMapa) null else it.mapa,
+                            origen = if (sinMapa) null else it.origen,
+                            actualizando = false,
+                            error = if (sinMapa) mensaje else null
+                        )
+                    }
                 }
                 .collect { r ->
-                    _uiState.update { it.copy(mapa = r.mapa, origen = r.origen, actualizando = r.origen == Origen.CACHE) }
+                    _uiState.update {
+                        it.copy(
+                            mapa = r.mapa,
+                            origen = r.origen,
+                            actualizando = r.origen == Origen.CACHE || r.origen == Origen.PARCIAL,
+                            cargadas = r.cargadas,
+                            total = r.total
+                        )
+                    }
                 }
         }
     }
@@ -229,7 +248,7 @@ fun ReporteMapaAsistenciaSection(viewModel: MapaAsistenciaViewModel = viewModel(
                 CircularProgressIndicator(color = EnadInk)
             }
         }
-        PanelReportes(estado.reportes, puedeGuardar = mapa != null, onGuardar = viewModel::guardarReporte, onAbrir = viewModel::abrirReporte)
+        PanelReportes(estado.reportes, puedeGuardar = mapa != null && estado.origen != Origen.PARCIAL, onGuardar = viewModel::guardarReporte, onAbrir = viewModel::abrirReporte)
     }
 
     estado.abierto?.let { abierto ->
@@ -311,6 +330,10 @@ private fun HojaReporte(abierto: ReporteAbierto, onCerrar: () -> Unit, onBorrar:
 private fun EstadoConexion(estado: MapaAsistenciaUiState, mapa: MapaAsistencia, onActualizar: () -> Unit) {
     when {
         estado.origen == Origen.DISCO -> AvisoDatosGuardados(mapa.guardadoEn, onActualizar = onActualizar, titulo = "Mapa guardado")
+        estado.origen == Origen.PARCIAL -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            CircularProgressIndicator(color = EnadInk, strokeWidth = 2.dp, modifier = Modifier.size(14.dp))
+            Text("Cargando ${estado.cargadas} de ${estado.total} instituciones…", style = MaterialTheme.typography.bodySmall)
+        }
         estado.actualizando -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CircularProgressIndicator(color = EnadInk, strokeWidth = 2.dp, modifier = Modifier.size(14.dp))
             Text("Actualizando…", style = MaterialTheme.typography.bodySmall)

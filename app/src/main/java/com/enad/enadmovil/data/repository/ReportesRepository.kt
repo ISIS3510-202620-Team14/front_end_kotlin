@@ -80,9 +80,24 @@ class ReportesRepository(
         cache.obtenerOCargar(clave = "conflictos:${semana ?: "actual"}",
             forzar = forzar, vence = { it.provisional }) { CloudFunctionsApi.reporteConflictos(token(), semana) }
 
-    /** BQ tipo 1: sesiones que terminan en un fallo, por pantalla, versión, modelo y Android. */
-    suspend fun fallos(forzar: Boolean = false): CloudFunctionsApi.ReporteFallos =
-        cache.obtenerOCargar("fallos", forzar) { CloudFunctionsApi.reporteFallos(token()) }
+    /** BQ tipo 1: sesiones que terminan en un fallo, por pantalla, versión, modelo y Android. Sin red usa la copia guardada. */
+    suspend fun fallos(forzar: Boolean = false): Lectura<CloudFunctionsApi.ReporteFallos> {
+        val lectura = cache.obtenerOCargar("fallos", forzar) { leerFallos() }
+        if (lectura.guardadoEn != null) cache.invalidar("fallos")
+        return lectura
+    }
+
+    private suspend fun leerFallos(): Lectura<CloudFunctionsApi.ReporteFallos> {
+        val pedir: suspend () -> JSONObject = { CloudFunctionsApi.reporteFallosJson(token()) }
+        val almacen = archivo ?: return Lectura(CloudFunctionsApi.fallosDeJson(pedir()))
+        return almacen.conRespaldo(
+            uid = auth.uidActual(),
+            nombre = "fallos",
+            esRechazo = { it is CloudFunctionsApi.ApiException && it.status in 400..499 },
+            pedir = { pedir().toString() },
+            convertir = { CloudFunctionsApi.fallosDeJson(JSONObject(it)) }
+        )
+    }
 
     suspend fun instituciones(busqueda: String = "", forzar: Boolean = false): List<CloudFunctionsApi.EscuelaAdmin> =
         cache.obtenerOCargar("instituciones:$busqueda", forzar) { CloudFunctionsApi.institucionesAdmin(token(), busqueda) }
