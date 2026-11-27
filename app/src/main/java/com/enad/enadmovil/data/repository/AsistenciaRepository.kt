@@ -110,12 +110,19 @@ class AsistenciaRepository(context: Context) {
         val conocidos = estudiantes.observar(schoolId).first()
             .map { EstudianteConocido(it.id, it.fullName, it.code, it.grade) }
             .toMutableList()
+        val roster = conocidos.size
+        CoincidenciaEstudiante.normalizaciones.set(0)
+        CoincidenciaEstudiante.regexCreados.set(0)
+        var nanosBusqueda = 0L
 
         for (fila in filas) {
             val grado = fila.grado ?: gradoPorDefecto
             if (grado == null) { sinGrado++; continue }
 
-            if (CoincidenciaEstudiante.buscar(fila, conocidos, gradoPorDefecto) is Coincidencia.Igual) {
+            val inicioBusqueda = System.nanoTime()
+            val coincidencia = CoincidenciaEstudiante.buscar(fila, conocidos, gradoPorDefecto)
+            nanosBusqueda += System.nanoTime() - inicioBusqueda
+            if (coincidencia is Coincidencia.Igual) {
                 existentes++
                 continue
             }
@@ -136,6 +143,7 @@ class AsistenciaRepository(context: Context) {
             conocidos += EstudianteConocido(nuevo.id, nuevo.fullName, nuevo.code, nuevo.grade)
             nuevos++
         }
+        Log.d("ImportarEscaneo", "Lista importada: ${filas.size} filas contra $roster conocidos ($existentes ya existían, $nuevos nuevos), ${CoincidenciaEstudiante.normalizaciones.get()} normalizaciones, ${CoincidenciaEstudiante.regexCreados.get()} Regex creados, búsqueda en ${nanosBusqueda / 100_000 / 10.0} ms")
         if (nuevos > 0) SyncScheduler.programar(appContext)
         return ResultadoImportacion(nuevos, existentes, sinGrado)
     }

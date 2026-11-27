@@ -2,6 +2,7 @@ package com.enad.enadmovil.domain.parser
 
 import com.enad.enadmovil.domain.model.EstudianteEscaneado
 import java.text.Normalizer
+import java.util.concurrent.atomic.AtomicInteger
 
 /** Un estudiante que ya está guardado en el colegio, con lo necesario para compararlo. */
 data class EstudianteConocido(val id: String, val nombre: String, val codigo: String?, val grado: Int?)
@@ -23,6 +24,9 @@ sealed interface Coincidencia {
  * letra cambiada, y el OCR también se equivoca. Sin esto cada error creaba un estudiante repetido.
  */
 object CoincidenciaEstudiante {
+
+    internal val normalizaciones = AtomicInteger()
+    internal val regexCreados = AtomicInteger()
 
     fun buscar(fila: EstudianteEscaneado, conocidos: List<EstudianteConocido>, gradoPorDefecto: Int?): Coincidencia? {
         val codigo = fila.codigo?.trim()?.ifBlank { null }
@@ -51,10 +55,13 @@ object CoincidenciaEstudiante {
     }
 
     /** Sin tildes, mayúsculas ni espacios de más. */
-    internal fun normalizar(texto: String): String =
-        Normalizer.normalize(texto.trim().lowercase(), Normalizer.Form.NFD)
+    internal fun normalizar(texto: String): String {
+        normalizaciones.incrementAndGet()
+        regexCreados.addAndGet(2)
+        return Normalizer.normalize(texto.trim().lowercase(), Normalizer.Form.NFD)
             .replace(Regex("\\p{M}+"), "")
             .replace(Regex("\\s+"), " ")
+    }
 
     private fun ordenado(nombre: String) = nombre.split(" ").sorted().joinToString(" ")
 
