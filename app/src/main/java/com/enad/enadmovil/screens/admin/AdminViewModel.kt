@@ -4,7 +4,10 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.enad.enadmovil.data.local.ArchivoRespuestas
+import com.enad.enadmovil.data.local.CsvGuardado
+import com.enad.enadmovil.data.local.ReporteHorasCsv
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
+import com.enad.enadmovil.data.repository.AuthRepository
 import com.enad.enadmovil.data.repository.MapaAsistenciaRepository
 import com.enad.enadmovil.data.repository.ReportesRepository
 import com.enad.enadmovil.domain.model.MapaAsistencia
@@ -17,6 +20,7 @@ import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.json.JSONException
+import java.io.File
 import java.io.IOException
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -35,6 +39,9 @@ data class AdminUiState(
     val semanaAperturas: LocalDate = lunesActual(),
     val aperturas: Carga<CloudFunctionsApi.ReporteAperturas> = Carga.Cargando,
     val horas: Carga<List<CloudFunctionsApi.SemanaHoras>> = Carga.Cargando,
+    val csvHoras: CsvGuardado? = null,
+    val avisoCsv: String? = null,
+    val csvExportado: File? = null,
     val actividades: Carga<CloudFunctionsApi.TopActividades> = Carga.Cargando,
     val evaluaciones: Carga<CloudFunctionsApi.EvaluacionesPorGrado> = Carga.Cargando,
     val evaluacionesGuardadoEn: Long? = null,
@@ -55,6 +62,8 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repo = ReportesRepository(archivo = ArchivoRespuestas(application))
     private val mapaRepo = MapaAsistenciaRepository(ArchivoRespuestas(application))
+    private val csv = ReporteHorasCsv(application)
+    private val auth = AuthRepository()
 
     private val _uiState = MutableStateFlow(AdminUiState())
     val uiState: StateFlow<AdminUiState> = _uiState.asStateFlow()
@@ -112,8 +121,30 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val resultado = consultar { repo.horas(forzar).sortedByDescending { s -> s.semana } }
             _uiState.update { it.copy(horas = resultado) }
+            guardarCsvHoras(resultado.datos)
         }
     }
+
+    private suspend fun guardarCsvHoras(semanas: List<CloudFunctionsApi.SemanaHoras>?) {
+        val uid = auth.uidActual() ?: return
+        val guardado = semanas?.let { runCatching { csv.guardar(uid, it) }.getOrNull() }
+        _uiState.update { it.copy(csvHoras = guardado ?: csv.ultimo(uid)) }
+    }
+
+    fun exportarCsvHoras() {
+        val uid = auth.uidActual() ?: return
+        viewModelScope.launch {
+            val exportado = runCatching { csv.exportar(uid) }.getOrNull()
+            val aviso = when {
+                exportado == null -> "No se pudo exportar el CSV"
+                exportado.externo -> "CSV exportado a Documentos: ${exportado.archivo.name}"
+                else -> "Sin almacenamiento externo, el CSV quedó guardado en la app"
+            }
+            _uiState.update { it.copy(avisoCsv = aviso, csvExportado = exportado?.archivo) }
+        }
+    }
+
+    fun avisoCsvMostrado() = _uiState.update { it.copy(avisoCsv = null, csvExportado = null) }
 
     fun cargarActividades(forzar: Boolean = false) {
         _uiState.update { it.copy(actividades = Carga.Cargando) }

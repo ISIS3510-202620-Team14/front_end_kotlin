@@ -1,24 +1,35 @@
 package com.enad.enadmovil.ui.screens.admin
 
+import android.content.Context
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.SaveAlt
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
+import com.enad.enadmovil.data.local.CsvGuardado
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
+import com.enad.enadmovil.domain.model.DatosGuardados
 import com.enad.enadmovil.ui.components.EnadPanel
 import com.enad.enadmovil.ui.components.EnadProgress
 import com.enad.enadmovil.ui.theme.EnadInk
@@ -26,6 +37,7 @@ import com.enad.enadmovil.ui.theme.EnadPrimary
 import com.enad.enadmovil.ui.theme.EnadSoftInk
 import com.enad.enadmovil.ui.theme.EnadSuccessBg
 import com.enad.enadmovil.ui.theme.EnadSuccessText
+import java.io.File
 import java.time.LocalDate
 import com.enad.enadmovil.ui.theme.EnadPendienteBg
 import com.enad.enadmovil.ui.theme.EnadPendienteText
@@ -96,7 +108,15 @@ fun ReporteAperturasSection(estado: AdminUiState, onCambiarSemana: (Long) -> Uni
 
 /** Reporte "Horas": horas planeadas y realizadas por semana, y cuántas veces se aceptó la sugerencia. */
 @Composable
-fun ReporteHorasSection(estado: AdminUiState, onActualizar: () -> Unit) {
+fun ReporteHorasSection(estado: AdminUiState, onActualizar: () -> Unit, onExportar: () -> Unit, onAvisoMostrado: () -> Unit) {
+    val context = LocalContext.current
+    LaunchedEffect(estado.avisoCsv) {
+        estado.avisoCsv?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            estado.csvExportado?.let { archivo -> compartirCsv(context, archivo) }
+            onAvisoMostrado()
+        }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         EncabezadoReporte(
             titulo = "Horas reportadas",
@@ -104,6 +124,7 @@ fun ReporteHorasSection(estado: AdminUiState, onActualizar: () -> Unit) {
             cargando = estado.horas is Carga.Cargando,
             onActualizar = onActualizar
         )
+        estado.csvHoras?.let { PanelCsvHoras(it, onExportar) }
         ContenidoCarga(
             estado.horas,
             vacio = { it.isEmpty() },
@@ -111,6 +132,35 @@ fun ReporteHorasSection(estado: AdminUiState, onActualizar: () -> Unit) {
         ) { semanas ->
             semanas.forEach { TarjetaHoras(it) }
         }
+    }
+}
+
+@Composable
+private fun PanelCsvHoras(csv: CsvGuardado, onExportar: () -> Unit) {
+    EnadPanel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Reporte en CSV", style = MaterialTheme.typography.titleMedium)
+                Text("Se guarda en este celular. Actualizado ${DatosGuardados.cuando(csv.guardadoEn)}", style = MaterialTheme.typography.bodySmall)
+            }
+            TextButton(onClick = onExportar) {
+                Icon(Icons.Outlined.SaveAlt, contentDescription = null, tint = EnadPrimary, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Exportar", color = EnadPrimary)
+            }
+        }
+    }
+}
+
+private fun compartirCsv(context: Context, archivo: File) {
+    runCatching {
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.archivos", archivo)
+        val intent = Intent(Intent.ACTION_SEND)
+            .setType("text/csv")
+            .putExtra(Intent.EXTRA_STREAM, uri)
+            .putExtra(Intent.EXTRA_SUBJECT, archivo.name)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        context.startActivity(Intent.createChooser(intent, "Compartir reporte de horas"))
     }
 }
 
