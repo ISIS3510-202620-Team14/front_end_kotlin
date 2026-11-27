@@ -14,6 +14,7 @@ object ListaAsistenciaParser {
     internal val regexCreados = AtomicInteger()
 
     private val GRADOS = 3..5
+    private val ESPACIOS = Regex("\\s+")
     private val EDADES = 5..99
     private val GRADOS_EN_LETRAS = mapOf("tercero" to 3, "tercer" to 3, "cuarto" to 4, "quinto" to 5)
     private val ENCABEZADOS = setOf(
@@ -44,8 +45,7 @@ object ListaAsistenciaParser {
     }
 
     private fun parsearFila(texto: String): EstudianteEscaneado? {
-        regexCreados.incrementAndGet()
-        val tokens = texto.split(Regex("\\s+"))
+        val tokens = texto.split(ESPACIOS)
             .map { it.trim('|', ';', ',', ':') }
             .filter { it.isNotEmpty() }
             .toMutableList()

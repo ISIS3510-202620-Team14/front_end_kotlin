@@ -24,10 +24,11 @@ object FusionFilas {
         fila.codigo?.trim()?.takeIf { it.isNotEmpty() }?.let { "codigo:$it" }
             ?: "nombre:${normalizar(fila.nombre)}"
 
-    private fun normalizar(texto: String): String {
-        regexCreados.addAndGet(2)
-        return Normalizer.normalize(texto.trim().lowercase(), Normalizer.Form.NFD)
-            .replace(Regex("\\p{M}+"), "")
-            .replace(Regex("\\s+"), " ")
-    }
+    private val MARCAS = Regex("\\p{M}+")
+    private val ESPACIOS = Regex("\\s+")
+
+    private fun normalizar(texto: String): String =
+        Normalizer.normalize(texto.trim().lowercase(), Normalizer.Form.NFD)
+            .replace(MARCAS, "")
+            .replace(ESPACIOS, " ")
 }
