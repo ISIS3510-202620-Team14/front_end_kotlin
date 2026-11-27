@@ -2,6 +2,7 @@ package com.enad.enadmovil.domain.parser
 
 import com.enad.enadmovil.domain.model.EstudianteEscaneado
 import java.text.Normalizer
+import java.util.concurrent.atomic.AtomicInteger
 
 /** Un estudiante que ya está guardado en el colegio, con lo necesario para compararlo. */
 data class EstudianteConocido(val id: String, val nombre: String, val codigo: String?, val grado: Int?)
@@ -24,22 +25,40 @@ sealed interface Coincidencia {
  */
 object CoincidenciaEstudiante {
 
-    fun buscar(fila: EstudianteEscaneado, conocidos: List<EstudianteConocido>, gradoPorDefecto: Int?): Coincidencia? {
-        val codigo = fila.codigo?.trim()?.ifBlank { null }
-        val grado = fila.grado ?: gradoPorDefecto
-        val nombre = normalizar(fila.nombre)
+    internal val normalizaciones = AtomicInteger()
+    internal val regexCreados = AtomicInteger()
 
-        // Con código, el código manda
-        if (codigo != null) {
-            conocidos.firstOrNull { it.codigo?.trim().equals(codigo, ignoreCase = true) }?.let { return Coincidencia.Igual(it) }
+    private val MARCAS = Regex("\\p{M}+")
+    private val ESPACIOS = Regex("\\s+")
+
+    fun buscar(fila: EstudianteEscaneado, conocidos: List<EstudianteConocido>, gradoPorDefecto: Int?): Coincidencia? =
+        Padron(conocidos).buscar(fila, gradoPorDefecto)
+
+    class Padron(conocidos: List<EstudianteConocido>) {
+        private val entradas = conocidos.map { it to normalizar(it.nombre) }.toMutableList()
+
+        fun agregar(conocido: EstudianteConocido) {
+            entradas += conocido to normalizar(conocido.nombre)
         }
-        // Mismo nombre y mismo grado, y la fila no trae un código distinto al guardado
-        conocidos.firstOrNull {
-            normalizar(it.nombre) == nombre && (grado == null || it.grado == grado) &&
-                (codigo == null || it.codigo.isNullOrBlank())
-        }?.let { return if (codigo == null) Coincidencia.Igual(it) else Coincidencia.Parecido(it) }
 
-        return conocidos.firstOrNull { seParecen(nombre, normalizar(it.nombre)) }?.let { Coincidencia.Parecido(it) }
+        fun buscar(fila: EstudianteEscaneado, gradoPorDefecto: Int?): Coincidencia? {
+            val codigo = fila.codigo?.trim()?.ifBlank { null }
+            val grado = fila.grado ?: gradoPorDefecto
+            val nombre = normalizar(fila.nombre)
+
+            // Con código, el código manda
+            if (codigo != null) {
+                entradas.firstOrNull { it.first.codigo?.trim().equals(codigo, ignoreCase = true) }
+                    ?.let { return Coincidencia.Igual(it.first) }
+            }
+            // Mismo nombre y mismo grado, y la fila no trae un código distinto al guardado
+            entradas.firstOrNull { (conocido, normalizado) ->
+                normalizado == nombre && (grado == null || conocido.grado == grado) &&
+                    (codigo == null || conocido.codigo.isNullOrBlank())
+            }?.let { return if (codigo == null) Coincidencia.Igual(it.first) else Coincidencia.Parecido(it.first) }
+
+            return entradas.firstOrNull { seParecen(nombre, it.second) }?.let { Coincidencia.Parecido(it.first) }
+        }
     }
 
     /** Mismo nombre con otro orden, o una o dos letras distintas según el largo. */
@@ -51,10 +70,12 @@ object CoincidenciaEstudiante {
     }
 
     /** Sin tildes, mayúsculas ni espacios de más. */
-    internal fun normalizar(texto: String): String =
-        Normalizer.normalize(texto.trim().lowercase(), Normalizer.Form.NFD)
-            .replace(Regex("\\p{M}+"), "")
-            .replace(Regex("\\s+"), " ")
+    internal fun normalizar(texto: String): String {
+        normalizaciones.incrementAndGet()
+        return Normalizer.normalize(texto.trim().lowercase(), Normalizer.Form.NFD)
+            .replace(MARCAS, "")
+            .replace(ESPACIOS, " ")
+    }
 
     private fun ordenado(nombre: String) = nombre.split(" ").sorted().joinToString(" ")
 

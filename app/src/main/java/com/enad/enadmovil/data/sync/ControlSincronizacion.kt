@@ -45,6 +45,21 @@ object ControlSincronizacion {
         }
     }
 
+    data class Base(val estudianteId: String, val fecha: String, val estado: String)
+
+    fun recordarBases(context: Context, bases: List<Base>, conectividad: String): Boolean {
+        val prefs = context.getSharedPreferences(BASES, Context.MODE_PRIVATE)
+        val nuevas = bases.filterNot { prefs.contains(clave(it.estudianteId, it.fecha)) }
+        if (nuevas.isEmpty()) return false
+        val editor = prefs.edit()
+        for (b in nuevas) {
+            editor.putString(clave(b.estudianteId, b.fecha), b.estado)
+                .putString(claveRed(b.estudianteId, b.fecha), conectividad)
+        }
+        editor.apply()
+        return true
+    }
+
     fun conectividadAlMarcar(context: Context, estudianteId: String, fecha: String): String? =
         context.getSharedPreferences(BASES, Context.MODE_PRIVATE).getString(claveRed(estudianteId, fecha), null)
 

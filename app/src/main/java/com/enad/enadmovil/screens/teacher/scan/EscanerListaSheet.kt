@@ -158,9 +158,10 @@ fun EscanerListaSheet(
                         .heightIn(max = 360.dp)
                         .verticalScroll(rememberScrollState())
                 ) {
+                    val padron = remember(conocidos) { CoincidenciaEstudiante.Padron(conocidos) }
                     filas.forEachIndexed { i, fila ->
-                        val coincidencia = remember(fila, conocidos, gradoPorDefecto) {
-                            CoincidenciaEstudiante.buscar(fila, conocidos, gradoPorDefecto)
+                        val coincidencia = remember(fila, padron, gradoPorDefecto) {
+                            padron.buscar(fila, gradoPorDefecto)
                         }
                         FilaEscaneada(
                             fila = fila,

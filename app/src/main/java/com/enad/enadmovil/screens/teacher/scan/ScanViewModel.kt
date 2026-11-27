@@ -244,6 +244,7 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun leer(foto: Foto) {
         _uiState.update { it.copy(paginas = it.paginas.marcar(foto.numero, EstadoPagina.Leyendo)) }
         val inicio = SystemClock.elapsedRealtime()
+        val regexAntes = ListaAsistenciaParser.regexCreados.get() + FusionFilas.regexCreados.get()
         val filas: List<EstudianteEscaneado>? = try {
             withContext(hilos.dispatcher) {
                 ListaAsistenciaParser.parsear(ocr.reconocer(foto.uri)).also {
@@ -262,6 +263,7 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         val enOrden = enOrden(foto.numero, filas.orEmpty())
         // Las filas nuevas se suman a la revisión sin repetir estudiantes de páginas anteriores
         revision.addAll(FusionFilas.nuevas(revision.map { it.actual }, enOrden).map { FilaRevisada(it) })
+        Log.d("LecturaPagina", "Página ${foto.numero}: ${filas?.size ?: 0} filas, ${ListaAsistenciaParser.regexCreados.get() + FusionFilas.regexCreados.get() - regexAntes} Regex creados al leer y fusionar")
         _uiState.update {
             val paginas = it.paginas.marcar(foto.numero, filas?.let { f -> EstadoPagina.Lista(f.size) } ?: EstadoPagina.Fallo)
             it.copy(
