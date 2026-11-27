@@ -97,6 +97,13 @@ fun AdminResumenSection(estado: AdminUiState, onAbrirReporte: (Int) -> Unit, onA
                 valorEsTexto = true
             )
         }
+        Indicador(
+            etiqueta = "Asistencia de la semana",
+            valor = estado.mapa.datos?.let { porcentajeTexto(it.semana) },
+            detalle = estado.mapa.datos?.let { fraseCaida(it) } ?: "",
+            carga = estado.mapa,
+            onClick = { onAbrirReporte(REPORTE_MAPA_ASISTENCIA) }
+        )
         EnadPanel(onClick = { onAbrirReporte(REPORTE_SINCRONIZACION) }) {
             Text("Sincronización y clasificación", style = MaterialTheme.typography.titleMedium)
             Text("Revisa las sesiones que no llegaron a tiempo y cuánto tarda cada docente en clasificar.", style = MaterialTheme.typography.bodyMedium)

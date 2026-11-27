@@ -36,6 +36,7 @@ object CloudFunctionsApi {
     private val TEACHERS_URL = "$BASE_URL/teachers"
     private val CONFLICTS_URL = "$BASE_URL/attendanceConflicts"
     private val TUTORIALS_URL = "$BASE_URL/tutorials"
+    private val CRASHES_URL = "$BASE_URL/crashes"
 
 
     data class RespuestaAuth(
@@ -815,6 +816,52 @@ object CloudFunctionsApi {
                     porPlataforma = listOf("kotlin", "flutter").associateWith { plataformas?.optInt(it) ?: 0 }
                 )
             }
+        )
+    }
+
+    /** Una fila del reporte de fallos: una versión, un modelo, un Android o una pantalla. */
+    data class FilaFallos(val etiqueta: String, val sesiones: Int, val fallos: Int, val porcentaje: Double?)
+
+    data class SemanaFallos(val semana: String, val sesiones: Int, val fallos: Int, val porcentaje: Double?)
+
+    data class ReporteFallos(
+        val sesiones: Int,
+        val fallos: Int,
+        val porcentajeFallos: Double?,
+        val porcentajeSinFallos: Double?,
+        val porSemana: List<SemanaFallos>,
+        val porPantalla: List<FilaFallos>,
+        val porVersion: List<FilaFallos>,
+        val porModelo: List<FilaFallos>,
+        val porAndroid: List<FilaFallos>
+    )
+
+    /**
+     * GET /crashes/report (solo admin), BQ tipo 1: qué porcentaje de las sesiones terminan en un
+     * fallo y en qué pantalla, versión, modelo y Android se concentran (últimas 8 semanas).
+     */
+    suspend fun reporteFallos(token: String, semanas: Int = 8): ReporteFallos {
+        val json = solicitar("GET", "/report?weeks=$semanas", token, null, CRASHES_URL)
+        fun decimal(o: JSONObject, campo: String) = if (o.isNull(campo)) null else o.optDouble(campo)
+        fun filas(campo: String, etiqueta: String, porcentaje: String = "crashRate"): List<FilaFallos> {
+            val a = json.optJSONArray(campo) ?: JSONArray()
+            return List(a.length()) { a.getJSONObject(it) }.map {
+                FilaFallos(it.optString(etiqueta).ifBlank { "Sin dato" }, it.optInt("sessions"), it.optInt("crashes"), decimal(it, porcentaje))
+            }
+        }
+        val semanasJson = json.optJSONArray("byWeek") ?: JSONArray()
+        return ReporteFallos(
+            sesiones = json.optInt("sessions"),
+            fallos = json.optInt("crashes"),
+            porcentajeFallos = decimal(json, "crashRate"),
+            porcentajeSinFallos = decimal(json, "crashFreeRate"),
+            porSemana = List(semanasJson.length()) { semanasJson.getJSONObject(it) }.map {
+                SemanaFallos(it.optString("week"), it.optInt("sessions"), it.optInt("crashes"), decimal(it, "crashRate"))
+            },
+            porPantalla = filas("byScreen", "screen", "share"),
+            porVersion = filas("byVersion", "appVersion"),
+            porModelo = filas("byModel", "model"),
+            porAndroid = filas("byAndroid", "androidVersion")
         )
     }
 
