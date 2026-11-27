@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.Network
+import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -117,7 +118,10 @@ class MapaAsistenciaViewModel(application: Application) : AndroidViewModel(appli
     init {
         cargar()
         cargarReportes()
-        runCatching { conectividad?.registerDefaultNetworkCallback(alVolverRed) }
+        // En Android 6 no existe este aviso, ahí solo se recarga con el botón
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            runCatching { conectividad?.registerDefaultNetworkCallback(alVolverRed) }
+        }
     }
 
     fun cargar() {
