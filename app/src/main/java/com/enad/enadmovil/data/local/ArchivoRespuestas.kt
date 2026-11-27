@@ -40,7 +40,7 @@ class ArchivoRespuestas(private val carpeta: File) {
     }
 
     fun borrarTodo() {
-        carpeta.deleteRecursively()
+        ESCRITOR.launch { carpeta.deleteRecursively() }
     }
 
     suspend fun <T> conRespaldo(
