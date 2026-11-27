@@ -80,6 +80,10 @@ class ReportesRepository(
         cache.obtenerOCargar(clave = "conflictos:${semana ?: "actual"}",
             forzar = forzar, vence = { it.provisional }) { CloudFunctionsApi.reporteConflictos(token(), semana) }
 
+    /** BQ tipo 1: sesiones que terminan en un fallo, por pantalla, versión, modelo y Android. */
+    suspend fun fallos(forzar: Boolean = false): CloudFunctionsApi.ReporteFallos =
+        cache.obtenerOCargar("fallos", forzar) { CloudFunctionsApi.reporteFallos(token()) }
+
     suspend fun instituciones(busqueda: String = "", forzar: Boolean = false): List<CloudFunctionsApi.EscuelaAdmin> =
         cache.obtenerOCargar("instituciones:$busqueda", forzar) { CloudFunctionsApi.institucionesAdmin(token(), busqueda) }
 
