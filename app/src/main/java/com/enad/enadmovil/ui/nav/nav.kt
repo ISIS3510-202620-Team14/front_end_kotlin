@@ -55,6 +55,7 @@ import android.content.Context
 import androidx.compose.ui.platform.LocalContext
 import com.enad.enadmovil.data.local.SesionGuardada
 import com.enad.enadmovil.data.remote.FirebaseModule
+import com.enad.enadmovil.data.telemetria.RegistroFallos
 import com.enad.enadmovil.domain.model.Usuario
 
 private object Routes {
@@ -115,6 +116,7 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
 
     // Lleva a la pantalla de inicio del rol y saca Login del back stack
     fun entrar(usuario: Usuario) {
+        RegistroFallos.subirPendientes()
         nombreUsuario = usuario.fullName.ifBlank { usuario.email }
         val destino = when (usuario.rol) {
             Rol.DOCENTE -> Routes.TEACHER_HOME
@@ -129,6 +131,11 @@ fun AppNavigation(navController: NavHostController = rememberNavController()) {
         }
     }
     val compacta = WindowInsets.isImeVisible
+
+    // Guarda en qué pantalla está el usuario por si la app se cae
+    LaunchedEffect(navController) {
+        navController.currentBackStackEntryFlow.collect { RegistroFallos.pantalla = it.destination.route ?: "desconocida" }
+    }
 
 
     CompositionLocalProvider(LocalGuia provides guia) {
