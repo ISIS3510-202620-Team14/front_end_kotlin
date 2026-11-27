@@ -10,7 +10,11 @@ import com.enad.enadmovil.domain.model.aJson
 import com.enad.enadmovil.domain.model.armarMapaAsistencia
 import com.enad.enadmovil.domain.model.mapaAsistenciaDeJson
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -23,6 +27,8 @@ import org.json.JSONObject
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Mapa de asistencia del admin. Primero muestra lo que hay guardado (RAM o disco) y luego
@@ -44,7 +50,7 @@ class MapaAsistenciaRepository(
             emit(Resultado(guardado, Origen.CACHE))
         }
         val nuevo = try {
-            descargar()
+            descargarCompartido()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -63,6 +69,26 @@ class MapaAsistenciaRepository(
         val leido = archivo.leer(uid, NOMBRE) ?: return null
         Log.d(TAG, "Copia en disco: ACIERTO (${leido.json.length} bytes)")
         return runCatching { mapaAsistenciaDeJson(JSONObject(leido.json)) }.getOrNull()
+    }
+
+    /*
+     * Caching de la descarga en curso (request coalescing): si otra pantalla pide el mapa
+     * mientras ya se está descargando (Resumen y el reporte a la vez), se espera esa misma
+     * descarga en vez de abrir otra. La entrada solo vive mientras la descarga corre.
+     */
+    private suspend fun descargarCompartido(): MapaAsistencia {
+        val clave = auth.uidActual() ?: "sin-sesion"
+        val nueva = alcance.async(start = CoroutineStart.LAZY) { descargar() }
+        val enCursoYa = enCurso.putIfAbsent(clave, nueva)
+        if (enCursoYa != null) {
+            nueva.cancel()
+            Log.d(TAG, "Descarga compartida: ACIERTO, se espera la que ya está en curso (aciertos=${aciertos.incrementAndGet()} fallos=${fallos.get()})")
+            return enCursoYa.await()
+        }
+        Log.d(TAG, "Descarga compartida: FALLO, se abre una descarga nueva (aciertos=${aciertos.get()} fallos=${fallos.incrementAndGet()})")
+        nueva.invokeOnCompletion { enCurso.remove(clave, nueva) }
+        nueva.start()
+        return nueva.await()
     }
 
     private suspend fun descargar(): MapaAsistencia {
@@ -113,5 +139,12 @@ class MapaAsistenciaRepository(
         private const val PETICIONES_A_LA_VEZ = 8
         private val ZONA = ZoneId.of("America/Bogota")
         private val cache = CacheMemoria(4, 5 * 60 * 1000L, "mapa-asistencia")
+
+        // Descargas que están corriendo, una por usuario. Corren en su propio alcance para que
+        // si la primera pantalla se cierra, la que se enganchó igual reciba el mapa.
+        private val alcance = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        private val enCurso = ConcurrentHashMap<String, Deferred<MapaAsistencia>>()
+        private val aciertos = AtomicInteger()
+        private val fallos = AtomicInteger()
     }
 }
