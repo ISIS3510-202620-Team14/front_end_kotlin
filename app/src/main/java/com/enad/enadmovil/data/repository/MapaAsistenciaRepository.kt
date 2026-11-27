@@ -17,9 +17,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.buffer
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -39,28 +46,40 @@ class MapaAsistenciaRepository(
     private val auth: AuthRepository = AuthRepository(),
     private val hoy: () -> LocalDate = { LocalDate.now(ZONA) }
 ) {
-    enum class Origen { CACHE, RED, DISCO }
+    enum class Origen { CACHE, PARCIAL, RED, DISCO }
 
-    data class Resultado(val mapa: MapaAsistencia, val origen: Origen)
+    /** [cargadas] y [total] solo se usan en PARCIAL: cuántas instituciones ya llegaron. */
+    data class Resultado(val mapa: MapaAsistencia, val origen: Origen, val cargadas: Int = 0, val total: Int = 0)
 
-    fun cargar(): Flow<Resultado> = flow {
+    private data class Avance(val mapa: MapaAsistencia, val cargadas: Int, val total: Int)
+
+    private class Descarga(val avance: MutableStateFlow<Avance?>, val mapa: Deferred<MapaAsistencia>)
+
+    fun cargar(): Flow<Resultado> = channelFlow {
         val guardado = guardado()
         if (guardado != null) {
             Log.d(TAG, "Cache then network: muestra lo guardado mientras llega la red")
-            emit(Resultado(guardado, Origen.CACHE))
+            send(Resultado(guardado, Origen.CACHE))
         }
+        val descarga = descargaCompartida()
+        // Sin copia guardada la tabla se va llenando. Con copia se deja la copia hasta que llegue todo
+        val parcial = if (guardado == null) launch {
+            descarga.avance.filterNotNull().collect { send(Resultado(it.mapa, Origen.PARCIAL, it.cargadas, it.total)) }
+        } else null
         val nuevo = try {
-            descargarCompartido()
+            descarga.mapa.await()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            parcial?.cancelAndJoin()
             Log.d(TAG, "Falló la red: ${e.message}")
             if (guardado == null) throw e
-            emit(Resultado(guardado, Origen.DISCO))
-            return@flow
+            send(Resultado(guardado, Origen.DISCO))
+            return@channelFlow
         }
+        parcial?.cancelAndJoin()
         cache.guardar(clave(), nuevo, vence = false)
-        emit(Resultado(nuevo, Origen.RED))
+        send(Resultado(nuevo, Origen.RED))
     }
 
     private suspend fun guardado(): MapaAsistencia? {
@@ -76,22 +95,29 @@ class MapaAsistenciaRepository(
      * mientras ya se está descargando (Resumen y el reporte a la vez), se espera esa misma
      * descarga en vez de abrir otra. La entrada solo vive mientras la descarga corre.
      */
-    private suspend fun descargarCompartido(): MapaAsistencia {
+    private fun descargaCompartida(): Descarga {
         val clave = auth.uidActual() ?: "sin-sesion"
-        val nueva = alcance.async(start = CoroutineStart.LAZY) { descargar() }
+        val avance = MutableStateFlow<Avance?>(null)
+        val nueva = Descarga(avance, alcance.async(start = CoroutineStart.LAZY) { descargar(avance) })
         val enCursoYa = enCurso.putIfAbsent(clave, nueva)
         if (enCursoYa != null) {
-            nueva.cancel()
+            nueva.mapa.cancel()
             Log.d(TAG, "Descarga compartida: ACIERTO, se espera la que ya está en curso (aciertos=${aciertos.incrementAndGet()} fallos=${fallos.get()})")
-            return enCursoYa.await()
+            return enCursoYa
         }
         Log.d(TAG, "Descarga compartida: FALLO, se abre una descarga nueva (aciertos=${aciertos.get()} fallos=${fallos.incrementAndGet()})")
-        nueva.invokeOnCompletion { enCurso.remove(clave, nueva) }
-        nueva.start()
-        return nueva.await()
+        nueva.mapa.invokeOnCompletion { enCurso.remove(clave, nueva) }
+        nueva.mapa.start()
+        return nueva
     }
 
-    private suspend fun descargar(): MapaAsistencia {
+    /*
+     * Pipeline de dos etapas con Flow. El productor descarga en hilos de red (flowOn IO) y suelta
+     * cada institución apenas terminan sus días. El consumidor corre en hilos de cálculo (Default)
+     * y arma la tabla con lo que va llegando. El buffer entre los dos deja que el productor siga
+     * descargando mientras el consumidor calcula.
+     */
+    private suspend fun descargar(avance: MutableStateFlow<Avance?>): MapaAsistencia {
         val token = token()
         val hoy = hoy()
         val lunes = hoy.with(DayOfWeek.MONDAY)
@@ -104,28 +130,52 @@ class MapaAsistenciaRepository(
 
         val inicio = System.nanoTime()
         val turnos = Semaphore(PETICIONES_A_LA_VEZ)
-        val marcas = coroutineScope {
-            escuelas.map { escuela ->
-                async {
-                    val listas = pedidos.map { fecha ->
-                        async { turnos.withPermit { marcasDelDia(token, escuela.id, fecha) } }
-                    }.awaitAll()
-                    MarcasInstitucion(
+
+        // Etapa 1, productor: una corrutina por institución, todas en hilos de red
+        val llegadas = channelFlow {
+            escuelas.forEachIndexed { posicion, escuela ->
+                launch {
+                    val listas = coroutineScope {
+                        pedidos.map { fecha ->
+                            async { turnos.withPermit { marcasDelDia(token, escuela.id, fecha) } }
+                        }.awaitAll()
+                    }
+                    val marcas = MarcasInstitucion(
                         nombre = escuela.nombre,
                         estaSemana = listas.drop(5) + List(10 - listas.size) { emptyList() },
                         semanaPasada = listas.take(5)
                     )
+                    send(Llegada(posicion, marcas, Thread.currentThread().name))
                 }
-            }.awaitAll()
+            }
+        }
+            .buffer(Channel.UNLIMITED)
+            .flowOn(Dispatchers.IO)
+
+        // Etapa 2, consumidor: arma la tabla en hilos de cálculo mientras siguen llegando
+        var primera = -1L
+        val mapa = withContext(Dispatchers.Default) {
+            val puestos = arrayOfNulls<MarcasInstitucion>(escuelas.size)
+            var cargadas = 0
+            llegadas.collect { llegada ->
+                puestos[llegada.posicion] = llegada.marcas
+                cargadas++
+                val parcial = armarMapaAsistencia(dias, puestos.filterNotNull(), System.currentTimeMillis())
+                avance.value = Avance(parcial, cargadas, escuelas.size)
+                val ms = (System.nanoTime() - desde) / 1_000_000
+                if (primera < 0) primera = ms
+                Log.d(TAG, "Pipeline: ${llegada.marcas.nombre} ($cargadas de ${escuelas.size}) a los $ms ms, productor ${llegada.hilo}, consumidor ${Thread.currentThread().name}")
+            }
+            armarMapaAsistencia(dias, puestos.filterNotNull(), System.currentTimeMillis())
         }
         Log.d(TAG, "${escuelas.size * pedidos.size} peticiones en paralelo: ${(System.nanoTime() - inicio) / 1_000_000} ms")
-
-        val mapa = withContext(Dispatchers.Default) { armarMapaAsistencia(dias, marcas, System.currentTimeMillis()) }
         val total = (System.nanoTime() - desde) / 1_000_000
-        Log.d(TAG, "Tiempos: primera institución en pantalla a los $total ms, mapa completo a los $total ms (${escuelas.size} instituciones, todo sale junto al final)")
+        Log.d(TAG, "Tiempos: primera institución en pantalla a los ${if (primera < 0) total else primera} ms, mapa completo a los $total ms (${escuelas.size} instituciones)")
         auth.uidActual()?.let { uid -> runCatching { archivo.guardar(uid, NOMBRE, mapa.aJson().toString()) } }
         return mapa
     }
+
+    private class Llegada(val posicion: Int, val marcas: MarcasInstitucion, val hilo: String)
 
     private suspend fun marcasDelDia(token: String, schoolId: String, fecha: String): List<String?> =
         CloudFunctionsApi.listarEstudiantes(token, schoolId, fecha).map { it.attendance }
@@ -146,7 +196,7 @@ class MapaAsistenciaRepository(
         // Descargas que están corriendo, una por usuario. Corren en su propio alcance para que
         // si la primera pantalla se cierra, la que se enganchó igual reciba el mapa.
         private val alcance = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        private val enCurso = ConcurrentHashMap<String, Deferred<MapaAsistencia>>()
+        private val enCurso = ConcurrentHashMap<String, Descarga>()
         private val aciertos = AtomicInteger()
         private val fallos = AtomicInteger()
     }
