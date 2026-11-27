@@ -2,6 +2,7 @@ package com.enad.enadmovil.domain.parser
 
 import com.enad.enadmovil.domain.model.EstudianteEscaneado
 import java.text.Normalizer
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Lógica pura (sin Android): junta las filas de una página nueva con las que ya se leyeron.
@@ -9,6 +10,8 @@ import java.text.Normalizer
  * estudiante no queda repetido.
  */
 object FusionFilas {
+
+    internal val regexCreados = AtomicInteger()
 
     /** Filas de [leidas] que todavía no están en [existentes], sin repetir entre ellas. */
     fun nuevas(existentes: List<EstudianteEscaneado>, leidas: List<EstudianteEscaneado>): List<EstudianteEscaneado> {
@@ -21,8 +24,10 @@ object FusionFilas {
         fila.codigo?.trim()?.takeIf { it.isNotEmpty() }?.let { "codigo:$it" }
             ?: "nombre:${normalizar(fila.nombre)}"
 
-    private fun normalizar(texto: String): String =
-        Normalizer.normalize(texto.trim().lowercase(), Normalizer.Form.NFD)
+    private fun normalizar(texto: String): String {
+        regexCreados.addAndGet(2)
+        return Normalizer.normalize(texto.trim().lowercase(), Normalizer.Form.NFD)
             .replace(Regex("\\p{M}+"), "")
             .replace(Regex("\\s+"), " ")
+    }
 }

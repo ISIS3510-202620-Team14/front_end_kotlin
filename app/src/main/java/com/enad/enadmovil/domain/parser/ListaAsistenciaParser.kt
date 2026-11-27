@@ -2,6 +2,7 @@ package com.enad.enadmovil.domain.parser
 
 import com.enad.enadmovil.domain.model.EstudianteEscaneado
 import com.enad.enadmovil.domain.model.LineaOcr
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.abs
 
 /**
@@ -9,6 +10,8 @@ import kotlin.math.abs
  * Formato esperado por fila: nombre · código · grado · edad (código y demás pueden faltar).
  */
 object ListaAsistenciaParser {
+
+    internal val regexCreados = AtomicInteger()
 
     private val GRADOS = 3..5
     private val EDADES = 5..99
@@ -41,6 +44,7 @@ object ListaAsistenciaParser {
     }
 
     private fun parsearFila(texto: String): EstudianteEscaneado? {
+        regexCreados.incrementAndGet()
         val tokens = texto.split(Regex("\\s+"))
             .map { it.trim('|', ';', ',', ':') }
             .filter { it.isNotEmpty() }
