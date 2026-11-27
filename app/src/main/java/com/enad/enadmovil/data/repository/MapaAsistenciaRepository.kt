@@ -99,6 +99,7 @@ class MapaAsistenciaRepository(
         val semanaPasada = (-7L..-3L).map { lunes.plusDays(it).toString() }
         // Los días que todavía no llegan no se piden
         val pedidos = semanaPasada + dias.filter { it <= hoy.toString() }
+        val desde = System.nanoTime()
         val escuelas = CloudFunctionsApi.listarEscuelas(token)
 
         val inicio = System.nanoTime()
@@ -120,6 +121,8 @@ class MapaAsistenciaRepository(
         Log.d(TAG, "${escuelas.size * pedidos.size} peticiones en paralelo: ${(System.nanoTime() - inicio) / 1_000_000} ms")
 
         val mapa = withContext(Dispatchers.Default) { armarMapaAsistencia(dias, marcas, System.currentTimeMillis()) }
+        val total = (System.nanoTime() - desde) / 1_000_000
+        Log.d(TAG, "Tiempos: primera institución en pantalla a los $total ms, mapa completo a los $total ms (${escuelas.size} instituciones, todo sale junto al final)")
         auth.uidActual()?.let { uid -> runCatching { archivo.guardar(uid, NOMBRE, mapa.aJson().toString()) } }
         return mapa
     }
