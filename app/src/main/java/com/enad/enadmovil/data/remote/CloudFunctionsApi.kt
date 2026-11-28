@@ -2,6 +2,7 @@ package com.enad.enadmovil.data.remote
 
 import com.enad.enadmovil.BuildConfig
 import com.enad.enadmovil.data.local.entity.SesionAgrupacionEntity
+import com.enad.enadmovil.domain.model.AperturasDocente
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -115,6 +116,15 @@ object CloudFunctionsApi {
             docentesMasDeUna = json.getInt("teachersOverOnce"),
             provisional = json.optBoolean("provisional", false)
         )
+    }
+
+    suspend fun aperturasPorDocente(token: String, semana: String): List<AperturasDocente> {
+        val arreglo = solicitar("GET", "/teachers?week=$semana", token, null, OPENS_URL).optJSONArray("teachers")
+            ?: throw ApiException("invalid_response", "El reporte recibido está incompleto.", 502)
+        return List(arreglo.length()) {
+            val o = arreglo.getJSONObject(it)
+            AperturasDocente(o.getString("uid"), if (o.isNull("fullName")) null else o.getString("fullName"), o.optInt("opens"))
+        }
     }
     /** status = código HTTP (0 si no aplica). */
     class ApiException(val code: String, message: String, val status: Int = 0) : Exception(message) {
