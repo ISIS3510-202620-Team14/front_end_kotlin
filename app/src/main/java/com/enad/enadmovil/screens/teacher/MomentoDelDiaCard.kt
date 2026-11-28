@@ -49,7 +49,8 @@ private fun textosDe(momento: MomentoDelDia, resumen: ResumenDelDia): TextosMome
         )
         MomentoDelDia.EN_CLASE -> TextosMomento(
             "En clase", "Clase en curso con $grupo",
-            "Ya registraste ${resumen.marcasAsistencia} asistencia(s). Es buen momento para la evaluación formativa.",
+            if (resumen.marcasAsistencia == 1) "Ya registraste 1 asistencia. Es buen momento para la evaluación formativa."
+            else "Ya registraste ${resumen.marcasAsistencia} asistencias. Es buen momento para la evaluación formativa.",
             "Evaluación formativa"
         )
         MomentoDelDia.CIERRE -> TextosMomento(

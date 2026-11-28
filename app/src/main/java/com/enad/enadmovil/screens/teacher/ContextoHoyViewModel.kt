@@ -17,6 +17,8 @@ import java.time.LocalTime
 import android.util.Log
 import com.enad.enadmovil.data.concurrencia.medir
 import com.enad.enadmovil.data.concurrencia.resumenTiempos
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -27,6 +29,8 @@ data class ContextoHoyUiState(
     val sugerencia: GrupoDelDia? = null,
     val grupos: List<GrupoDelDia> = emptyList(),
     val eligiendo: Boolean = false,
+    val guardando: Boolean = false,
+    val error: String? = null,
     // Tarjeta del momento del día: qué le toca hacer ahora al docente
     val resumen: ResumenDelDia? = null,
     val momento: MomentoDelDia? = null
@@ -39,6 +43,9 @@ class ContextoHoyViewModel(app: Application) : AndroidViewModel(app) {
     private val _uiState = MutableStateFlow(ContextoHoyUiState())
     val uiState: StateFlow<ContextoHoyUiState> = _uiState.asStateFlow()
     private var iniciado = false
+    private val alFallarLectura = CoroutineExceptionHandler { _, _ ->
+        _uiState.update { it.copy(cargando = false, error = "No pudimos leer tu ubicación ni tu horario. Puedes seguir usando la app.") }
+    }
 
     fun tienePermisoUbicacion(): Boolean = repo.tienePermisoUbicacion()
 
@@ -47,7 +54,7 @@ class ContextoHoyViewModel(app: Application) : AndroidViewModel(app) {
         if (iniciado) return
         iniciado = true
         _uiState.update { it.copy(cargando = true) }
-        viewModelScope.launch {
+        viewModelScope.launch(alFallarLectura) {
             val inicio = System.nanoTime()
             val (catalogo, ubicacion) = coroutineScope {
                 val catalogoEnCurso = async(Dispatchers.IO) { medir("catalogo") { repo.descargarCatalogo()} }
@@ -90,14 +97,25 @@ class ContextoHoyViewModel(app: Application) : AndroidViewModel(app) {
         confirmar(grupo, OrigenValor.SUGERIDO)
     }
 
-    fun cambiar() = _uiState.update { it.copy(eligiendo = true) }
+    fun cambiar() = _uiState.update { it.copy(eligiendo = true, error = null) }
+
+    fun cancelarEleccion() = _uiState.update { it.copy(eligiendo = false, error = null) }
 
     fun elegir(grupo: GrupoDelDia) = confirmar(grupo, OrigenValor.MANUAL)
 
     private fun confirmar(grupo: GrupoDelDia, origen: String) {
+        if (_uiState.value.guardando) return
+        _uiState.update { it.copy(guardando = true, error = null) }
         viewModelScope.launch {
-            repo.confirmar(grupo.id, origen)
-            _uiState.update { it.copy(confirmado = grupo, sugerencia = null, eligiendo = false) }
+            try {
+                repo.confirmar(grupo.id, origen)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update { it.copy(guardando = false, error = "No pudimos guardar el grupo. Intenta de nuevo.") }
+                return@launch
+            }
+            _uiState.update { it.copy(confirmado = grupo, sugerencia = null, eligiendo = false, guardando = false) }
             refrescarMomento()
         }
     }

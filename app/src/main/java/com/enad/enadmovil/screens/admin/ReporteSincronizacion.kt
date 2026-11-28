@@ -99,7 +99,7 @@ private fun FilaDesglose(fila: FilaReporte) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            Text("${nombrePlataforma(fila.plataforma)} · ${fila.version.orEmpty()}", style = MaterialTheme.typography.labelMedium)
+            Text(listOfNotNull(nombrePlataforma(fila.plataforma), fila.version).joinToString(" · "), style = MaterialTheme.typography.labelMedium)
             Text(
                 if (fila.conectividad == "offline") "Creadas sin conexión" else "Creadas con conexión",
                 style = MaterialTheme.typography.bodyMedium

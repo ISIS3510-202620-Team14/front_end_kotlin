@@ -87,7 +87,10 @@ fun ReporteAperturasSection(estado: AdminUiState, onCambiarSemana: (Long) -> Uni
                     Column(Modifier.weight(1f)) {
                         Text("Abrieron la app más de una vez", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            if (r.docentes == 0) "Ningún docente abrió la app esta semana."
+                            if (r.docentes == 0) {
+                                if (estado.semanaAperturas == lunesActual()) "Ningún docente ha abierto la app esta semana."
+                                else "Ningún docente abrió la app esa semana."
+                            }
                             else "${r.docentesMasDeUna} de ${r.docentes} docentes",
                             style = MaterialTheme.typography.bodyMedium
                         )

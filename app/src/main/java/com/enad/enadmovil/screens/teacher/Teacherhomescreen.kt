@@ -477,7 +477,8 @@ fun TeacherHomeScreen(
                     estado = contextoState,
                     onAceptar = contextoViewModel::aceptarSugerencia,
                     onCambiar = contextoViewModel::cambiar,
-                    onElegir = contextoViewModel::elegir
+                    onElegir = contextoViewModel::elegir,
+                    onCancelar = contextoViewModel::cancelarEleccion
                 )
                 ReengancheCard(
                     estado = aperturasState,
@@ -488,7 +489,7 @@ fun TeacherHomeScreen(
                     onAhoraNo = aperturasViewModel::descartarRiesgo
                 )
                 // BQ #6: aperturas de la app en la semana.
-                AperturasSemanaCard(aperturasState)
+                AperturasSemanaCard(aperturasState, onEnviar = aperturasViewModel::enviarPendientes)
                 EnadActionCard(
                     "Reportar horas",
                     Icons.Outlined.AccessTime,

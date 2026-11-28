@@ -17,9 +17,15 @@ data class AperturasUiState(
     val aperturas: Int = 0,
     val meta: Int = 2,
     val riesgo: RiesgoAbandono = RiesgoAbandono.SIN_RIESGO,
-    val riesgoDescartado: Boolean = false
+    val riesgoDescartado: Boolean = false,
+    val pendientes: Int = 0,
+    val cargado: Boolean = false
 ) {
-    val mostrarRecordatorio: Boolean get() = aperturas < meta
+    val mensaje: String get() = when {
+        aperturas >= meta -> "Meta cumplida. Gracias por mantener al día a tus estudiantes."
+        meta - aperturas == 1 -> "Vuelve a abrir la app una vez más esta semana para seguir el avance de tus estudiantes."
+        else -> "Abre la app ${meta - aperturas} veces esta semana para seguir el avance de tus estudiantes."
+    }
     val mostrarRiesgo: Boolean get() = riesgo.enRiesgo && !riesgoDescartado
 }
 
@@ -29,8 +35,8 @@ class AperturasViewModel(app: Application) : AndroidViewModel(app) {
     private val riesgoDescartado = MutableStateFlow(false)
 
     val uiState: StateFlow<AperturasUiState> =
-        combine(repo.observarSemana(), riesgo, riesgoDescartado) { aperturas, nivel, descartado ->
-            AperturasUiState(aperturas = aperturas, riesgo = nivel, riesgoDescartado = descartado)
+        combine(repo.observarSemana(), repo.observarPendientes(), riesgo, riesgoDescartado) { aperturas, pendientes, nivel, descartado ->
+            AperturasUiState(aperturas = aperturas, riesgo = nivel, riesgoDescartado = descartado, pendientes = pendientes, cargado = true)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AperturasUiState())
 
     init {
@@ -50,5 +56,9 @@ class AperturasViewModel(app: Application) : AndroidViewModel(app) {
 
     fun descartarRiesgo() {
         riesgoDescartado.value = true
+    }
+
+    fun enviarPendientes() {
+        viewModelScope.launch { runCatching { repo.sincronizarPendientes() } }
     }
 }
