@@ -54,7 +54,8 @@ internal const val REPORTE_GUIAS = 9
 internal const val REPORTE_MAPA_ASISTENCIA = 10
 internal const val REPORTE_FALLOS = 11
 internal const val REPORTE_NIVELES = 12
-private val REPORTES = listOf("Uso semanal", "Sincronización", "Clasificación", "Horas", "Actividades", "Conflictos", "Escaneo", "Evaluaciones", "Revisión", "Guías", "Asistencia", "Fallos", "Niveles")
+internal const val REPORTE_EN_RIESGO = 13
+private val REPORTES = listOf("Uso semanal", "Sincronización", "Clasificación", "Horas", "Actividades", "Conflictos", "Escaneo", "Evaluaciones", "Revisión", "Guías", "Asistencia", "Fallos", "Niveles", "En riesgo")
 
 @Composable
 fun AdminHomeScreen(
@@ -118,6 +119,7 @@ fun AdminHomeScreen(
                         REPORTE_MAPA_ASISTENCIA -> ReporteMapaAsistenciaSection()
                         REPORTE_FALLOS -> ReporteFallosSection()
                         REPORTE_NIVELES -> ReporteNivelesSection()
+                        REPORTE_EN_RIESGO -> ReporteDocentesEnRiesgoSection()
                         else -> ReporteConflictosSection(estado, viewModel::cambiarSemanaConflictos, viewModel::actualizarConflictos)
                     }
                 }

@@ -19,6 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.data.remote.CloudFunctionsApi.FilaReporte
+import com.enad.enadmovil.screens.teacher.AvisoDatosGuardados
 import com.enad.enadmovil.ui.components.EnadPanel
 import com.enad.enadmovil.ui.components.EnadProgress
 import com.enad.enadmovil.ui.theme.ControlShape
@@ -37,6 +38,9 @@ fun ReporteSincronizacionSection(viewModel: ReporteSincronizacionViewModel = vie
             cargando = estado.cargando,
             onActualizar = viewModel::actualizar
         )
+        estado.guardadoEn?.let {
+            if (estado.reporte != null) AvisoDatosGuardados(it, onActualizar = viewModel::actualizar, titulo = "Reporte guardado")
+        }
         val carga: Carga<CloudFunctionsApi.ReporteSincronizacion?> = when {
             estado.cargando -> Carga.Cargando
             estado.error != null -> Carga.Fallo(estado.error.orEmpty())
@@ -95,7 +99,7 @@ private fun FilaDesglose(fila: FilaReporte) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            Text("${nombrePlataforma(fila.plataforma)} · ${fila.version.orEmpty()}", style = MaterialTheme.typography.labelMedium)
+            Text(listOfNotNull(nombrePlataforma(fila.plataforma), fila.version).joinToString(" · "), style = MaterialTheme.typography.labelMedium)
             Text(
                 if (fila.conectividad == "offline") "Creadas sin conexión" else "Creadas con conexión",
                 style = MaterialTheme.typography.bodyMedium

@@ -4,7 +4,17 @@ import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.data.cache.CacheMemoria
 import com.enad.enadmovil.data.local.ArchivoRespuestas
 import com.enad.enadmovil.data.local.Lectura
+import com.enad.enadmovil.domain.model.DocentesEnRiesgo
+import com.enad.enadmovil.domain.model.RiesgoAbandono
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * Repository de los reportes del admin (pestaña Reportes). Los endpoints exigen rol admin:
@@ -24,17 +34,38 @@ class ReportesRepository(
         fun limpiarCache() = cache.limpiar()
     }
     /** BQ tipo 1: sesiones de agrupación que no se sincronizaron en 24 h. */
-    suspend fun sincronizacionAgrupaciones(forzar: Boolean = false): CloudFunctionsApi.ReporteSincronizacion =
-        cache.obtenerOCargar("sincronización", forzar) { CloudFunctionsApi.reporteSesionesAgrupacion(token()) }
+    suspend fun sincronizacionAgrupaciones(forzar: Boolean = false): Lectura<CloudFunctionsApi.ReporteSincronizacion> {
+        val lectura = cache.obtenerOCargar("sincronización", forzar) {
+            conCopia("sincronizacion", { CloudFunctionsApi.reporteSesionesAgrupacionJson(token()) }, CloudFunctionsApi::sincronizacionDeJson)
+        }
+        if (lectura.guardadoEn != null) cache.invalidar("sincronización")
+        return lectura
+    }
 
     /** BQ #9: minutos por cada 25 estudiantes, por institución y docente. null = las dos materias. */
     suspend fun tiempoClasificacion(materia: String?, forzar: Boolean = false): List<CloudFunctionsApi.InstitucionClasificacion> =
         cache.obtenerOCargar("clasificacion:${materia ?: "todas"}", forzar) { CloudFunctionsApi.reporteClasificacion(token(), materia) }
 
     /** BQ #6: docentes que abrieron la app más de una vez en la semana (lunes yyyy-MM-dd; null = la actual). */
-    suspend fun aperturas(semana: String?, forzar: Boolean = false): CloudFunctionsApi.ReporteAperturas =
-        cache.obtenerOCargar(clave = "aperturas:${semana ?: "actual"}",
-            forzar = forzar, vence = { it.provisional }) { CloudFunctionsApi.reporteAperturas(token(), semana) }
+    suspend fun aperturas(semana: String?, forzar: Boolean = false): Lectura<CloudFunctionsApi.ReporteAperturas> {
+        val clave = "aperturas:${semana ?: "actual"}"
+        val lectura = cache.obtenerOCargar<Lectura<CloudFunctionsApi.ReporteAperturas>>(clave = clave, forzar = forzar, vence = { it.datos.provisional }) {
+            conCopia("aperturas_${semana ?: "actual"}", { CloudFunctionsApi.reporteAperturasJson(token(), semana) }, CloudFunctionsApi::aperturasDeJson)
+        }
+        if (lectura.guardadoEn != null) cache.invalidar(clave)
+        return lectura
+    }
+
+    private suspend fun <T> conCopia(nombre: String, pedir: suspend () -> JSONObject, convertir: (JSONObject) -> T): Lectura<T> {
+        val almacen = archivo ?: return Lectura(convertir(pedir()))
+        return almacen.conRespaldo(
+            uid = auth.uidActual(),
+            nombre = nombre,
+            esRechazo = { it is CloudFunctionsApi.ApiException && it.status in 400..499 },
+            pedir = { pedir().toString() },
+            convertir = { convertir(JSONObject(it)) }
+        )
+    }
 
     /** Horas planeadas y realizadas por semana, y cuántos días se aceptó la sugerencia. */
     suspend fun horas(forzar: Boolean = false): List<CloudFunctionsApi.SemanaHoras> =
@@ -97,6 +128,32 @@ class ReportesRepository(
             pedir = { pedir().toString() },
             convertir = { CloudFunctionsApi.fallosDeJson(JSONObject(it)) }
         )
+    }
+
+    suspend fun docentesEnRiesgo(forzar: Boolean = false): Lectura<DocentesEnRiesgo> {
+        val lunes = LocalDate.now(ZoneId.of("America/Bogota")).with(DayOfWeek.MONDAY)
+        val semanas = (RiesgoAbandono.SEMANAS_BASE + 1 downTo 1).map { lunes.minusWeeks(it.toLong()).toString() }
+        val clave = "riesgo:${semanas.last()}"
+        val lectura = cache.obtenerOCargar(clave, forzar) { leerDocentesEnRiesgo(semanas) }
+        if (lectura.guardadoEn != null) cache.invalidar(clave)
+        return lectura
+    }
+
+    private suspend fun leerDocentesEnRiesgo(semanas: List<String>): Lectura<DocentesEnRiesgo> {
+        val almacen = archivo ?: return Lectura(calcularDocentesEnRiesgo(semanas))
+        return almacen.conRespaldo(
+            uid = auth.uidActual(),
+            nombre = "riesgo",
+            esRechazo = { it is CloudFunctionsApi.ApiException && it.status in 400..499 },
+            pedir = { calcularDocentesEnRiesgo(semanas).aJson() },
+            convertir = DocentesEnRiesgo::deJson
+        )
+    }
+
+    private suspend fun calcularDocentesEnRiesgo(semanas: List<String>): DocentesEnRiesgo = coroutineScope {
+        val token = token()
+        val respuestas = semanas.map { semana -> async { CloudFunctionsApi.aperturasPorDocente(token, semana) } }.awaitAll()
+        withContext(Dispatchers.Default) { DocentesEnRiesgo.calcular(semanas.last(), respuestas) }
     }
 
     suspend fun instituciones(busqueda: String = "", forzar: Boolean = false): List<CloudFunctionsApi.EscuelaAdmin> =

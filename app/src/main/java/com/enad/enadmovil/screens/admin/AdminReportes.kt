@@ -76,6 +76,9 @@ fun ReporteAperturasSection(estado: AdminUiState, onCambiarSemana: (Long) -> Uni
             cargando = estado.aperturas is Carga.Cargando,
             onActualizar = onActualizar
         )
+        estado.aperturasGuardadoEn?.let {
+            if (estado.aperturas is Carga.Lista) AvisoDatosGuardados(it, onActualizar = onActualizar, titulo = "Reporte guardado")
+        }
         SelectorSemana(estado.semanaAperturas, onCambiarSemana)
         ContenidoCarga(estado.aperturas, vacio = { false }, textoVacio = "") { r ->
             val fraccion = if (r.docentes == 0) 0.0 else r.docentesMasDeUna.toDouble() / r.docentes
@@ -84,7 +87,10 @@ fun ReporteAperturasSection(estado: AdminUiState, onCambiarSemana: (Long) -> Uni
                     Column(Modifier.weight(1f)) {
                         Text("Abrieron la app más de una vez", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            if (r.docentes == 0) "Ningún docente abrió la app esta semana."
+                            if (r.docentes == 0) {
+                                if (estado.semanaAperturas == lunesActual()) "Ningún docente ha abierto la app esta semana."
+                                else "Ningún docente abrió la app esa semana."
+                            }
                             else "${r.docentesMasDeUna} de ${r.docentes} docentes",
                             style = MaterialTheme.typography.bodyMedium
                         )

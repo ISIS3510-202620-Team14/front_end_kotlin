@@ -21,6 +21,9 @@ interface AperturaDao {
     @Query("SELECT MAX(abiertaEn) FROM aperturas WHERE docenteUid = :uid")
     suspend fun ultimaApertura(uid: String): Long?
 
+    @Query("SELECT COUNT(*) FROM aperturas WHERE docenteUid = :uid AND syncStatus = 'PENDING'")
+    fun observarPendientes(uid: String): Flow<Int>
+
     @Query("SELECT * FROM aperturas WHERE docenteUid = :uid AND syncStatus = 'PENDING' ORDER BY abiertaEn")
     suspend fun pendientes(uid: String): List<AperturaEntity>
 

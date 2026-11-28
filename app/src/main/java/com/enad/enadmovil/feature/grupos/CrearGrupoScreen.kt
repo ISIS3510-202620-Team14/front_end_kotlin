@@ -45,6 +45,7 @@ import com.enad.enadmovil.ui.theme.EnadBackground
 import com.enad.enadmovil.ui.theme.EnadInk
 import com.enad.enadmovil.ui.theme.EnadLine
 import com.enad.enadmovil.ui.theme.EnadPrimary
+import com.enad.enadmovil.ui.theme.EnadSoftInk
 import com.enad.enadmovil.ui.theme.PanelShape
 
 val docentesDisponibles = listOf("Yo", "Prof. Nelson", "Prof. Marina", "Sin asignar")
@@ -105,6 +106,10 @@ fun CrearGrupoScreen(
                     error = errorNombre
                 )
                 Spacer(Modifier.height(20.dp))
+                if (recomendacion == null) {
+                    Text("Calculando la recomendación…", style = typography.bodyMedium, color = EnadSoftInk)
+                    Spacer(Modifier.height(10.dp))
+                }
                 MetodoAgrupacionSelector(
                     seleccionado = metodo,
                     recomendacion = recomendacion,
