@@ -104,6 +104,10 @@ fun AdminResumenSection(estado: AdminUiState, onAbrirReporte: (Int) -> Unit, onA
             carga = estado.mapa,
             onClick = { onAbrirReporte(REPORTE_MAPA_ASISTENCIA) }
         )
+        EnadPanel(onClick = { onAbrirReporte(REPORTE_NIVELES) }) {
+            Text("Niveles por institución", style = MaterialTheme.typography.titleMedium)
+            Text("Qué porcentaje de evaluados sigue en Principiante y qué institución necesita más apoyo. Funciona sin internet.", style = MaterialTheme.typography.bodyMedium)
+        }
         EnadPanel(onClick = { onAbrirReporte(REPORTE_SINCRONIZACION) }) {
             Text("Sincronización y clasificación", style = MaterialTheme.typography.titleMedium)
             Text("Revisa las sesiones que no llegaron a tiempo y cuánto tarda cada docente en clasificar.", style = MaterialTheme.typography.bodyMedium)
