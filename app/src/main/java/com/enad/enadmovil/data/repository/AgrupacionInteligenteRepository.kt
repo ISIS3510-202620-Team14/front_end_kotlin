@@ -1,6 +1,8 @@
 package com.enad.enadmovil.data.repository
 
 import android.content.Context
+import android.util.Log
+import com.enad.enadmovil.data.cache.CacheRecomendaciones
 import com.enad.enadmovil.data.local.AppDatabase
 import com.enad.enadmovil.data.local.entity.EventoAgrupacionEntity
 import com.enad.enadmovil.data.local.entity.SyncStatus
@@ -34,6 +36,7 @@ class AgrupacionInteligenteRepository(context: Context) {
                 creadoEn = System.currentTimeMillis()
             )
         )
+        cache.invalidar(area.clave)
         SyncScheduler.programar(appContext)
     }
 
@@ -43,6 +46,11 @@ class AgrupacionInteligenteRepository(context: Context) {
      */
     suspend fun recomendar(area: AreaMateria, tamano: Int): Recomendacion {
         val materia = area.clave
+        cache.obtener(materia, tamano)?.let {
+            anotar("ACIERTO", materia, tamano)
+            return it
+        }
+        anotar("FALLO", materia, tamano)
         val locales = auth.uidActual()?.let { dao.eventos(it, materia) }.orEmpty()
         val remotos = runCatching {
             val token = auth.obtenerToken() ?: error("sin sesión")
@@ -56,7 +64,9 @@ class AgrupacionInteligenteRepository(context: Context) {
         } else {
             locales.mapNotNull { it.aEvento() }
         }
-        return RecomendadorAgrupacion.recomendar(eventos, materia, tamano)
+        val recomendacion = RecomendadorAgrupacion.recomendar(eventos, materia, tamano)
+        if (remotos != null) cache.guardar(materia, tamano, recomendacion)
+        return recomendacion
     }
 
     suspend fun sincronizarPendientes(): Boolean {
@@ -82,4 +92,15 @@ class AgrupacionInteligenteRepository(context: Context) {
 
     private fun EventoAgrupacionEntity.aEvento(): EventoAgrupacion? =
         MetodoAgrupacion.deClave(method)?.let { EventoAgrupacion(subject, classSize, it) }
+
+    private fun anotar(evento: String, materia: String, tamano: Int) {
+        Log.d(TAG, "$evento $materia tamaño $tamano (aciertos ${cache.aciertos}, fallos ${cache.fallos}, ${cache.tamanos(materia)} tamaños guardados)")
+    }
+
+    companion object {
+        private const val TAG = "CacheRecomendaciones"
+        private val cache = CacheRecomendaciones()
+
+        fun limpiarCache() = cache.limpiar()
+    }
 }
