@@ -65,6 +65,7 @@ class NivelesRepository(
         var hechas = 0
         var fallidas = 0
         var sqliteNanos = 0L
+        var conteoNanos = 0L // tiempo total contando, para medir la micro-optimización del conteo
 
         // CACHING: caché y, si no hay o venció, red
         suspend fun cacheORed(clave: String, etiqueta: String, pedir: suspend () -> String): String {
@@ -90,7 +91,9 @@ class NivelesRepository(
                 val cuerpo = cacheORed("${uid}_estudiantes_${escuela.id}", escuela.nombre) { red.estudiantesJson(escuela.id) }
                 val conteo = System.nanoTime()
                 val conteos = contar(cuerpo)
-                registro("Dispatchers.Default: ${escuela.nombre} contada en ${(System.nanoTime() - conteo) / 1_000_000} ms")
+                val conteoTardo = System.nanoTime() - conteo
+                conteoNanos += conteoTardo
+                registro("Dispatchers.Default: ${escuela.nombre} contada en ${conteoTardo / 1_000} µs (${cuerpo.length / 1024} KB de JSON)")
                 val sqlite = System.nanoTime()
                 dao.guardarInstitucion(uid, escuela.id, escuela.nombre, conteos, iniciadaEn)
                 sqliteNanos += System.nanoTime() - sqlite
@@ -117,7 +120,7 @@ class NivelesRepository(
         )
         registro(
             "TOTAL: ${resultado.total} instituciones en ${resultado.ms} ms · peticiones=${resultado.peticiones} · " +
-                "desde caché=${resultado.desdeCache} · SQLite=${"%.1f".format(resultado.sqliteMs)} ms · fallidas=${resultado.fallidas}"
+                "desde caché=${resultado.desdeCache} · conteo=${conteoNanos / 1_000} µs · SQLite=${"%.1f".format(resultado.sqliteMs)} ms · fallidas=${resultado.fallidas}"
         )
         return resultado
     }
