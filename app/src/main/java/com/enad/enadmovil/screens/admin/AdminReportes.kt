@@ -108,14 +108,16 @@ fun ReporteAperturasSection(estado: AdminUiState, onCambiarSemana: (Long) -> Uni
 
 /** Reporte "Horas": horas planeadas y realizadas por semana, y cuántas veces se aceptó la sugerencia. */
 @Composable
-fun ReporteHorasSection(estado: AdminUiState, onActualizar: () -> Unit, onExportar: () -> Unit, onAvisoMostrado: () -> Unit) {
+fun ReporteHorasSection(estado: AdminUiState, onActualizar: () -> Unit, onExportar: () -> Unit, onAvisoMostrado: () -> Unit, onCerrarVistaPrevia: () -> Unit) {
     val context = LocalContext.current
     LaunchedEffect(estado.avisoCsv) {
         estado.avisoCsv?.let {
             Toast.makeText(context, it, Toast.LENGTH_LONG).show()
-            estado.csvExportado?.let { archivo -> compartirCsv(context, archivo) }
             onAvisoMostrado()
         }
+    }
+    estado.vistaPreviaCsv?.let { vista ->
+        VistaPreviaCsvHoras(vista, onCompartir = { compartirCsv(context, vista.archivo) }, onCerrar = onCerrarVistaPrevia)
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         EncabezadoReporte(

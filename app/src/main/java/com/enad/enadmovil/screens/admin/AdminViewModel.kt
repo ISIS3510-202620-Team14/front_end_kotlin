@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.enad.enadmovil.data.local.ArchivoRespuestas
 import com.enad.enadmovil.data.local.CsvGuardado
 import com.enad.enadmovil.data.local.ReporteHorasCsv
+import com.enad.enadmovil.data.local.VistaPreviaCsv
 import com.enad.enadmovil.data.remote.CloudFunctionsApi
 import com.enad.enadmovil.data.repository.AuthRepository
 import com.enad.enadmovil.data.repository.MapaAsistenciaRepository
@@ -20,7 +21,6 @@ import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.json.JSONException
-import java.io.File
 import java.io.IOException
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -41,7 +41,7 @@ data class AdminUiState(
     val horas: Carga<List<CloudFunctionsApi.SemanaHoras>> = Carga.Cargando,
     val csvHoras: CsvGuardado? = null,
     val avisoCsv: String? = null,
-    val csvExportado: File? = null,
+    val vistaPreviaCsv: VistaPreviaCsv? = null,
     val actividades: Carga<CloudFunctionsApi.TopActividades> = Carga.Cargando,
     val evaluaciones: Carga<CloudFunctionsApi.EvaluacionesPorGrado> = Carga.Cargando,
     val evaluacionesGuardadoEn: Long? = null,
@@ -135,16 +135,19 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
         val uid = auth.uidActual() ?: return
         viewModelScope.launch {
             val exportado = runCatching { csv.exportar(uid) }.getOrNull()
+            val vista = exportado?.let { runCatching { csv.vistaPrevia(it) }.getOrNull() }
             val aviso = when {
                 exportado == null -> "No se pudo exportar el CSV"
                 exportado.externo -> "CSV exportado a Documentos: ${exportado.archivo.name}"
                 else -> "Sin almacenamiento externo, el CSV quedó guardado en la app"
             }
-            _uiState.update { it.copy(avisoCsv = aviso, csvExportado = exportado?.archivo) }
+            _uiState.update { it.copy(avisoCsv = aviso, vistaPreviaCsv = vista) }
         }
     }
 
-    fun avisoCsvMostrado() = _uiState.update { it.copy(avisoCsv = null, csvExportado = null) }
+    fun avisoCsvMostrado() = _uiState.update { it.copy(avisoCsv = null) }
+
+    fun cerrarVistaPreviaCsv() = _uiState.update { it.copy(vistaPreviaCsv = null) }
 
     fun cargarActividades(forzar: Boolean = false) {
         _uiState.update { it.copy(actividades = Carga.Cargando) }

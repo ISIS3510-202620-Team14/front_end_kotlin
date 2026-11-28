@@ -16,6 +16,8 @@ data class CsvGuardado(val archivo: File, val guardadoEn: Long)
 
 data class CsvExportado(val archivo: File, val externo: Boolean)
 
+data class VistaPreviaCsv(val archivo: File, val externo: Boolean, val texto: String, val filas: List<List<String>>)
+
 class ReporteHorasCsv(
     private val carpeta: File,
     private val carpetaExterna: () -> File?
@@ -54,6 +56,11 @@ class ReporteHorasCsv(
         CsvExportado(copia, externo = true)
     }
 
+    suspend fun vistaPrevia(exportado: CsvExportado): VistaPreviaCsv = withContext(Dispatchers.IO) {
+        val texto = exportado.archivo.readText(Charsets.UTF_8)
+        VistaPreviaCsv(exportado.archivo, exportado.externo, texto, filasCsv(texto))
+    }
+
     companion object {
         const val CARPETA = "reporte_horas"
         private val DIA = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneId.of("America/Bogota"))
@@ -81,5 +88,8 @@ internal fun csvHoras(semanas: List<CloudFunctionsApi.SemanaHoras>): String = bu
         append("\r\n")
     }
 }
+
+internal fun filasCsv(texto: String): List<List<String>> =
+    texto.lineSequence().filter { it.isNotBlank() }.map { it.split(",") }.toList()
 
 private fun numero(valor: Double) = String.format(Locale.ROOT, "%.1f", valor)

@@ -109,7 +109,7 @@ fun AdminHomeScreen(
                         REPORTE_APERTURAS -> ReporteAperturasSection(estado, viewModel::cambiarSemanaAperturas, viewModel::actualizarAperturas)
                         REPORTE_SINCRONIZACION -> ReporteSincronizacionSection()
                         REPORTE_CLASIFICACION -> ReporteClasificacionSection()
-                        REPORTE_HORAS -> ReporteHorasSection(estado, viewModel::actualizarHoras, viewModel::exportarCsvHoras, viewModel::avisoCsvMostrado)
+                        REPORTE_HORAS -> ReporteHorasSection(estado, viewModel::actualizarHoras, viewModel::exportarCsvHoras, viewModel::avisoCsvMostrado, viewModel::cerrarVistaPreviaCsv)
                         REPORTE_ACTIVIDADES -> ReporteActividadesSection(estado, viewModel::actualizarActividades)
                         REPORTE_ESCANEO -> ReporteEscaneoSection()
                         REPORTE_EVALUACIONES -> ReporteEvaluacionesSection(estado, viewModel::actualizarEvaluaciones)
