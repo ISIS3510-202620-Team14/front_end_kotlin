@@ -61,10 +61,7 @@ class ReporteClasificacionViewModel(
 
     private var refresco: Job? = null
 
-    /**
-     * Mientras el reporte está visible se recarga al aparecer y luego cada [REFRESCO_MS], así el
-     * admin ve las sesiones que los docentes van mandando sin tocar Actualizar.
-     */
+    
     fun iniciarRefresco() {
         if (refresco?.isActive == true) return
         refresco = viewModelScope.launch {
@@ -85,7 +82,7 @@ class ReporteClasificacionViewModel(
         cargar()
     }
 
-    /** [silencioso]: si ya hay datos en pantalla no se muestra el spinner ni se cambian por un error. */
+    /**si ya hay datos en pantalla no se muestra el spinner ni se cambian por un error. */
     fun cargar(forzar: Boolean = false, silencioso: Boolean = false) {
         val materia = _uiState.value.materia
         val conDatos = _uiState.value.let { !it.cargando && it.error == null }
@@ -108,9 +105,9 @@ class ReporteClasificacionViewModel(
             } catch (e: Exception) {
                 ReporteClasificacionUiState(cargando = false, materia = materia, error = "No se pudo cargar el reporte. Revisa tu conexión e intenta de nuevo.")
             }
-            // Si el admin cambió de materia mientras cargaba, esta respuesta ya no aplica
+           
             if (_uiState.value.materia != materia) return@launch
-            // Un refresco automático que falla deja lo que ya se veía
+     
             if (enSegundoPlano && nuevo.error != null) return@launch
             _uiState.value = nuevo
         }
