@@ -76,6 +76,9 @@ fun ReporteAperturasSection(estado: AdminUiState, onCambiarSemana: (Long) -> Uni
             cargando = estado.aperturas is Carga.Cargando,
             onActualizar = onActualizar
         )
+        estado.aperturasGuardadoEn?.let {
+            if (estado.aperturas is Carga.Lista) AvisoDatosGuardados(it, onActualizar = onActualizar, titulo = "Reporte guardado")
+        }
         SelectorSemana(estado.semanaAperturas, onCambiarSemana)
         ContenidoCarga(estado.aperturas, vacio = { false }, textoVacio = "") { r ->
             val fraccion = if (r.docentes == 0) 0.0 else r.docentesMasDeUna.toDouble() / r.docentes

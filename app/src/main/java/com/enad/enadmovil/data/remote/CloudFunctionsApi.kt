@@ -107,16 +107,17 @@ object CloudFunctionsApi {
     )
 
     /** GET /appOpens/report (admin only): teachers that opened the app more than once in a week. */
-    suspend fun reporteAperturas(token: String, semana: String? = null): ReporteAperturas {
+    suspend fun reporteAperturasJson(token: String, semana: String? = null): JSONObject {
         val ruta = if (semana != null) "/report?week=$semana" else "/report"
-        val json = solicitar("GET", ruta, token, null, OPENS_URL)
-        return ReporteAperturas(
-            semana = json.getString("week"),
-            docentes = json.getInt("teachers"),
-            docentesMasDeUna = json.getInt("teachersOverOnce"),
-            provisional = json.optBoolean("provisional", false)
-        )
+        return solicitar("GET", ruta, token, null, OPENS_URL)
     }
+
+    fun aperturasDeJson(json: JSONObject) = ReporteAperturas(
+        semana = json.getString("week"),
+        docentes = json.getInt("teachers"),
+        docentesMasDeUna = json.getInt("teachersOverOnce"),
+        provisional = json.optBoolean("provisional", false)
+    )
 
     suspend fun aperturasPorDocente(token: String, semana: String): List<AperturasDocente> {
         val arreglo = solicitar("GET", "/teachers?week=$semana", token, null, OPENS_URL).optJSONArray("teachers")
@@ -417,8 +418,10 @@ object CloudFunctionsApi {
     data class ReporteSincronizacion(val semanas: List<FilaReporte>, val filas: List<FilaReporte>)
 
     /** GET /groupings/report (solo admin): % de sesiones que no llegaron en 24 h o terminaron en error. */
-    suspend fun reporteSesionesAgrupacion(token: String): ReporteSincronizacion {
-        val json = solicitar("GET", "/report", token, null, GROUPINGS_URL)
+    suspend fun reporteSesionesAgrupacionJson(token: String): JSONObject =
+        solicitar("GET", "/report", token, null, GROUPINGS_URL)
+
+    fun sincronizacionDeJson(json: JSONObject): ReporteSincronizacion {
         fun filas(nombre: String): List<FilaReporte> {
             val arreglo = json.getJSONArray(nombre)
             return List(arreglo.length()) { aFilaReporte(arreglo.getJSONObject(it)) }

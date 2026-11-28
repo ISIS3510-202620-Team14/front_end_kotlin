@@ -38,6 +38,7 @@ val <T> Carga<T>.datos: T? get() = (this as? Carga.Lista<T>)?.datos
 data class AdminUiState(
     val semanaAperturas: LocalDate = lunesActual(),
     val aperturas: Carga<CloudFunctionsApi.ReporteAperturas> = Carga.Cargando,
+    val aperturasGuardadoEn: Long? = null,
     val horas: Carga<List<CloudFunctionsApi.SemanaHoras>> = Carga.Cargando,
     val csvHoras: CsvGuardado? = null,
     val avisoCsv: String? = null,
@@ -68,6 +69,7 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(AdminUiState())
     val uiState: StateFlow<AdminUiState> = _uiState.asStateFlow()
     private var busquedaJob: Job? = null
+    private val alVolverRed = AlVolverLaRed(application) { cargarAperturas(forzar = true) }
 
     init {
         recargar()
@@ -87,9 +89,15 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
         val semana = _uiState.value.semanaAperturas
         _uiState.update { it.copy(aperturas = Carga.Cargando) }
         viewModelScope.launch {
-            val resultado = consultar { repo.aperturas(semana.toString(), forzar) }
+            var guardadoEn: Long? = null
+            val resultado = consultar {
+                val lectura = repo.aperturas(semana.toString(), forzar)
+                guardadoEn = lectura.guardadoEn
+                lectura.datos
+            }
+            if (resultado is Carga.Fallo || guardadoEn != null) alVolverRed.esperando = true
             // Si el admin cambió de semana mientras cargaba, esta respuesta ya no aplica
-            if (_uiState.value.semanaAperturas == semana) _uiState.update { it.copy(aperturas = resultado) }
+            if (_uiState.value.semanaAperturas == semana) _uiState.update { it.copy(aperturas = resultado, aperturasGuardadoEn = guardadoEn) }
         }
     }
 
@@ -215,6 +223,10 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
     fun actualizarActividades() = cargarActividades(forzar = true)
     fun actualizarConflictos() = cargarConflictos(forzar = true)
     fun actualizarEvaluaciones() = cargarEvaluaciones(forzar = true)
+
+    override fun onCleared() {
+        alVolverRed.cerrar()
+    }
 
     private suspend fun <T> consultar(bloque: suspend () -> T): Carga<T> =
         try {

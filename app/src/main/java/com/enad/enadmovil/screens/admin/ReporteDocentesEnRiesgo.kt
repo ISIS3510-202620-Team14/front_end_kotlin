@@ -40,6 +40,7 @@ class ReporteDocentesEnRiesgoViewModel(application: Application) : AndroidViewMo
 
     private val _uiState = MutableStateFlow(ReporteDocentesEnRiesgoUiState())
     val uiState: StateFlow<ReporteDocentesEnRiesgoUiState> = _uiState.asStateFlow()
+    private val alVolverRed = AlVolverLaRed(application) { cargar(forzar = true) }
 
     init {
         cargar()
@@ -60,11 +61,16 @@ class ReporteDocentesEnRiesgoViewModel(application: Application) : AndroidViewMo
             } catch (e: JSONException) {
                 Carga.Fallo("No se pudo leer la respuesta. Revisa tu conexión e intenta de nuevo.")
             }
+            if (resultado is Carga.Fallo || guardadoEn != null) alVolverRed.esperando = true
             _uiState.update { it.copy(reporte = resultado, guardadoEn = guardadoEn) }
         }
     }
 
     fun actualizar() = cargar(forzar = true)
+
+    override fun onCleared() {
+        alVolverRed.cerrar()
+    }
 }
 
 @Composable
